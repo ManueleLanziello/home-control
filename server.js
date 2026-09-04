@@ -12,6 +12,7 @@ const PUBLIC_ROOT = path.join(ROOT, 'public');
 const ENV_FILE = path.join(ROOT, '.env');
 if (existsSync(ENV_FILE)) loadEnvFile(ENV_FILE);
 const PORT = Number(process.env.HOME_CONTROL_PORT || process.env.PORT || 3001);
+const HOST = process.env.HOME_CONTROL_HOST || '0.0.0.0';
 const HARDWARE_FILE = path.join(ROOT, 'data', 'config', 'hardware.json');
 const ROLE_FILE = path.join(ROOT, 'data', 'config', 'device-roles.json');
 
@@ -98,7 +99,7 @@ export function createHomeControlServer({
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
   const server = createHomeControlServer();
-  server.listen(PORT, '127.0.0.1', () => {
-    console.log(`Home Control disponibile su http://127.0.0.1:${PORT}`);
+  server.listen(PORT, HOST, () => {
+    console.log(`Home Control disponibile su http://${HOST}:${PORT}`);
   });
 }
