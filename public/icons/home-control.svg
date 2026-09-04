@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Home Control">
+  <rect width="512" height="512" rx="112" fill="#08111a"/>
+  <path d="M91 244 256 104l165 140v176a28 28 0 0 1-28 28H119a28 28 0 0 1-28-28V244Z" fill="#17c8f4" opacity=".18"/>
+  <path d="M91 244 256 104l165 140M137 220v200a28 28 0 0 0 28 28h182a28 28 0 0 0 28-28V220M218 448V326h76v122" fill="none" stroke="#17c8f4" stroke-linecap="round" stroke-linejoin="round" stroke-width="28"/>
+</svg>

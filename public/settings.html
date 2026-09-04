@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#050b12">
+  <meta name="application-name" content="Home Control">
+  <title>Impostazioni · Home Control</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icons/home-control.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main class="shell settings-shell">
+    <header class="hero settings-hero">
+      <a class="back-link" href="/" aria-label="Torna alla dashboard">← Dashboard</a>
+      <p class="eyebrow">HOME CONTROL</p>
+      <h1>Impostazioni</h1>
+      <p class="subtitle">Configurazione locale della casa intelligente</p>
+    </header>
+
+    <section class="settings-section" aria-labelledby="devices-heading">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">DISPOSITIVI</p>
+          <h2 id="devices-heading">Dispositivi</h2>
+        </div>
+      </div>
+      <div id="settings-status" class="empty-settings" aria-live="polite">
+        <strong>Nessun dispositivo configurato</strong>
+        <span>La gestione dei dispositivi verrà aggiunta in un passaggio successivo.</span>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="/settings.js"></script>
+  <script type="module" src="/pwa.js"></script>
+</body>
+</html>

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#050b12">
+  <meta name="application-name" content="Home Control">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Home Control</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icons/home-control.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="dashboard-body">
+  <main class="dashboard-shell">
+    <header class="dashboard-header">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">⌂</span>
+        <div>
+          <h1><span>HOME</span> CONTROL</h1>
+          <p>Gestione della casa intelligente</p>
+        </div>
+      </div>
+
+      <section class="system-status" aria-label="Stato sistema">
+        <span class="system-status-dot is-neutral" aria-hidden="true"></span>
+        <div>
+          <strong>Pronto per la configurazione</strong>
+          <span class="status-message">Nessun dispositivo configurato</span>
+        </div>
+      </section>
+
+      <a class="settings-link" href="/settings" aria-label="Apri impostazioni">Impostazioni</a>
+    </header>
+
+    <section class="empty-dashboard" aria-label="Stato dispositivi">
+      <span class="empty-dashboard-icon" aria-hidden="true">⌂</span>
+      <h2>Nessun dispositivo configurato</h2>
+      <p>Aggiungi i dispositivi dalle Impostazioni quando Home Control sarà pronto.</p>
+      <a class="primary-link" href="/settings">Apri Impostazioni</a>
+    </section>
+
+    <footer>
+      <span>Home Control · Fase iniziale</span>
+    </footer>
+  </main>
+  <script type="module" src="/pwa.js"></script>
+</body>
+</html>

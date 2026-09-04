@@ -1,0 +1,20 @@
+{
+  "id": "/home-control",
+  "name": "Home Control",
+  "short_name": "Home Control",
+  "lang": "it",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#050b12",
+  "background_color": "#050b12",
+  "icons": [
+    {
+      "src": "/icons/home-control.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
