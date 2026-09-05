@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="926 105 2214 2306" role="img" aria-labelledby="floorplan-title floorplan-description">
+  <title id="floorplan-title">Planimetria Home Control</title>
+  <desc id="floorplan-description">Base grafica statica della casa con muri e aperture in stile neon.</desc>
+  <defs>
+    <filter id="wallGlow" x="-8%" y="-8%" width="116%" height="116%">
+      <feDropShadow dx="0" dy="0" stdDeviation="5" flood-color="#8fe6ff" flood-opacity=".6"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="12" flood-color="#1bb8ff" flood-opacity=".22"/>
+    </filter>
+    <filter id="cyanGlow" x="-90%" y="-90%" width="280%" height="280%">
+      <feDropShadow dx="0" dy="0" stdDeviation="5" flood-color="#12ddff" flood-opacity=".95"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="14" flood-color="#02a8ff" flood-opacity=".55"/>
+    </filter>
+    <filter id="greenGlow" x="-90%" y="-90%" width="280%" height="280%">
+      <feDropShadow dx="0" dy="0" stdDeviation="5" flood-color="#32ff80" flood-opacity=".95"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="17" flood-color="#00d85f" flood-opacity=".55"/>
+    </filter>
+    <filter id="blueGlow" x="-90%" y="-90%" width="280%" height="280%">
+      <feDropShadow dx="0" dy="0" stdDeviation="5" flood-color="#1e8dff" flood-opacity=".95"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="14" flood-color="#006dff" flood-opacity=".58"/>
+    </filter>
+    <filter id="entryGlow" x="-90%" y="-90%" width="280%" height="280%">
+      <feDropShadow dx="0" dy="0" stdDeviation="5" flood-color="#ffd84d" flood-opacity=".95"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="18" flood-color="#ff8a00" flood-opacity=".7"/>
+    </filter>
+    <radialGradient id="roomShade" cx="50%" cy="50%" r="68%">
+      <stop offset="0" stop-color="#082437" stop-opacity=".5"/>
+      <stop offset="1" stop-color="#020a12" stop-opacity=".18"/>
+    </radialGradient>
+  </defs>
+  <style>
+    .room-fill { fill: url(#roomShade); stroke: none; }
+    .wall { fill: none; stroke: #d8f5ff; stroke-width: 9; stroke-linejoin: round; filter: url(#wallGlow); }
+    .inner-wall { fill: none; stroke: #bfefff; stroke-width: 7; stroke-linejoin: round; filter: url(#wallGlow); opacity: .92; }
+    .opening-base { stroke: #04131f; stroke-width: 7; stroke-linejoin: round; }
+    .window { fill: #37ff83; filter: url(#greenGlow); }
+    .door-window { fill: #13dfff; filter: url(#cyanGlow); }
+    .door { fill: #167dff; filter: url(#blueGlow); }
+    .entry { fill: #ffc424; filter: url(#entryGlow); }
+  </style>
+  <rect class="room-fill" x="954.5" y="137.5" width="1091" height="883"/>
+  <rect class="room-fill" x="2070.5" y="137.5" width="1039" height="883"/>
+  <rect class="room-fill" x="954.5" y="1038.5" width="1091" height="1351"/>
+  <rect class="room-fill" x="2070.5" y="1038.5" width="346" height="571"/>
+  <rect class="room-fill" x="2435.5" y="1038.5" width="674" height="571"/>
+  <rect class="room-fill" x="2070.5" y="1627.5" width="1039" height="762"/>
+  <rect class="room-fill" x="1802.5" y="1930.5" width="241" height="459"/>
+
+  <rect class="wall" x="929.5" y="108.5" width="2207" height="2297"/>
+  <rect class="inner-wall" x="954.5" y="137.5" width="1091" height="883"/>
+  <rect class="inner-wall" x="2070.5" y="137.5" width="1039" height="883"/>
+  <rect class="inner-wall" x="954.5" y="1038.5" width="1091" height="1351"/>
+  <rect class="inner-wall" x="2070.5" y="1038.5" width="346" height="571"/>
+  <rect class="inner-wall" x="2435.5" y="1038.5" width="674" height="571"/>
+  <rect class="inner-wall" x="2070.5" y="1627.5" width="1039" height="762"/>
+  <rect class="inner-wall" x="1785.5" y="1910.5" width="260" height="479"/>
+  <rect class="inner-wall" x="1802.5" y="1930.5" width="241" height="459"/>
+
+  <rect class="opening-base door" x="1117.5" y="1020.5" width="260" height="15.9998"/>
+  <rect class="opening-base door" x="2110.5" y="1020.5" width="260" height="15.9998"/>
+  <rect class="opening-base door" x="2113.5" y="1611.5" width="260" height="16.9999"/>
+  <rect class="opening-base door" x="2416.5" y="1137.5" width="16.9998" height="260"/>
+  <rect class="opening-base door" x="2049.5" y="1137.5" width="16.0002" height="260"/>
+  <rect class="opening-base door" x="1786.5" y="1996.5" width="16.0001" height="260"/>
+
+  <rect class="opening-base entry" x="1496.5" y="2390.5" width="260" height="17.0002"/>
+
+  <rect class="opening-base door-window" x="929.5" y="494.5" width="25.0001" height="390"/>
+  <rect class="opening-base door-window" x="929.5" y="1153.5" width="25.0001" height="390"/>
+  <rect class="opening-base door-window" x="3111.5" y="1849.5" width="24.9998" height="390"/>
+  <rect class="opening-base door-window" x="3111.5" y="383.5" width="24.9998" height="390"/>
+
+  <rect class="opening-base window" x="929.5" y="1849.5" width="25.0001" height="390"/>
+  <rect class="opening-base window" x="1686.5" y="110.5" width="206" height="27.0002"/>
+  <rect class="opening-base window" x="3109.5" y="1211.5" width="26.9998" height="206"/>
+</svg>

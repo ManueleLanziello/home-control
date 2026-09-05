@@ -35,17 +35,28 @@
       <a class="settings-link" href="/settings" aria-label="Apri impostazioni">Impostazioni</a>
     </header>
 
-    <section class="empty-dashboard" aria-label="Stato dispositivi">
-      <span class="empty-dashboard-icon" aria-hidden="true">⌂</span>
-      <h2>Nessun dispositivo configurato</h2>
-      <p>Aggiungi i dispositivi dalle Impostazioni quando Home Control sarà pronto.</p>
-      <a class="primary-link" href="/settings">Apri Impostazioni</a>
+    <section class="floorplan-dashboard" aria-label="Planimetria appartamento">
+      <div class="floorplan-stage">
+        <img class="floorplan-base" src="/assets/floorplan/neon-floorplan.svg" alt="Planimetria grafica dell'appartamento">
+        <div class="floorplan-label-layer" aria-hidden="true" data-floorplan-labels></div>
+        <div class="floorplan-device-layer" data-floorplan-devices></div>
+      </div>
+
+      <div class="floorplan-legend" aria-label="Legenda planimetria">
+        <span><i class="legend-icon legend-icon--light" aria-hidden="true"></i>Luce</span>
+        <span><i class="legend-icon legend-icon--temperature" aria-hidden="true"></i>Temperatura</span>
+        <span><i class="legend-line legend-line--window" aria-hidden="true"></i>Finestra</span>
+        <span><i class="legend-line legend-line--door-window" aria-hidden="true"></i>Porta finestra</span>
+        <span><i class="legend-line legend-line--door" aria-hidden="true"></i>Porta interna</span>
+        <span><i class="legend-line legend-line--entry" aria-hidden="true"></i>Ingresso</span>
+      </div>
     </section>
 
     <footer>
-      <span>Home Control · Fase iniziale</span>
+      <span>Home Control · Planimetria statica</span>
     </footer>
   </main>
+  <script type="module" src="/js/dashboard.js"></script>
   <script type="module" src="/pwa.js"></script>
 </body>
 </html>

@@ -23,6 +23,8 @@ const STATIC_FILES = new Map([
   ['/settings.html', ['settings.html', 'text/html; charset=utf-8']],
   ['/settings.js', ['settings.js', 'text/javascript; charset=utf-8']],
   ['/style.css', ['style.css', 'text/css; charset=utf-8']],
+  ['/js/dashboard.js', ['js/dashboard.js', 'text/javascript; charset=utf-8']],
+  ['/assets/floorplan/neon-floorplan.svg', ['assets/floorplan/neon-floorplan.svg', 'image/svg+xml']],
   ['/pwa.js', ['pwa.js', 'text/javascript; charset=utf-8']],
   ['/service-worker.js', ['service-worker.js', 'text/javascript; charset=utf-8']],
   ['/manifest.webmanifest', ['manifest.webmanifest', 'application/manifest+json; charset=utf-8']],
