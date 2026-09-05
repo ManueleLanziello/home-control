@@ -36,10 +36,49 @@
     </header>
 
     <section class="floorplan-dashboard" aria-label="Planimetria appartamento">
-      <div class="floorplan-stage">
-        <img class="floorplan-base" src="/assets/floorplan/neon-floorplan.svg" alt="Planimetria grafica dell'appartamento">
-        <div class="floorplan-label-layer" aria-hidden="true" data-floorplan-labels></div>
-        <div class="floorplan-device-layer" data-floorplan-devices></div>
+      <div class="dashboard-map-grid">
+        <aside class="dashboard-side dashboard-side--left" aria-label="Dispositivi esterni sinistra">
+          <div class="external-light-slot" data-external-light-slot="external-light-garden"></div>
+
+          <article class="camera-card neon-card" aria-label="CAM Esterna">
+            <header class="widget-header">
+              <div class="widget-icon-slot" data-camera-icon></div>
+              <div>
+                <h2>CAM Esterna</h2>
+                <span class="static-status static-status--offline">Offline</span>
+              </div>
+            </header>
+            <div class="camera-preview" aria-label="Anteprima camera non disponibile">
+              <svg viewBox="0 0 64 64" aria-hidden="true">
+                <path d="M18 25h7l4-5h9l4 5h4a8 8 0 0 1 8 8v12a8 8 0 0 1-8 8H18a8 8 0 0 1-8-8V33a8 8 0 0 1 8-8Z"/>
+                <circle cx="32" cy="39" r="9"/>
+              </svg>
+              <span>Anteprima non disponibile</span>
+              <small>Nessuna camera configurata</small>
+            </div>
+          </article>
+        </aside>
+
+        <div class="floorplan-stage">
+          <img class="floorplan-base" src="/assets/floorplan/neon-floorplan.svg" alt="Planimetria grafica dell'appartamento">
+          <div class="floorplan-label-layer" aria-hidden="true" data-floorplan-labels></div>
+          <div class="floorplan-device-layer" data-floorplan-devices></div>
+        </div>
+
+        <aside class="dashboard-side dashboard-side--right" aria-label="Dispositivi esterni destra">
+          <article class="boiler-card neon-card" aria-label="CALDAIA">
+            <header class="widget-header">
+              <div class="widget-icon-slot" data-boiler-icon></div>
+              <div>
+                <h2>CALDAIA</h2>
+                <span class="static-status static-status--offline">Offline</span>
+              </div>
+            </header>
+            <div class="boiler-temperature-grid" data-boiler-temperatures></div>
+          </article>
+
+          <div class="external-light-slot" data-external-light-slot="external-light-courtyard"></div>
+        </aside>
       </div>
 
       <div class="floorplan-legend" aria-label="Legenda planimetria">

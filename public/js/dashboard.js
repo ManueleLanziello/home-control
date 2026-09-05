@@ -1,27 +1,77 @@
-const VIEWBOX = { x: 926, y: 105, width: 2214, height: 2306 };
+const FLOORPLAN_VIEWBOX = { x: 1763.5, y: 1736.5, width: 1656, height: 1723 };
+const REFERENCE_VIEWBOX = { x: 925, y: 1730, width: 3343, height: 1731 };
 
 const deviceOverlays = [
-  { id: 'temperature-cucina', type: 'temperature', room: 'Cucina', x: 3.184, y: 3.404, width: 11.698, height: 11.232, value: '22 °C' },
-  { id: 'temperature-camera-matrimoniale', type: 'temperature', room: 'Camera matrimoniale', x: 84.485, y: 3.274, width: 11.698, height: 11.232, value: '22 °C' },
-  { id: 'temperature-salotto', type: 'temperature', room: 'Salotto', x: 3.184, y: 86.535, width: 11.698, height: 11.232, value: '22 °C' },
-  { id: 'temperature-camera-ragazzi', type: 'temperature', room: 'Camera ragazzi', x: 84.53, y: 86.622, width: 11.698, height: 11.232, value: '22 °C' },
-  { id: 'light-cucina', type: 'light', room: 'Cucina', x: 20.393, y: 16.11, width: 11.698, height: 11.232 },
-  { id: 'light-camera-matrimoniale', type: 'light', room: 'Camera matrimoniale', x: 67.367, y: 15.633, width: 11.743, height: 11.232 },
-  { id: 'light-disimpegno', type: 'light', room: 'Disimpegno', x: 53.5, y: 47.203, width: 11.698, height: 11.232 },
-  { id: 'light-bagno', type: 'light', room: 'Bagno', x: 77.484, y: 47.203, width: 11.698, height: 11.232 },
-  { id: 'light-salotto', type: 'light', room: 'Salotto', x: 20.303, y: 63.075, width: 11.698, height: 11.232 },
-  { id: 'light-camera-ragazzi', type: 'light', room: 'Camera ragazzi', x: 67.502, y: 76.258, width: 11.698, height: 11.275 },
+  { id: 'temperature-cucina', type: 'temperature', room: 'Cucina', x: 3.08, y: 3.25, width: 11.715, height: 11.317, value: '22 °C' },
+  { id: 'temperature-camera-matrimoniale', type: 'temperature', room: 'Camera matrimoniale', x: 84.601, y: 3.25, width: 11.715, height: 11.317, value: '22 °C' },
+  { id: 'temperature-salotto', type: 'temperature', room: 'Salotto', x: 3.08, y: 86.709, width: 11.715, height: 11.259, value: '22 °C' },
+  { id: 'temperature-camera-ragazzi', type: 'temperature', room: 'Camera ragazzi', x: 84.601, y: 86.709, width: 11.715, height: 11.259, value: '22 °C' },
+  { id: 'light-cucina', type: 'light', room: 'Cucina', x: 20.35, y: 16.019, width: 11.715, height: 11.259 },
+  { id: 'light-camera-matrimoniale', type: 'light', room: 'Camera matrimoniale', x: 67.452, y: 15.554, width: 11.715, height: 11.259 },
+  { id: 'light-disimpegno', type: 'light', room: 'Disimpegno', x: 53.502, y: 47.243, width: 11.775, height: 11.259 },
+  { id: 'light-bagno', type: 'light', room: 'Bagno', x: 77.597, y: 47.243, width: 11.715, height: 11.259 },
+  { id: 'light-salotto', type: 'light', room: 'Salotto', x: 20.229, y: 63.146, width: 11.775, height: 11.317 },
+  { id: 'light-camera-ragazzi', type: 'light', room: 'Camera ragazzi', x: 67.572, y: 76.436, width: 11.775, height: 11.259 },
 ];
 
 const roomLabels = [
-  { id: 'label-cucina', name: 'Cucina', x: 39.2, y: 13.2, compact: false },
-  { id: 'label-camera-matrimoniale', name: 'Camera matrimoniale', x: 56.6, y: 12.8, compact: true },
-  { id: 'label-salotto', name: 'Salotto', x: 12.6, y: 30.8, compact: false },
-  { id: 'label-disimpegno', name: 'Disimpegno', x: 59.2, y: 62.4, compact: true },
-  { id: 'label-bagno', name: 'Bagno', x: 88.8, y: 36.2, compact: false },
-  { id: 'label-camera-ragazzi', name: 'Camera ragazzi', x: 64.2, y: 68.2, compact: true },
-  { id: 'label-sgabuzzino', name: 'Sgabuzzino', x: 43.8, y: 84.2, compact: true },
+  { id: 'label-cucina', name: 'Cucina', x: 34.8, y: 10.3, compact: false },
+  { id: 'label-camera-matrimoniale', name: 'Camera matrimoniale', x: 58.6, y: 10.2, compact: true },
+  { id: 'label-salotto', name: 'Salotto', x: 29.5, y: 50.1, compact: false },
+  { id: 'label-disimpegno', name: 'Disimpegno', x: 55.1, y: 62.4, compact: true },
+  { id: 'label-bagno', name: 'Bagno', x: 87.4, y: 40.4, compact: false },
+  { id: 'label-camera-ragazzi', name: 'Camera ragazzi', x: 68.8, y: 68.4, compact: true },
+  { id: 'label-sgabuzzino', name: 'Sgabuzzino', x: 43.5, y: 85.2, compact: true },
 ];
+
+const externalLights = [
+  { id: 'external-light-garden', title: 'Luce esterna', label: 'Giardino', sourceBox: { x: 9.767, y: 16.551, width: 5.803, height: 11.207 } },
+  { id: 'external-light-courtyard', title: 'Luce esterna', label: 'Cortile', sourceBox: { x: 83.832, y: 69.931, width: 5.803, height: 11.207 } },
+];
+
+const boilerTemperatures = [
+  { id: 'boiler-temp-flow', label: 'Mandata', value: '22 °C', sourceBox: { x: 78.777, y: 19.613, width: 5.803, height: 11.207 } },
+  { id: 'boiler-temp-return', label: 'Ritorno', value: '22 °C', sourceBox: { x: 85.387, y: 19.844, width: 5.803, height: 11.207 } },
+  { id: 'boiler-temp-dhw', label: 'ACS', value: '22 °C', sourceBox: { x: 92.178, y: 19.613, width: 5.803, height: 11.207 } },
+];
+
+function lightIcon(className = 'device-icon') {
+  return `
+    <svg class="${className}" viewBox="0 0 64 64" aria-hidden="true">
+      <path d="M20 29c0-7.2 5.5-13 12-13s12 5.8 12 13c0 4.2-1.9 7.1-4.4 10.3-1.8 2.3-2.9 4.2-3.3 6.7h-8.6c-.4-2.5-1.5-4.4-3.3-6.7C21.9 36.1 20 33.2 20 29Z"/>
+      <path d="M27 50h10M28.5 55h7"/>
+    </svg>
+  `;
+}
+
+function temperatureIcon(className = 'temperature-icon') {
+  return `
+    <svg class="${className}" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M10 14.2V5.5a2 2 0 1 1 4 0v8.7a4.4 4.4 0 1 1-4 0Z"/>
+      <path d="M12 7v8.7"/>
+    </svg>
+  `;
+}
+
+function cameraIcon() {
+  return `
+    <svg class="widget-icon widget-icon--camera" viewBox="0 0 64 64" aria-hidden="true">
+      <circle cx="32" cy="26" r="15"/>
+      <circle cx="32" cy="26" r="6"/>
+      <path d="M24 45h16M28 45l-4 9M36 45l4 9M24 54h16M32 11v-5"/>
+    </svg>
+  `;
+}
+
+function boilerIcon() {
+  return `
+    <svg class="widget-icon widget-icon--boiler" viewBox="0 0 64 64" aria-hidden="true">
+      <path d="M24 22h16a4 4 0 0 1 4 4v24H20V26a4 4 0 0 1 4-4Z"/>
+      <path d="M26 34h12M28 44h8M25 14c-3-4 3-6 0-10M33 14c-3-4 3-6 0-10M41 14c-3-4 3-6 0-10"/>
+      <circle cx="40" cy="34" r="1.8"/>
+    </svg>
+  `;
+}
 
 function setPercentBox(element, item) {
   element.style.setProperty('--x', `${item.x}%`);
@@ -37,12 +87,7 @@ function createLight(item) {
   element.setAttribute('aria-label', `Placeholder luce ${item.room}`);
   element.setAttribute('data-device-type', item.type);
   setPercentBox(element, item);
-  element.innerHTML = `
-    <svg class="device-icon" viewBox="0 0 64 64" aria-hidden="true">
-      <path d="M20 29c0-7.2 5.5-13 12-13s12 5.8 12 13c0 4.2-1.9 7.1-4.4 10.3-1.8 2.3-2.9 4.2-3.3 6.7h-8.6c-.4-2.5-1.5-4.4-3.3-6.7C21.9 36.1 20 33.2 20 29Z"/>
-      <path d="M27 50h10M28.5 55h7"/>
-    </svg>
-  `;
+  element.innerHTML = lightIcon();
   return element;
 }
 
@@ -53,17 +98,27 @@ function createTemperature(item) {
   element.setAttribute('aria-label', `Placeholder temperatura ${item.room}: ${item.value}`);
   element.setAttribute('data-device-type', item.type);
   setPercentBox(element, item);
+  element.innerHTML = `${temperatureIcon()}<span>${item.value}</span>`;
+  return element;
+}
+
+function createExternalLight(item) {
+  const element = document.createElement('article');
+  element.className = 'external-light-card neon-card';
+  element.id = item.id;
+  element.setAttribute('aria-label', `${item.title} ${item.label}`);
+  element.setAttribute('data-widget-type', 'external-light');
   element.innerHTML = `
-    <svg class="temperature-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M10 14.2V5.5a2 2 0 1 1 4 0v8.7a4.4 4.4 0 1 1-4 0Z"/>
-      <path d="M12 7v8.7"/>
-    </svg>
-    <span>${item.value}</span>
+    <div>
+      <strong>${item.title}</strong>
+      <span>${item.label}</span>
+    </div>
+    <div class="external-light-bulb" aria-hidden="true">${lightIcon('device-icon device-icon--external')}</div>
   `;
   return element;
 }
 
-function renderDashboard() {
+function renderFloorplan() {
   const deviceLayer = document.querySelector('[data-floorplan-devices]');
   const labelLayer = document.querySelector('[data-floorplan-labels]');
   if (!deviceLayer || !labelLayer) return;
@@ -87,9 +142,53 @@ function renderDashboard() {
   labelLayer.append(labelFragment);
 }
 
+function renderExternalLights() {
+  const slots = document.querySelectorAll('[data-external-light-slot]');
+  for (const slot of slots) {
+    const light = externalLights.find((item) => item.id === slot.dataset.externalLightSlot);
+    if (light) slot.append(createExternalLight(light));
+  }
+}
+
+function renderWidgetIcons() {
+  const cameraSlot = document.querySelector('[data-camera-icon]');
+  const boilerSlot = document.querySelector('[data-boiler-icon]');
+  if (cameraSlot) cameraSlot.innerHTML = cameraIcon();
+  if (boilerSlot) boilerSlot.innerHTML = boilerIcon();
+}
+
+function renderBoilerTemperatures() {
+  const list = document.querySelector('[data-boiler-temperatures]');
+  if (!list) return;
+
+  const fragment = document.createDocumentFragment();
+  for (const item of boilerTemperatures) {
+    const element = document.createElement('div');
+    element.className = 'boiler-temperature';
+    element.id = item.id;
+    element.setAttribute('aria-label', `Temperatura ${item.label}: ${item.value}`);
+    element.innerHTML = `
+      <div class="boiler-temperature-value">${temperatureIcon('boiler-temperature-icon')}<strong>${item.value}</strong></div>
+      <span>${item.label}</span>
+    `;
+    fragment.append(element);
+  }
+  list.append(fragment);
+}
+
+function renderDashboard() {
+  renderFloorplan();
+  renderExternalLights();
+  renderWidgetIcons();
+  renderBoilerTemperatures();
+}
+
 window.homeControlFloorplan = {
-  viewBox: VIEWBOX,
+  floorplanViewBox: FLOORPLAN_VIEWBOX,
+  referenceViewBox: REFERENCE_VIEWBOX,
   deviceOverlays,
+  externalLights,
+  boilerTemperatures,
   roomLabels,
 };
 
