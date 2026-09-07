@@ -2,10 +2,10 @@ const FLOORPLAN_VIEWBOX = { x: 1763.5, y: 1736.5, width: 1656, height: 1723 };
 const REFERENCE_VIEWBOX = { x: 925, y: 1730, width: 3343, height: 1731 };
 
 const deviceOverlays = [
-  { id: 'temperature-cucina', type: 'temperature', room: 'Cucina', x: 3.08, y: 3.25, width: 11.715, height: 11.317, value: '22 °C' },
-  { id: 'temperature-camera-matrimoniale', type: 'temperature', room: 'Camera matrimoniale', x: 84.601, y: 3.25, width: 11.715, height: 11.317, value: '22 °C' },
-  { id: 'temperature-salotto', type: 'temperature', room: 'Salotto', x: 3.08, y: 86.709, width: 11.715, height: 11.259, value: '22 °C' },
-  { id: 'temperature-camera-ragazzi', type: 'temperature', room: 'Camera ragazzi', x: 84.601, y: 86.709, width: 11.715, height: 11.259, value: '22 °C' },
+  { id: 'temperature-cucina', type: 'temperature', room: 'Cucina', x: 3.08, y: 3.25, width: 11.715, height: 11.317 },
+  { id: 'temperature-camera-matrimoniale', type: 'temperature', room: 'Camera matrimoniale', x: 84.601, y: 3.25, width: 11.715, height: 11.317 },
+  { id: 'temperature-salotto', type: 'temperature', room: 'Salotto', temperatureSource: 'thermostat.currentTemperature', x: 3.08, y: 86.709, width: 11.715, height: 11.259 },
+  { id: 'temperature-camera-ragazzi', type: 'temperature', room: 'Camera ragazzi', x: 84.601, y: 86.709, width: 11.715, height: 11.259 },
   { id: 'light-cucina', type: 'light', room: 'Cucina', x: 20.35, y: 16.019, width: 11.715, height: 11.259 },
   { id: 'light-camera-matrimoniale', type: 'light', room: 'Camera matrimoniale', x: 67.452, y: 15.554, width: 11.715, height: 11.259 },
   { id: 'light-disimpegno', type: 'light', room: 'Disimpegno', x: 53.502, y: 47.243, width: 11.775, height: 11.259 },
@@ -16,23 +16,15 @@ const deviceOverlays = [
 
 const roomLabels = [
   { id: 'label-cucina', name: 'Cucina', x: 34.8, y: 10.3, compact: false },
-  { id: 'label-camera-matrimoniale', name: 'Camera matrimoniale', x: 58.6, y: 10.2, compact: true },
+  { id: 'label-camera-matrimoniale', name: 'Camera matrimoniale', x: 61.2, y: 10.2, compact: true },
   { id: 'label-salotto', name: 'Salotto', x: 29.5, y: 50.1, compact: false },
-  { id: 'label-disimpegno', name: 'Disimpegno', x: 55.1, y: 62.4, compact: true },
   { id: 'label-bagno', name: 'Bagno', x: 87.4, y: 40.4, compact: false },
   { id: 'label-camera-ragazzi', name: 'Camera ragazzi', x: 68.8, y: 68.4, compact: true },
-  { id: 'label-sgabuzzino', name: 'Sgabuzzino', x: 43.5, y: 85.2, compact: true },
 ];
 
 const externalLights = [
   { id: 'external-light-garden', title: 'Luce esterna', label: 'Giardino', sourceBox: { x: 9.767, y: 16.551, width: 5.803, height: 11.207 } },
   { id: 'external-light-courtyard', title: 'Luce esterna', label: 'Cortile', sourceBox: { x: 83.832, y: 69.931, width: 5.803, height: 11.207 } },
-];
-
-const boilerTemperatures = [
-  { id: 'boiler-temp-flow', label: 'Mandata', value: '22 °C', sourceBox: { x: 78.777, y: 19.613, width: 5.803, height: 11.207 } },
-  { id: 'boiler-temp-return', label: 'Ritorno', value: '22 °C', sourceBox: { x: 85.387, y: 19.844, width: 5.803, height: 11.207 } },
-  { id: 'boiler-temp-dhw', label: 'ACS', value: '22 °C', sourceBox: { x: 92.178, y: 19.613, width: 5.803, height: 11.207 } },
 ];
 
 function lightIcon(className = 'device-icon') {
@@ -93,12 +85,13 @@ function createLight(item) {
 
 function createTemperature(item) {
   const element = document.createElement('div');
-  element.className = 'floorplan-device floorplan-device--temperature';
+  element.className = 'floorplan-device floorplan-device--temperature is-unavailable';
   element.id = item.id;
-  element.setAttribute('aria-label', `Placeholder temperatura ${item.room}: ${item.value}`);
+  element.setAttribute('aria-label', `Temperatura ${item.room}: non disponibile`);
   element.setAttribute('data-device-type', item.type);
+  if (item.temperatureSource) element.dataset.temperatureSource = item.temperatureSource;
   setPercentBox(element, item);
-  element.innerHTML = `${temperatureIcon()}<span>${item.value}</span>`;
+  element.innerHTML = `${temperatureIcon()}<span>— °C</span>`;
   return element;
 }
 
@@ -157,30 +150,84 @@ function renderWidgetIcons() {
   if (boilerSlot) boilerSlot.innerHTML = boilerIcon();
 }
 
-function renderBoilerTemperatures() {
-  const list = document.querySelector('[data-boiler-temperatures]');
-  if (!list) return;
+function temperatureText(value) {
+  if (!Number.isFinite(value)) return '— °C';
+  return `${new Intl.NumberFormat('it-IT', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(value)} °C`;
+}
 
-  const fragment = document.createDocumentFragment();
-  for (const item of boilerTemperatures) {
-    const element = document.createElement('div');
-    element.className = 'boiler-temperature';
-    element.id = item.id;
-    element.setAttribute('aria-label', `Temperatura ${item.label}: ${item.value}`);
-    element.innerHTML = `
-      <div class="boiler-temperature-value">${temperatureIcon('boiler-temperature-icon')}<strong>${item.value}</strong></div>
-      <span>${item.label}</span>
-    `;
-    fragment.append(element);
+function booleanText(value) {
+  if (value === true) return 'Attivo';
+  if (value === false) return 'Disattivo';
+  return '—';
+}
+
+function updatedAtText(value) {
+  const date = new Date(value);
+  if (!value || Number.isNaN(date.getTime())) return '—';
+  return new Intl.DateTimeFormat('it-IT', { dateStyle: 'short', timeStyle: 'short' }).format(date);
+}
+
+function renderFloorplanThermostatTemperature(snapshot) {
+  const marker = document.querySelector('[data-temperature-source="thermostat.currentTemperature"]');
+  if (!marker) return;
+
+  const value = snapshot?.thermostat?.currentTemperature;
+  const available = Number.isFinite(value);
+  marker.classList.toggle('is-unavailable', !available);
+  marker.querySelector('span').textContent = available ? temperatureText(value) : '— °C';
+  marker.setAttribute('aria-label', available ? `Temperatura Salotto: ${temperatureText(value)}` : 'Temperatura Salotto: non disponibile');
+}
+
+function renderBoiler(snapshot = null) {
+  const thermostat = snapshot?.thermostat || {};
+  const online = snapshot?.online === true;
+  const onlineElement = document.querySelector('[data-boiler-online]');
+  const setpoint = document.querySelector('[data-boiler-setpoint]');
+  const current = document.querySelector('[data-boiler-current]');
+  const frost = document.querySelector('[data-boiler-frost]');
+  const lock = document.querySelector('[data-boiler-lock]');
+  const updated = document.querySelector('[data-boiler-updated]');
+  const rawMode = document.querySelector('[data-boiler-raw-mode]');
+
+  if (onlineElement) {
+    onlineElement.textContent = online ? 'Online' : 'Offline';
+    onlineElement.classList.toggle('static-status--online', online);
+    onlineElement.classList.toggle('static-status--offline', !online);
   }
-  list.append(fragment);
+  if (setpoint) setpoint.textContent = temperatureText(thermostat.setpointTemperature);
+  if (current) current.textContent = temperatureText(thermostat.currentTemperature);
+  if (frost) frost.textContent = booleanText(thermostat.frostProtection);
+  if (lock) lock.textContent = booleanText(thermostat.childLock);
+  if (updated) updated.textContent = updatedAtText(snapshot?.updatedAt);
+  renderFloorplanThermostatTemperature(snapshot);
+
+  const mode = thermostat.mode;
+  for (const option of document.querySelectorAll('[data-boiler-mode-option]')) {
+    option.classList.toggle('is-active', option.dataset.boilerModeOption === mode);
+  }
+  if (rawMode) {
+    const isKnown = mode === 'manual' || mode === 'auto';
+    rawMode.hidden = !mode || isKnown;
+    rawMode.textContent = isKnown || !mode ? '' : `Stato WT200: ${mode}`;
+  }
+}
+
+async function loadBoilerSnapshot() {
+  try {
+    const response = await fetch('/api/thermostat');
+    if (!response.ok) throw new Error('Termostato non disponibile');
+    renderBoiler(await response.json());
+  } catch {
+    renderBoiler();
+  }
 }
 
 function renderDashboard() {
   renderFloorplan();
   renderExternalLights();
   renderWidgetIcons();
-  renderBoilerTemperatures();
+  renderBoiler();
+  void loadBoilerSnapshot();
 }
 
 window.homeControlFloorplan = {
@@ -188,7 +235,6 @@ window.homeControlFloorplan = {
   referenceViewBox: REFERENCE_VIEWBOX,
   deviceOverlays,
   externalLights,
-  boilerTemperatures,
   roomLabels,
 };
 

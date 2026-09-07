@@ -6,6 +6,7 @@ import { loadEnvFile } from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { DeviceRoleStore } from './src/device-roles.js';
 import { HardwareRegistryStore, defaultHardwareRegistry } from './src/hardware-registry.js';
+import { createHomeWt200Runtime } from './src/wt200-runtime.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_ROOT = path.join(ROOT, 'public');
@@ -63,9 +64,25 @@ function sendJson(response, status, payload) {
 export function createHomeControlServer({
   hardwareStore = new HardwareRegistryStore({ filePath: HARDWARE_FILE, defaults: defaultHardwareRegistry() }),
   roleStore = new DeviceRoleStore({ filePath: ROLE_FILE }),
+  thermostatRuntime = null,
 } = {}) {
+  let activeThermostatRuntime = thermostatRuntime;
+
   return http.createServer(async (request, response) => {
     const url = new URL(request.url || '/', 'http://localhost');
+    if (url.pathname === '/api/thermostat') {
+      if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
+      try {
+        activeThermostatRuntime ||= createHomeWt200Runtime({
+          clientId: process.env.TUYA_CLIENT_ID,
+          clientSecret: process.env.TUYA_CLIENT_SECRET,
+          deviceId: process.env.TUYA_DEVICE_ID,
+        });
+        return sendJson(response, 200, await activeThermostatRuntime.readSnapshot());
+      } catch {
+        return sendJson(response, 503, { error: 'Termostato non disponibile' });
+      }
+    }
     if (url.pathname === '/api/hardware') {
       if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
       const registry = await hardwareStore.read();
