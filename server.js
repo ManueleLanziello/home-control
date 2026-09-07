@@ -25,6 +25,7 @@ const STATIC_FILES = new Map([
   ['/settings.js', ['settings.js', 'text/javascript; charset=utf-8']],
   ['/style.css', ['style.css', 'text/css; charset=utf-8']],
   ['/js/dashboard.js', ['js/dashboard.js', 'text/javascript; charset=utf-8']],
+  ['/js/boiler-schedule.js', ['js/boiler-schedule.js', 'text/javascript; charset=utf-8']],
   ['/assets/floorplan/neon-floorplan.svg', ['assets/floorplan/neon-floorplan.svg', 'image/svg+xml']],
   ['/pwa.js', ['pwa.js', 'text/javascript; charset=utf-8']],
   ['/service-worker.js', ['service-worker.js', 'text/javascript; charset=utf-8']],
@@ -77,6 +78,8 @@ export function createHomeControlServer({
           clientId: process.env.TUYA_CLIENT_ID,
           clientSecret: process.env.TUYA_CLIENT_SECRET,
           deviceId: process.env.TUYA_DEVICE_ID,
+          lanIp: process.env.WT200_LAN_IP,
+          localKey: process.env.WT200_LOCAL_KEY,
         });
         return sendJson(response, 200, await activeThermostatRuntime.readSnapshot());
       } catch {

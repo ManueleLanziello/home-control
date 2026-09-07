@@ -1,3 +1,5 @@
+import { renderWt200Schedule } from './boiler-schedule.js';
+
 const FLOORPLAN_VIEWBOX = { x: 1763.5, y: 1736.5, width: 1656, height: 1723 };
 const REFERENCE_VIEWBOX = { x: 925, y: 1730, width: 3343, height: 1731 };
 
@@ -188,6 +190,8 @@ function renderBoiler(snapshot = null) {
   const lock = document.querySelector('[data-boiler-lock]');
   const updated = document.querySelector('[data-boiler-updated]');
   const rawMode = document.querySelector('[data-boiler-raw-mode]');
+  const heating = document.querySelector('[data-boiler-heating]');
+  const schedule = document.querySelector('[data-boiler-schedule]');
 
   if (onlineElement) {
     onlineElement.textContent = online ? 'Online' : 'Offline';
@@ -198,7 +202,9 @@ function renderBoiler(snapshot = null) {
   if (current) current.textContent = temperatureText(thermostat.currentTemperature);
   if (frost) frost.textContent = booleanText(thermostat.frostProtection);
   if (lock) lock.textContent = booleanText(thermostat.childLock);
+  if (heating) heating.textContent = snapshot?.heatingActive === true ? 'Attivo' : snapshot?.heatingActive === false ? 'Inattivo' : 'Non disponibile';
   if (updated) updated.textContent = updatedAtText(snapshot?.updatedAt);
+  renderWt200Schedule(schedule, snapshot?.schedule);
   renderFloorplanThermostatTemperature(snapshot);
 
   const mode = thermostat.mode;

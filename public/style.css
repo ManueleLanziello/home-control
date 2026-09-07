@@ -115,6 +115,13 @@ body { min-height: 100vh; margin: 0; background: radial-gradient(circle at 50% 2
 .boiler-section-icon { width: 28px; height: 28px; fill: none; stroke: #c4d8f6; stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; }
 .boiler-schedule h3 { margin: 0; font-size: clamp(.9rem, 1.16vw, 1.1rem); }
 .boiler-schedule-placeholder { display: grid; min-height: 145px; place-items: center; margin-top: 14px; border: 1px dashed rgba(105,156,196,.38); border-radius: 11px; color: #91a8bb; font-size: clamp(.7rem, .9vw, .85rem); background: linear-gradient(rgba(86,141,180,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(86,141,180,.07) 1px, transparent 1px), rgba(3,16,28,.42); background-size: 18% 25%, 14.28% 100%, auto; }
+.boiler-schedule-placeholder--chart { display: block; padding: 5px 3px 0; }
+.boiler-schedule-chart { width: 100%; height: auto; overflow: visible; }
+.boiler-schedule-chart text { fill: #9db7c8; font: 7px "Trebuchet MS", sans-serif; }
+.boiler-schedule-grid { stroke: rgba(111,175,212,.22); stroke-width: 1; }
+.boiler-schedule-step { fill: none; stroke: #ff9e40; stroke-width: 3; filter: drop-shadow(0 0 4px rgba(255,140,45,.7)); }
+.boiler-schedule-chart circle { fill: #ffbd76; stroke: #ffd5a9; stroke-width: 1; }
+.boiler-schedule-now { stroke: #6ce9ff; stroke-width: 1.5; stroke-dasharray: 3 3; filter: drop-shadow(0 0 3px rgba(74,213,255,.8)); }
 .boiler-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-top: 13px; }
 .boiler-weekdays span { padding: 8px 0; border: 1px solid rgba(88,143,185,.36); border-radius: 8px; color: #a5bdd0; font-size: clamp(.56rem, .73vw, .69rem); text-align: center; }
 .boiler-status-row { display: grid; grid-template-columns: 1.15fr 1fr 1fr; gap: 10px; margin-top: 20px; padding: 15px; border: 1px solid rgba(82,155,211,.4); border-radius: 18px; background: linear-gradient(145deg, rgba(10,36,57,.9), rgba(5,19,33,.94)); }
