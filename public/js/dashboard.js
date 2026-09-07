@@ -1,5 +1,9 @@
 import { renderWt200Schedule } from './boiler-schedule.js';
 
+const THERMOSTAT_CACHE_KEY = 'home-control:thermostat-snapshot';
+let boilerSnapshot = null;
+let modeSaving = false;
+let setpointSaving = false;
 const FLOORPLAN_VIEWBOX = { x: 1763.5, y: 1736.5, width: 1656, height: 1723 };
 const REFERENCE_VIEWBOX = { x: 925, y: 1730, width: 3343, height: 1731 };
 
@@ -169,6 +173,22 @@ function updatedAtText(value) {
   return new Intl.DateTimeFormat('it-IT', { dateStyle: 'short', timeStyle: 'short' }).format(date);
 }
 
+function periodsForDate(schedule, date) {
+  if (schedule?.weekPattern !== '5+2') return null;
+  return date.getDay() === 0 || date.getDay() === 6 ? schedule.restDayPeriods : schedule.normalPeriods;
+}
+
+function activeScheduleTemperature(schedule, now = new Date()) {
+  const periods = periodsForDate(schedule, now);
+  if (!Array.isArray(periods) || !periods.length) return null;
+  const currentMinute = now.getHours() * 60 + now.getMinutes();
+  const active = periods.filter((period) => period.hour * 60 + period.minute <= currentMinute).at(-1);
+  if (active) return active.temperature;
+  const previousDay = new Date(now);
+  previousDay.setDate(now.getDate() - 1);
+  return periodsForDate(schedule, previousDay)?.at(-1)?.temperature ?? null;
+}
+
 function renderFloorplanThermostatTemperature(snapshot) {
   const marker = document.querySelector('[data-temperature-source="thermostat.currentTemperature"]');
   if (!marker) return;
@@ -198,7 +218,16 @@ function renderBoiler(snapshot = null) {
     onlineElement.classList.toggle('static-status--online', online);
     onlineElement.classList.toggle('static-status--offline', !online);
   }
-  if (setpoint) setpoint.textContent = temperatureText(thermostat.setpointTemperature);
+  const displayedSetpoint = thermostat.mode === 'auto'
+    ? activeScheduleTemperature(snapshot?.schedule)
+    : thermostat.setpointTemperature;
+  if (setpoint) setpoint.textContent = temperatureText(displayedSetpoint);
+  const setpointControl = document.querySelector('[data-boiler-setpoint-control]');
+  if (setpointControl) {
+    setpointControl.hidden = thermostat.mode !== 'manual';
+    setpointControl.disabled = thermostat.mode !== 'manual' || setpointSaving;
+    if (Number.isFinite(thermostat.setpointTemperature)) setpointControl.value = thermostat.setpointTemperature;
+  }
   if (current) current.textContent = temperatureText(thermostat.currentTemperature);
   if (frost) frost.textContent = booleanText(thermostat.frostProtection);
   if (lock) lock.textContent = booleanText(thermostat.childLock);
@@ -218,13 +247,68 @@ function renderBoiler(snapshot = null) {
   }
 }
 
+async function saveSetpoint() {
+  const control = document.querySelector('[data-boiler-setpoint-control]');
+  if (!control || setpointSaving || boilerSnapshot?.thermostat?.mode !== 'manual') return;
+  const previous = boilerSnapshot.thermostat.setpointTemperature;
+  const temperature = Number(control.value);
+  if (temperature === previous) return;
+  setpointSaving = true; control.disabled = true;
+  try {
+    const response = await fetch('/api/thermostat/setpoint', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ temperature }) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Setpoint non aggiornato');
+    boilerSnapshot = { ...boilerSnapshot, thermostat: { ...boilerSnapshot.thermostat, setpointTemperature: result.temperature } };
+    sessionStorage.setItem(THERMOSTAT_CACHE_KEY, JSON.stringify(boilerSnapshot)); renderBoiler(boilerSnapshot);
+  } catch (error) { control.value = previous; showModeMessage(error.message); } finally { setpointSaving = false; renderBoiler(boilerSnapshot); }
+}
+
 async function loadBoilerSnapshot() {
   try {
     const response = await fetch('/api/thermostat');
     if (!response.ok) throw new Error('Termostato non disponibile');
-    renderBoiler(await response.json());
-  } catch {
-    renderBoiler();
+    const snapshot = await response.json();
+    boilerSnapshot = snapshot;
+    sessionStorage.setItem(THERMOSTAT_CACHE_KEY, JSON.stringify(snapshot));
+    renderBoiler(snapshot);
+  } catch {}
+}
+
+function showModeMessage(message) {
+  const element = document.querySelector('[data-boiler-raw-mode]');
+  if (!element) return;
+  element.hidden = false;
+  element.textContent = message;
+}
+
+async function setBoilerMode(mode) {
+  if (modeSaving) return;
+  if (mode === 'smart') return showModeMessage('SMART non disponibile: sensori temperatura non configurati');
+  modeSaving = true;
+  for (const option of document.querySelectorAll('[data-boiler-mode-option]')) option.classList.add('boiler-mode--disabled');
+  try {
+    const response = await fetch('/api/thermostat/mode', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode }) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Cambio modalita non riuscito');
+    boilerSnapshot = { ...boilerSnapshot, thermostat: { ...boilerSnapshot?.thermostat, mode: result.mode } };
+    sessionStorage.setItem(THERMOSTAT_CACHE_KEY, JSON.stringify(boilerSnapshot));
+    renderBoiler(boilerSnapshot);
+  } catch (error) {
+    showModeMessage(error.message);
+  } finally {
+    modeSaving = false;
+    for (const option of document.querySelectorAll('[data-boiler-mode-option]')) {
+      if (option.dataset.boilerModeOption !== 'smart') option.classList.remove('boiler-mode--disabled');
+    }
+  }
+}
+
+function bindBoilerModeControls() {
+  for (const option of document.querySelectorAll('[data-boiler-mode-option]')) {
+    option.tabIndex = 0;
+    option.setAttribute('role', 'button');
+    option.addEventListener('click', () => void setBoilerMode(option.dataset.boilerModeOption));
+    option.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); void setBoilerMode(option.dataset.boilerModeOption); } });
   }
 }
 
@@ -232,7 +316,12 @@ function renderDashboard() {
   renderFloorplan();
   renderExternalLights();
   renderWidgetIcons();
-  renderBoiler();
+  try {
+    const cached = JSON.parse(sessionStorage.getItem(THERMOSTAT_CACHE_KEY));
+    if (cached?.deviceId) { boilerSnapshot = cached; renderBoiler(cached); }
+  } catch {}
+  bindBoilerModeControls();
+  document.querySelector('[data-boiler-setpoint-control]')?.addEventListener('change', () => void saveSetpoint());
   void loadBoilerSnapshot();
 }
 

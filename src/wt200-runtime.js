@@ -44,8 +44,11 @@ export class HomeWt200Runtime {
     this.deviceId = deviceId;
     this.now = now;
     this.persistedSchedule = null;
+    this.lastCloudSnapshot = null;
+    this.modeOverride = null;
+    this.setpointOverride = null;
     this.restorePromise = null;
-    this.lanEventsBound = false;
+    this.lanEventDevice = null;
     this.persistenceQueue = Promise.resolve();
   }
 
@@ -73,8 +76,8 @@ export class HomeWt200Runtime {
   }
 
   bindLanSchedulePersistence() {
-    if (this.lanEventsBound || !this.lanAdapter?.device) return;
-    this.lanEventsBound = true;
+    if (!this.lanAdapter?.device || this.lanEventDevice === this.lanAdapter.device) return;
+    this.lanEventDevice = this.lanAdapter.device;
     const persistAfterEvent = () => {
       this.persistenceQueue = this.persistenceQueue
         .then(() => this.persistLanSchedule())
@@ -86,9 +89,8 @@ export class HomeWt200Runtime {
 
   async readLanSnapshot() {
     if (!this.lanAdapter) return null;
-    await this.lanAdapter.connect();
-    this.bindLanSchedulePersistence();
     const snapshot = await this.lanAdapter.read();
+    this.bindLanSchedulePersistence();
     if (snapshot.schedule) await this.persistLanSchedule();
     return snapshot;
   }
@@ -99,12 +101,70 @@ export class HomeWt200Runtime {
       this.cloudAdapter ? this.cloudAdapter.read() : Promise.resolve(null),
       this.readLanSnapshot(),
     ]);
-    const cloudSnapshot = cloudResult.status === 'fulfilled' ? cloudResult.value : null;
+    if (cloudResult.status === 'fulfilled' && cloudResult.value) this.lastCloudSnapshot = cloudResult.value;
+    const cloudSnapshot = cloudResult.status === 'fulfilled' ? cloudResult.value : this.lastCloudSnapshot;
     const lanSnapshot = lanResult.status === 'fulfilled' ? lanResult.value : null;
     if (!cloudSnapshot && !lanSnapshot) {
       throw cloudResult.status === 'rejected' ? cloudResult.reason : lanResult.reason;
     }
-    return mergeWt200Snapshots({ cloudSnapshot, lanSnapshot, persistedSchedule, deviceId: this.deviceId });
+    const merged = mergeWt200Snapshots({ cloudSnapshot, lanSnapshot, persistedSchedule, deviceId: this.deviceId });
+    if (this.modeOverride || this.setpointOverride !== null) merged.thermostat = { ...merged.thermostat, ...(this.modeOverride ? { mode: this.modeOverride } : {}), ...(this.setpointOverride !== null ? { setpointTemperature: this.setpointOverride } : {}) };
+    return merged;
+  }
+
+  async updateSchedule({ normalPeriods, restDayPeriods }) {
+    if (!this.lanAdapter) {
+      const error = new Error('Connessione LAN WT200 non disponibile.');
+      error.code = 'LAN_UNAVAILABLE';
+      throw error;
+    }
+    const persisted = await this.restoreSchedule();
+    const raw = this.lanAdapter.scheduleRaw || persisted?.schedule?.raw;
+    if (!raw) {
+      const error = new Error('Programmazione originale WT200 non disponibile.');
+      error.code = 'SCHEDULE_UNAVAILABLE';
+      throw error;
+    }
+    let snapshot;
+    try {
+      snapshot = await this.lanAdapter.writeSchedule({ normalPeriods, restDayPeriods, raw });
+    } catch (error) {
+      if (error instanceof TypeError) error.code = 'SCHEDULE_INVALID';
+      throw error;
+    }
+    this.bindLanSchedulePersistence();
+    await this.persistLanSchedule();
+    return snapshot.schedule;
+  }
+
+  async setMode(mode) {
+    const nativeMode = ({ manual: 'home', auto: 'auto' })[mode];
+    if (!nativeMode) {
+      const error = new Error('Modalita non valida.');
+      error.code = 'MODE_INVALID';
+      throw error;
+    }
+    if (!this.lanAdapter) {
+      const error = new Error('Connessione LAN WT200 non disponibile.');
+      error.code = 'LAN_UNAVAILABLE';
+      throw error;
+    }
+    try {
+      await this.lanAdapter.setOperatingMode(nativeMode);
+    } catch (error) {
+      if (error instanceof TypeError) error.code = 'MODE_INVALID';
+      throw error;
+    }
+    this.modeOverride = mode;
+    this.bindLanSchedulePersistence();
+    return mode;
+  }
+
+  async setSetpointTemperature(temperature) {
+    if (!this.lanAdapter) { const error = new Error('Connessione LAN WT200 non disponibile.'); error.code = 'LAN_UNAVAILABLE'; throw error; }
+    try { await this.lanAdapter.setSetpointTemperature(temperature); } catch (error) { if (error instanceof TypeError) error.code = 'SETPOINT_INVALID'; throw error; }
+    this.setpointOverride = temperature;
+    return temperature;
   }
 }
 

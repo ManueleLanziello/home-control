@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#050b12">
+  <title>Caldaia | Home Control</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="thermostat-body">
+  <main class="thermostat-shell">
+    <header class="thermostat-page-header">
+      <a class="thermostat-back" href="/">&larr; Dashboard</a>
+      <div><h1>CALDAIA</h1><p>WT200 &ndash; Salotto</p></div>
+      <span class="static-status static-status--offline" data-thermostat-online>Offline</span>
+    </header>
+
+    <section class="thermostat-summary neon-card" aria-label="Stato termostato">
+      <div><span>Temperatura salotto</span><strong data-thermostat-current>&mdash; &deg;C</strong></div>
+      <div><span>Setpoint</span><strong data-thermostat-setpoint>&mdash; &deg;C</strong></div>
+      <div><span>Modalita</span><strong data-thermostat-mode>&mdash;</strong></div>
+      <div><span>Riscaldamento</span><strong data-thermostat-heating>Non disponibile</strong></div>
+      <div><span>Antigelo</span><strong data-thermostat-frost>&mdash;</strong></div>
+      <div><span>Blocco</span><strong data-thermostat-lock>&mdash;</strong></div>
+    </section>
+
+    <section class="thermostat-schedule boiler-schedule neon-card" aria-label="Programmazione di oggi">
+      <header><svg class="boiler-section-icon" viewBox="0 0 32 32" aria-hidden="true"><rect x="4" y="6" width="24" height="22" rx="3"/><path d="M10 3v7M22 3v7M4 13h24M10 18h4M18 18h4M10 23h4M18 23h4"/></svg><h2>Programmazione di oggi</h2></header>
+      <div class="boiler-schedule-placeholder" data-boiler-schedule>Programmazione non ancora acquisita</div>
+      <div class="boiler-weekdays" aria-label="Seleziona il giorno della programmazione">
+        <button type="button" data-boiler-weekday="1">Lun</button><button type="button" data-boiler-weekday="2">Mar</button><button type="button" data-boiler-weekday="3">Mer</button><button type="button" data-boiler-weekday="4">Gio</button><button type="button" data-boiler-weekday="5">Ven</button><button type="button" data-boiler-weekday="6">Sab</button><button type="button" data-boiler-weekday="0">Dom</button>
+      </div>
+    </section>
+
+    <section class="thermostat-editor neon-card" aria-label="Editor programmazione settimanale">
+      <header><h2>Programmazione settimanale</h2><p data-thermostat-week-pattern>Modalita settimanale: &mdash;</p></header>
+      <form data-schedule-form>
+        <div data-normal-periods></div>
+        <h3>Giorni di riposo</h3>
+        <div data-rest-periods></div>
+        <p class="thermostat-editor-message" data-schedule-message aria-live="polite"></p>
+        <button type="submit" disabled data-schedule-save>Salva programmazione</button>
+      </form>
+    </section>
+  </main>
+  <script type="module" src="/js/thermostat.js"></script>
+</body>
+</html>

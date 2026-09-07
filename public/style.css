@@ -63,6 +63,9 @@ body { min-height: 100vh; margin: 0; background: radial-gradient(circle at 50% 2
 .widget-header { display: flex; align-items: center; gap: 14px; margin-bottom: clamp(12px, 1.5vh, 18px); }
 .widget-header h2 { margin: 0 0 4px; color: #f3f8ff; font-size: clamp(1rem, 1.45vw, 1.7rem); line-height: 1; letter-spacing: .02em; }
 .boiler-card-header { gap: 15px; margin-bottom: 22px; }
+.boiler-settings-link { display: inline-grid; width: 34px; height: 34px; margin-left: auto; place-items: center; border: 1px solid rgba(100,174,219,.45); border-radius: 9px; color: #b8d7eb; background: rgba(4,24,42,.7); }
+.boiler-settings-link:hover, .boiler-settings-link:focus-visible { border-color: #55d9ff; color: #effcff; outline: none; box-shadow: 0 0 14px rgba(39,191,240,.28); }
+.boiler-settings-link svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .boiler-card .widget-header h2 { font-size: clamp(1.55rem, 2.25vw, 2.45rem); letter-spacing: .01em; text-transform: uppercase; }
 .boiler-subtitle { margin: 0; color: #9daed7; font-size: clamp(.78rem, 1.05vw, 1rem); font-weight: 720; }
 .boiler-card .widget-header { align-items: center; }
@@ -114,16 +117,30 @@ body { min-height: 100vh; margin: 0; background: radial-gradient(circle at 50% 2
 .boiler-schedule header { display: flex; align-items: center; gap: 11px; color: #e0edf8; }
 .boiler-section-icon { width: 28px; height: 28px; fill: none; stroke: #c4d8f6; stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; }
 .boiler-schedule h3 { margin: 0; font-size: clamp(.9rem, 1.16vw, 1.1rem); }
+.boiler-schedule header .boiler-settings-link { width: 28px; height: 28px; }
+.boiler-schedule header .boiler-settings-link svg { width: 15px; height: 15px; }
 .boiler-schedule-placeholder { display: grid; min-height: 145px; place-items: center; margin-top: 14px; border: 1px dashed rgba(105,156,196,.38); border-radius: 11px; color: #91a8bb; font-size: clamp(.7rem, .9vw, .85rem); background: linear-gradient(rgba(86,141,180,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(86,141,180,.07) 1px, transparent 1px), rgba(3,16,28,.42); background-size: 18% 25%, 14.28% 100%, auto; }
-.boiler-schedule-placeholder--chart { display: block; padding: 5px 3px 0; }
-.boiler-schedule-chart { width: 100%; height: auto; overflow: visible; }
-.boiler-schedule-chart text { fill: #9db7c8; font: 7px "Trebuchet MS", sans-serif; }
-.boiler-schedule-grid { stroke: rgba(111,175,212,.22); stroke-width: 1; }
-.boiler-schedule-step { fill: none; stroke: #ff9e40; stroke-width: 3; filter: drop-shadow(0 0 4px rgba(255,140,45,.7)); }
-.boiler-schedule-chart circle { fill: #ffbd76; stroke: #ffd5a9; stroke-width: 1; }
-.boiler-schedule-now { stroke: #6ce9ff; stroke-width: 1.5; stroke-dasharray: 3 3; filter: drop-shadow(0 0 3px rgba(74,213,255,.8)); }
+.boiler-schedule-placeholder--chart { display: block; width: 100%; min-width: 0; min-height: 0; justify-self: stretch; align-self: stretch; place-items: stretch; margin-inline: -3px; padding: 2px 0 8px; border-style: solid; border-color: rgba(80,166,218,.24); }
+.boiler-schedule-chart-shell { display: block; width: 100%; min-width: 0; max-width: none; overflow: hidden; border-radius: 7px; background: radial-gradient(circle at 50% 0%, rgba(20,126,187,.14), transparent 63%), linear-gradient(180deg, rgba(3,26,47,.82), rgba(1,14,28,.76)); box-shadow: inset 0 0 26px rgba(23,155,222,.07); }
+.boiler-schedule-chart { display: block; width: 100% !important; min-width: 0; max-width: none !important; height: clamp(180px, 22vw, 210px); aspect-ratio: auto; overflow: visible; }
+.boiler-schedule-chart text { fill: #b2cfdf; font: 7.5px "Trebuchet MS", sans-serif; }
+.boiler-schedule-chart .boiler-schedule-value { fill: #f7fdff; font-size: 9px; font-weight: 850; paint-order: stroke; stroke: rgba(2,17,31,.72); stroke-width: 2px; text-shadow: 0 0 6px rgba(205,246,255,.88); }
+.boiler-schedule-axis-title { fill: #bad6e8 !important; font-size: 8px !important; }
+.boiler-schedule-grid { stroke: rgba(89,178,231,.29); stroke-width: 1; stroke-dasharray: 3 3; }
+.boiler-schedule-bar { opacity: .98; filter: drop-shadow(0 0 4px rgba(64,217,255,.2)); }
+.boiler-schedule-period-marker { stroke: rgba(218,247,255,.24); stroke-width: 1; }
+.boiler-schedule-now { stroke: #e6fbff; stroke-width: 1.5; stroke-dasharray: 3 3; filter: drop-shadow(0 0 4px rgba(97,226,255,.95)); }
+.boiler-schedule-periods { display: flex; gap: 0; margin-top: 5px; border-top: 1px solid rgba(64,169,218,.42); }
+.boiler-schedule-period { position: relative; display: grid; justify-items: center; min-width: 0; padding: 7px 1px 1px; border-top: 2px solid var(--period-color); color: var(--period-color); text-align: center; }
+.boiler-schedule-period::before { position: absolute; top: -8px; left: 0; width: 1px; height: 7px; background: var(--period-color); content: ''; box-shadow: 0 0 5px var(--period-color); }
+.boiler-schedule-period-icon { font-size: .95rem; line-height: 1; filter: drop-shadow(0 0 4px currentColor); }
+.boiler-schedule-period span:last-child { display: grid; min-width: 0; gap: 1px; }
+.boiler-schedule-period strong { color: #dceefa; font-size: clamp(.46rem, .61vw, .58rem); line-height: 1.05; overflow-wrap: anywhere; }
+.boiler-schedule-period small { color: #91b9ce; font-size: clamp(.42rem, .54vw, .52rem); line-height: 1.05; white-space: nowrap; }
 .boiler-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-top: 13px; }
-.boiler-weekdays span { padding: 8px 0; border: 1px solid rgba(88,143,185,.36); border-radius: 8px; color: #a5bdd0; font-size: clamp(.56rem, .73vw, .69rem); text-align: center; }
+.boiler-weekdays button { padding: 8px 0; border: 1px solid rgba(88,143,185,.36); border-radius: 8px; color: #a5bdd0; background: rgba(4,22,38,.52); font: inherit; font-size: clamp(.56rem, .73vw, .69rem); text-align: center; cursor: pointer; }
+.boiler-weekdays button.is-active { border-color: rgba(48,211,255,.9); color: #e9fbff; background: linear-gradient(135deg, rgba(22,125,221,.95), rgba(18,75,162,.95)); box-shadow: 0 0 12px rgba(28,177,255,.38); }
+.boiler-weekdays button:focus-visible { outline: 2px solid #8deaff; outline-offset: 2px; }
 .boiler-status-row { display: grid; grid-template-columns: 1.15fr 1fr 1fr; gap: 10px; margin-top: 20px; padding: 15px; border: 1px solid rgba(82,155,211,.4); border-radius: 18px; background: linear-gradient(145deg, rgba(10,36,57,.9), rgba(5,19,33,.94)); }
 .boiler-status-row div { display: flex; align-items: center; gap: 10px; min-width: 0; padding-left: 10px; border-left: 1px solid rgba(105,155,193,.28); }
 .boiler-status-row div:first-child { padding-left: 0; border-left: 0; }
@@ -134,6 +151,51 @@ body { min-height: 100vh; margin: 0; background: radial-gradient(circle at 50% 2
 .boiler-status-icon--warm { fill: #ff902f; stroke: #ffc180; filter: drop-shadow(0 0 6px rgba(255,127,31,.58)); }
 .boiler-updated { display: flex; align-items: center; justify-content: center; gap: 7px; margin-top: 12px; color: #8ba5b7; font-size: clamp(.61rem, .76vw, .72rem); }
 .boiler-updated svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.thermostat-body { min-height: 100vh; margin: 0; color: #dceefa; background: radial-gradient(circle at 30% 0%, rgba(11,83,126,.28), transparent 34%), #050b12; font-family: "Trebuchet MS", sans-serif; }
+.thermostat-shell { width: min(1500px, calc(100% - 32px)); margin: 0 auto; padding: 24px 0 42px; }
+.thermostat-page-header { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 18px; margin-bottom: 20px; }
+.thermostat-page-header h1, .thermostat-page-header p { margin: 0; }
+.thermostat-page-header h1 { color: #f3f8ff; font-size: clamp(1.5rem, 2.4vw, 2.3rem); letter-spacing: .04em; }
+.thermostat-page-header p { margin-top: 3px; color: #9daed7; font-size: .9rem; }
+.thermostat-back { padding: 9px 12px; border: 1px solid rgba(83,159,204,.45); border-radius: 9px; color: #b9d9eb; font-size: .82rem; text-decoration: none; }
+.thermostat-back:hover, .thermostat-back:focus-visible { border-color: #55d9ff; color: #fff; outline: none; }
+.thermostat-summary { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 1px; margin-bottom: 18px; overflow: hidden; border: 1px solid rgba(82,155,211,.4); border-radius: 16px; background: rgba(82,155,211,.25); }
+.thermostat-summary div { display: grid; gap: 6px; padding: 13px 15px; background: linear-gradient(145deg, rgba(9,35,58,.92), rgba(5,20,35,.96)); }
+.thermostat-summary span { color: #91b9ce; font-size: .7rem; }
+.thermostat-summary strong { color: #effaff; font-size: clamp(.86rem, 1.25vw, 1.1rem); }
+.thermostat-schedule { margin-top: 0; padding: clamp(18px, 2vw, 28px); }
+.thermostat-schedule h2 { margin: 0; color: #e0edf8; font-size: clamp(1.1rem, 1.6vw, 1.45rem); }
+.thermostat-schedule .boiler-schedule-placeholder { min-height: 0; margin-top: 18px; }
+.thermostat-schedule .boiler-schedule-chart { height: clamp(330px, 36vw, 500px); }
+.thermostat-schedule .boiler-schedule-chart text { font-size: 11px; }
+.thermostat-schedule .boiler-schedule-chart .boiler-schedule-value { font-size: 13px; }
+.thermostat-schedule .boiler-schedule-axis-title { font-size: 11px !important; }
+.thermostat-schedule .boiler-schedule-period strong { font-size: clamp(.58rem, .8vw, .78rem); }
+.thermostat-schedule .boiler-schedule-period small { font-size: clamp(.54rem, .7vw, .68rem); }
+.thermostat-disabled-controls { margin-top: 18px; padding: 20px; border: 1px solid rgba(82,155,211,.4); border-radius: 16px; background: linear-gradient(145deg, rgba(9,35,58,.82), rgba(5,20,35,.9)); }
+.thermostat-disabled-controls header { margin-bottom: 14px; }
+.thermostat-disabled-controls h2, .thermostat-disabled-controls p { margin: 0; }
+.thermostat-disabled-controls h2 { font-size: 1rem; }
+.thermostat-disabled-controls p { margin-top: 4px; color: #91b9ce; font-size: .8rem; }
+.thermostat-disabled-controls fieldset { display: flex; flex-wrap: wrap; gap: 12px; margin: 0; padding: 0; border: 0; }
+.thermostat-disabled-controls label { display: grid; gap: 5px; color: #91b9ce; font-size: .75rem; }
+.thermostat-disabled-controls input, .thermostat-disabled-controls button { min-height: 36px; padding: 0 10px; border: 1px solid rgba(91,143,176,.35); border-radius: 7px; color: #93aabb; background: rgba(3,17,30,.72); }
+.thermostat-disabled-controls button { align-self: end; font-weight: 800; }
+.thermostat-editor { margin-top: 18px; padding: 20px; border: 1px solid rgba(82,155,211,.4); border-radius: 16px; background: linear-gradient(145deg, rgba(9,35,58,.82), rgba(5,20,35,.9)); }
+.thermostat-editor header { margin-bottom: 14px; }
+.thermostat-editor h2, .thermostat-editor h3, .thermostat-editor p { margin: 0; }
+.thermostat-editor h2 { font-size: 1rem; }
+.thermostat-editor h3 { margin: 18px 0 8px; color: #b9d9eb; font-size: .85rem; }
+.thermostat-editor header p { margin-top: 4px; color: #91b9ce; font-size: .8rem; }
+.thermostat-period { display: grid; grid-template-columns: minmax(130px, 1fr) minmax(105px, .55fr) minmax(135px, .65fr); gap: 12px; align-items: center; padding: 9px 0; border-top: 1px solid rgba(86,154,196,.2); }
+.thermostat-period strong { color: #dceefa; font-size: .82rem; }
+.thermostat-period span { display: flex; align-items: center; gap: 6px; color: #91b9ce; font-size: .72rem; }
+.thermostat-period input, .thermostat-editor button { min-height: 34px; border: 1px solid rgba(91,143,176,.5); border-radius: 7px; color: #eaf7ff; background: rgba(3,17,30,.72); }
+.thermostat-period input { min-width: 0; padding: 0 7px; }
+.thermostat-editor button { padding: 0 14px; font-weight: 800; }
+.thermostat-editor button:disabled { opacity: .5; }
+.thermostat-editor-message { min-height: 20px; margin-top: 10px !important; color: #8eeaff; font-size: .78rem; }
+@media (max-width: 700px) { .thermostat-period { grid-template-columns: 1fr; gap: 6px; } }
 .floorplan-legend { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px clamp(14px, 2.8vw, 54px); width: min(100%, 1420px); margin: 0 auto; padding: clamp(9px, 1vw, 14px) clamp(14px, 1.5vw, 18px); border: 1px solid rgba(24, 183, 238, .28); border-radius: 16px; background: rgba(2, 13, 24, .72); color: #ccecf6; font-size: clamp(.7rem, 1vw, .9rem); box-shadow: inset 0 0 24px rgba(0, 178, 238, .06); }
 .floorplan-legend span { display: inline-flex; align-items: center; gap: 8px; min-height: 26px; }
 .legend-icon { display: inline-block; width: 24px; height: 24px; border-radius: 50%; flex: 0 0 auto; }
@@ -234,6 +296,7 @@ body { min-height: 100vh; margin: 0; background: radial-gradient(circle at 50% 2
   .floorplan-stage { width: min(100%, calc((100vh - 235px) * .9611), 640px); }
   .boiler-card { padding: 17px; }
   .boiler-card-header { margin-bottom: 14px; gap: 12px; }
+  .boiler-settings-link { width: 30px; height: 30px; }
   .boiler-card .widget-header h2 { font-size: clamp(1.35rem, 1.95vw, 2.1rem); }
   .boiler-subtitle { font-size: clamp(.72rem, .92vw, .88rem); }
   .boiler-flame-icon { width: clamp(52px, 4.4vw, 68px); }
@@ -251,8 +314,9 @@ body { min-height: 100vh; margin: 0; background: radial-gradient(circle at 50% 2
   .boiler-mode strong { font-size: clamp(.7rem, .88vw, .84rem); }
   .boiler-schedule { margin-top: 12px; padding: 12px; }
   .boiler-schedule-placeholder { min-height: 104px; margin-top: 11px; }
+  .boiler-schedule-period { padding-top: 7px; }
   .boiler-weekdays { gap: 6px; margin-top: 10px; }
-  .boiler-weekdays span { padding: 6px 0; }
+  .boiler-weekdays button { padding: 6px 0; }
   .boiler-status-row { margin-top: 12px; padding: 10px; }
   .boiler-status-icon { width: 27px; height: 27px; }
   .boiler-updated { margin-top: 7px; }
