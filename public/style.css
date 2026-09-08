@@ -233,11 +233,6 @@ body { min-height: 100vh; margin: 0; background: radial-gradient(circle at 50% 2
   .camera-card, .boiler-card, .floorplan-panel { width: 100%; }
   .camera-card { grid-column: auto; }
   .boiler-card { max-width: none; }
-  .boiler-temperature-grid { grid-template-columns: 1fr; }
-  .boiler-mode-selector { grid-template-columns: 1fr; }
-  .boiler-status-row { grid-template-columns: 1fr; }
-  .boiler-status-row div { padding-left: 0; border-left: 0; padding-top: 10px; border-top: 1px solid rgba(105,155,193,.28); }
-  .boiler-status-row div:first-child { padding-top: 0; border-top: 0; }
 }
 
 @media (max-width: 700px) {
