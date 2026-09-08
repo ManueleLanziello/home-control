@@ -1,16 +1,16 @@
 {
-  "id": "/home-control",
+  "id": "/home/",
   "name": "Home Control",
   "short_name": "Home Control",
   "lang": "it",
-  "start_url": "/",
-  "scope": "/",
+  "start_url": "/home/",
+  "scope": "/home/",
   "display": "standalone",
   "theme_color": "#050b12",
   "background_color": "#050b12",
   "icons": [
     {
-      "src": "/icons/home-control.svg",
+      "src": "icons/home-control.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"

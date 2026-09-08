@@ -5,12 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#050b12">
   <title>Caldaia | Home Control</title>
-  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/home-control.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body class="thermostat-body">
   <main class="thermostat-shell">
     <header class="thermostat-page-header">
-      <a class="thermostat-back" href="/">&larr; Dashboard</a>
+      <a class="thermostat-back" href="./">&larr; Dashboard</a>
       <div><h1>CALDAIA</h1><p>WT200 &ndash; Salotto</p></div>
       <span class="static-status static-status--offline" data-thermostat-online>Offline</span>
     </header>
@@ -43,6 +45,7 @@
       </form>
     </section>
   </main>
-  <script type="module" src="/js/thermostat.js"></script>
+  <script type="module" src="js/thermostat.js"></script>
+  <script type="module" src="pwa.js"></script>
 </body>
 </html>

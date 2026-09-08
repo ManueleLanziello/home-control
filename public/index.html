@@ -9,9 +9,9 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Home Control</title>
-  <link rel="manifest" href="/manifest.webmanifest">
-  <link rel="icon" href="/icons/home-control.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/home-control.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body class="dashboard-body">
   <main class="dashboard-shell">
@@ -32,7 +32,7 @@
         </div>
       </section>
 
-      <a class="settings-link" href="/settings" aria-label="Apri impostazioni">Impostazioni</a>
+      <a class="settings-link" href="settings" aria-label="Apri impostazioni">Impostazioni</a>
     </header>
 
     <section class="floorplan-dashboard" aria-label="Planimetria appartamento">
@@ -59,7 +59,7 @@
 
         <section class="floorplan-panel neon-card" aria-label="Planimetria casa">
           <div class="floorplan-stage">
-            <img class="floorplan-base" src="/assets/floorplan/neon-floorplan.svg" alt="Planimetria grafica dell'appartamento">
+            <img class="floorplan-base" src="assets/floorplan/neon-floorplan.svg" alt="Planimetria grafica dell'appartamento">
             <div class="floorplan-label-layer" aria-hidden="true" data-floorplan-labels></div>
             <div class="floorplan-device-layer" data-floorplan-devices></div>
           </div>
@@ -106,7 +106,7 @@
             </section>
 
             <section class="boiler-schedule" aria-label="Programmazione di oggi">
-              <header><svg class="boiler-section-icon" viewBox="0 0 32 32" aria-hidden="true"><rect x="4" y="6" width="24" height="22" rx="3"/><path d="M10 3v7M22 3v7M4 13h24M10 18h4M18 18h4M10 23h4M18 23h4"/></svg><h3>Programmazione di oggi</h3><a class="boiler-settings-link" href="/thermostat.html" aria-label="Programmazione settimanale" title="Programmazione settimanale"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7ZM19 13.3v-2.6l-2-.5a7.5 7.5 0 0 0-.7-1.7l1.1-1.7-1.9-1.9-1.7 1.1a7.5 7.5 0 0 0-1.7-.7l-.5-2H9l-.5 2a7.5 7.5 0 0 0-1.7.7L5.1 4.9 3.2 6.8l1.1 1.7a7.5 7.5 0 0 0-.7 1.7l-2 .5v2.6l2 .5a7.5 7.5 0 0 0 .7 1.7l-1.1 1.7 1.9 1.9 1.7-1.1a7.5 7.5 0 0 0 1.7.7l.5 2h2.6l.5-2a7.5 7.5 0 0 0 1.7-.7l1.7 1.1 1.9-1.9-1.1-1.7a7.5 7.5 0 0 0 .7-1.7l2-.5Z"/></svg></a></header>
+              <header><svg class="boiler-section-icon" viewBox="0 0 32 32" aria-hidden="true"><rect x="4" y="6" width="24" height="22" rx="3"/><path d="M10 3v7M22 3v7M4 13h24M10 18h4M18 18h4M10 23h4M18 23h4"/></svg><h3>Programmazione di oggi</h3><a class="boiler-settings-link" href="thermostat.html" aria-label="Programmazione settimanale" title="Programmazione settimanale"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7ZM19 13.3v-2.6l-2-.5a7.5 7.5 0 0 0-.7-1.7l1.1-1.7-1.9-1.9-1.7 1.1a7.5 7.5 0 0 0-1.7-.7l-.5-2H9l-.5 2a7.5 7.5 0 0 0-1.7.7L5.1 4.9 3.2 6.8l1.1 1.7a7.5 7.5 0 0 0-.7 1.7l-2 .5v2.6l2 .5a7.5 7.5 0 0 0 .7 1.7l-1.1 1.7 1.9 1.9 1.7-1.1a7.5 7.5 0 0 0 1.7.7l.5 2h2.6l.5-2a7.5 7.5 0 0 0 1.7-.7l1.7 1.1 1.9-1.9-1.1-1.7a7.5 7.5 0 0 0 .7-1.7l2-.5Z"/></svg></a></header>
               <div class="boiler-schedule-placeholder" data-boiler-schedule>Programmazione non ancora acquisita</div>
               <div class="boiler-weekdays" aria-label="Seleziona il giorno della programmazione">
                 <button type="button" data-boiler-weekday="1">Lun</button><button type="button" data-boiler-weekday="2">Mar</button><button type="button" data-boiler-weekday="3">Mer</button><button type="button" data-boiler-weekday="4">Gio</button><button type="button" data-boiler-weekday="5">Ven</button><button type="button" data-boiler-weekday="6">Sab</button><button type="button" data-boiler-weekday="0">Dom</button>
@@ -125,7 +125,7 @@
     </section>
 
   </main>
-  <script type="module" src="/js/dashboard.js"></script>
-  <script type="module" src="/pwa.js"></script>
+  <script type="module" src="js/dashboard.js"></script>
+  <script type="module" src="pwa.js"></script>
 </body>
 </html>

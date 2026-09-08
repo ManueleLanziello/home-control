@@ -1,8 +1,10 @@
+import { homeControlPath } from './base-path.js';
+
 const statusElement = document.querySelector('#settings-status');
 
 async function loadHardware() {
   try {
-    const response = await fetch('/api/hardware', { cache: 'no-store' });
+    const response = await fetch(homeControlPath('/api/hardware'), { cache: 'no-store' });
     const hardware = await response.json();
     if (!response.ok) throw new Error(hardware.error || `HTTP ${response.status}`);
 

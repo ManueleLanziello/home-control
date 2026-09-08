@@ -25,6 +25,7 @@ const STATIC_FILES = new Map([
   ['/settings', ['settings.html', 'text/html; charset=utf-8']],
   ['/settings.html', ['settings.html', 'text/html; charset=utf-8']],
   ['/settings.js', ['settings.js', 'text/javascript; charset=utf-8']],
+  ['/base-path.js', ['base-path.js', 'text/javascript; charset=utf-8']],
   ['/style.css', ['style.css', 'text/css; charset=utf-8']],
   ['/js/dashboard.js', ['js/dashboard.js', 'text/javascript; charset=utf-8']],
   ['/js/boiler-schedule.js', ['js/boiler-schedule.js', 'text/javascript; charset=utf-8']],

@@ -1,4 +1,5 @@
 import { renderWt200Schedule } from './boiler-schedule.js';
+import { homeControlPath } from '../base-path.js';
 
 const NORMAL_NAMES = ['Mattina presto', 'Mattina', 'Mezzogiorno', 'Pomeriggio', 'Sera', 'Notte'];
 let snapshot = null;
@@ -69,7 +70,7 @@ function renderThermostat(snapshot = null) {
 
 async function loadThermostat() {
   try {
-    const response = await fetch('/api/thermostat');
+    const response = await fetch(homeControlPath('/api/thermostat'));
     if (!response.ok) throw new Error('Termostato non disponibile');
     snapshot = await response.json();
     draft = cloneSchedule(snapshot.schedule);
@@ -99,7 +100,7 @@ document.querySelector('[data-schedule-form]')?.addEventListener('submit', async
   renderEditor();
   const message = document.querySelector('[data-schedule-message]');
   try {
-    const response = await fetch('/api/thermostat/schedule', {
+    const response = await fetch(homeControlPath('/api/thermostat/schedule'), {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ normalPeriods: draft.normalPeriods, restDayPeriods: draft.restDayPeriods }),
     });

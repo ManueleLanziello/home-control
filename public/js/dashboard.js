@@ -1,4 +1,5 @@
 import { renderWt200Schedule } from './boiler-schedule.js';
+import { homeControlPath } from '../base-path.js';
 
 const THERMOSTAT_CACHE_KEY = 'home-control:thermostat-snapshot';
 let boilerSnapshot = null;
@@ -255,7 +256,7 @@ async function saveSetpoint() {
   if (temperature === previous) return;
   setpointSaving = true; control.disabled = true;
   try {
-    const response = await fetch('/api/thermostat/setpoint', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ temperature }) });
+    const response = await fetch(homeControlPath('/api/thermostat/setpoint'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ temperature }) });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'Setpoint non aggiornato');
     boilerSnapshot = { ...boilerSnapshot, thermostat: { ...boilerSnapshot.thermostat, setpointTemperature: result.temperature } };
@@ -265,7 +266,7 @@ async function saveSetpoint() {
 
 async function loadBoilerSnapshot() {
   try {
-    const response = await fetch('/api/thermostat');
+    const response = await fetch(homeControlPath('/api/thermostat'));
     if (!response.ok) throw new Error('Termostato non disponibile');
     const snapshot = await response.json();
     boilerSnapshot = snapshot;
@@ -287,7 +288,7 @@ async function setBoilerMode(mode) {
   modeSaving = true;
   for (const option of document.querySelectorAll('[data-boiler-mode-option]')) option.classList.add('boiler-mode--disabled');
   try {
-    const response = await fetch('/api/thermostat/mode', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode }) });
+    const response = await fetch(homeControlPath('/api/thermostat/mode'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode }) });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'Cambio modalita non riuscito');
     boilerSnapshot = { ...boilerSnapshot, thermostat: { ...boilerSnapshot?.thermostat, mode: result.mode } };
