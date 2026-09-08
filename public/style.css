@@ -226,12 +226,12 @@ body { min-height: 100vh; margin: 0; background: radial-gradient(circle at 50% 2
   .dashboard-header { grid-template-columns: 1fr auto; }
   .system-status { grid-column: 1 / -1; grid-row: 2; min-width: 0; }
   .dashboard-map-grid { grid-template-columns: minmax(0, 1fr); gap: 14px; }
-  .dashboard-side { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; align-content: stretch; justify-items: stretch; gap: 12px; }
+  .dashboard-side { display: grid; grid-template-columns: minmax(0, 1fr); align-items: stretch; align-content: stretch; justify-items: stretch; gap: 12px; }
   .dashboard-side--left { order: 2; }
   .floorplan-stage { order: 1; width: min(100%, 720px); }
   .dashboard-side--right { order: 3; }
   .camera-card, .boiler-card, .floorplan-panel { width: 100%; }
-  .camera-card { grid-column: span 2; }
+  .camera-card { grid-column: auto; }
   .boiler-card { max-width: none; }
   .boiler-temperature-grid { grid-template-columns: 1fr; }
   .boiler-mode-selector { grid-template-columns: 1fr; }
