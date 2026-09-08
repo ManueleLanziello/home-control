@@ -227,9 +227,10 @@ body { min-height: 100vh; margin: 0; background: radial-gradient(circle at 50% 2
   .system-status { grid-column: 1 / -1; grid-row: 2; min-width: 0; }
   .dashboard-map-grid { grid-template-columns: minmax(0, 1fr); gap: 14px; }
   .dashboard-side { display: grid; grid-template-columns: minmax(0, 1fr); align-items: stretch; align-content: stretch; justify-items: stretch; gap: 12px; }
-  .dashboard-side--left { order: 2; }
-  .floorplan-stage { order: 1; width: min(100%, 720px); }
-  .dashboard-side--right { order: 3; }
+  .dashboard-side--left { order: 3; }
+  .floorplan-panel { order: 1; }
+  .floorplan-stage { width: min(100%, 720px); }
+  .dashboard-side--right { order: 2; }
   .camera-card, .boiler-card, .floorplan-panel { width: 100%; }
   .camera-card { grid-column: auto; }
   .boiler-card { max-width: none; }
@@ -328,4 +329,50 @@ body { min-height: 100vh; margin: 0; background: radial-gradient(circle at 50% 2
   .boiler-status-row { margin-top: 12px; padding: 10px; }
   .boiler-status-icon { width: 27px; height: 27px; }
   .boiler-updated { margin-top: 7px; }
+}
+
+@media (min-width: 901px) and (max-width: 1366px) and (max-height: 820px) and (orientation: landscape) and (pointer: coarse) {
+  .dashboard-shell { padding-block: 10px; }
+  .floorplan-dashboard { padding: 8px; }
+  .dashboard-map-grid { gap: 12px; }
+  .dashboard-side, .floorplan-panel { min-height: 0; }
+  .floorplan-panel { overflow: hidden; }
+  .floorplan-stage { width: min(100%, calc((100vh - 330px) * .9611), 480px); max-height: 100%; }
+  .camera-card { padding: 10px; }
+  .camera-preview { min-height: clamp(74px, 12vh, 96px); }
+  .boiler-card { padding: 10px 12px; }
+  .boiler-card-header { gap: 9px; margin-bottom: 8px; }
+  .boiler-card .widget-header h2 { font-size: clamp(1.2rem, 2.3vh, 1.5rem); }
+  .boiler-subtitle, .boiler-card .static-status { font-size: clamp(.62rem, 1.35vh, .76rem); }
+  .boiler-flame-icon { width: clamp(42px, 6vh, 50px); }
+  .boiler-temperature-grid { gap: 8px; }
+  .boiler-temperature { min-height: 110px; padding: 9px 8px; border-radius: 14px; }
+  .boiler-tile-heading { gap: 6px; }
+  .boiler-tile-icon { width: clamp(24px, 3.5vh, 29px); height: clamp(24px, 3.5vh, 29px); }
+  .boiler-temperature-label { font-size: clamp(.58rem, 1.25vh, .7rem); }
+  .boiler-temperature strong { margin-bottom: 7px; font-size: clamp(1.25rem, 3vh, 1.75rem); }
+  .boiler-temperature small, .boiler-temperature em, .boiler-minmax { font-size: clamp(.48rem, .95vh, .58rem); }
+  .boiler-disabled-controls { gap: 12px; }
+  .boiler-disabled-controls button { width: 34px; height: 34px; font-size: 1.35rem; }
+  .boiler-mode-selector { margin-top: 8px; padding: 6px; border-radius: 19px; }
+  .boiler-mode { gap: 2px; }
+  .boiler-mode > span { width: clamp(36px, 5.5vh, 45px); height: clamp(36px, 5.5vh, 45px); }
+  .boiler-mode strong { font-size: clamp(.6rem, 1.2vh, .72rem); }
+  .boiler-schedule { margin-top: 8px; padding: 8px; }
+  .boiler-section-icon { width: 22px; height: 22px; }
+  .boiler-schedule h3 { font-size: clamp(.72rem, 1.35vh, .84rem); }
+  .boiler-schedule header .boiler-settings-link { width: 24px; height: 24px; }
+  .boiler-schedule-placeholder--chart { margin-top: 6px; margin-inline: 0; padding-bottom: 4px; }
+  .boiler-schedule-chart { height: clamp(82px, 13vh, 106px); }
+  .boiler-schedule-periods { margin-top: 3px; }
+  .boiler-schedule-period { padding-top: 5px; }
+  .boiler-weekdays { gap: 4px; margin-top: 6px; }
+  .boiler-weekdays button { padding: 4px 0; }
+  .boiler-status-row { gap: 6px; margin-top: 8px; padding: 7px; }
+  .boiler-status-row div { gap: 6px; padding-left: 6px; }
+  .boiler-status-icon { width: 21px; height: 21px; }
+  .boiler-status-row strong { font-size: clamp(.52rem, 1.05vh, .63rem); }
+  .boiler-status-row small { font-size: clamp(.48rem, .95vh, .57rem); }
+  .boiler-updated { gap: 4px; margin-top: 4px; font-size: clamp(.5rem, .95vh, .58rem); }
+  .boiler-updated svg { width: 15px; height: 15px; }
 }
