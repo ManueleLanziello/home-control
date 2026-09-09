@@ -242,6 +242,16 @@ body { min-height: 100vh; margin: 0; background: radial-gradient(circle at 50% 2
 .empty-settings { display: grid; gap: 8px; min-height: 160px; align-content: center; padding: 28px; border: 1px dashed rgba(97,213,164,.22); border-radius: 18px; background: rgba(18,29,34,.55); }
 .empty-settings strong { color: #dff8ed; }
 .empty-settings span { color: #82958f; line-height: 1.5; }
+.settings-message { min-height: 1.4em; color: #a7bdca; }
+.sensor-form, .sensor-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+.sensor-form { margin-bottom: 10px; }
+.sensor-form label { display: grid; gap: 5px; min-width: min(100%, 240px); color: #a7bdca; font-size: .78rem; }
+.sensor-form input, .sensor-actions select, .sensor-actions button, #sensor-cancel { min-height: 34px; border: 1px solid rgba(112,148,178,.28); border-radius: 8px; padding: 0 10px; color: #dcecf5; background: rgba(9,18,28,.72); }
+.sensor-form .primary-link { min-height: 34px; padding: 0 12px; cursor: pointer; }
+.settings-note { color: #82958f; font-size: .78rem; }
+.sensor-devices { display: grid; gap: 10px; margin-top: 16px; }
+.sensor-device { display: grid; gap: 5px; padding: 14px; border: 1px solid rgba(97,213,164,.22); border-radius: 12px; background: rgba(18,29,34,.55); }
+.sensor-device > span, .sensor-device > small { color: #82958f; font-size: .78rem; }
 
 @media (orientation: portrait) {
   .dashboard-header { grid-template-columns: 1fr auto; }

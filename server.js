@@ -1,10 +1,12 @@
 import http from 'node:http';
+import crypto from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { loadEnvFile } from 'node:process';
 import { fileURLToPath } from 'node:url';
-import { DeviceRoleStore } from './src/device-roles.js';
+import { DeviceRoleStore, HOME_SENSOR_ROLES } from './src/device-roles.js';
+import { verifyDewinSensor } from './src/dewin-verifier.js';
 import { HardwareRegistryStore, defaultHardwareRegistry } from './src/hardware-registry.js';
 import { createHomeWt200Runtime } from './src/wt200-runtime.js';
 import { HomeStatusRuntime, HOME_ROLES } from './src/home-status.js';
@@ -94,11 +96,27 @@ function isSchedulePayload(value) {
     && value.normalPeriods.every(validPeriod) && value.restDayPeriods.every(validPeriod);
 }
 
+const HOME_SENSOR_ROLE_LABELS = Object.freeze({
+  S1: 'temperature_cucina', S2: 'temperature_camera', S3: null, S4: 'temperature_cameretta',
+});
+
+function dewinRecord(input, id = `dewin-${crypto.randomUUID()}`) {
+  const alias = String(input?.alias || '').trim();
+  const tuyaDeviceId = String(input?.tuyaDeviceId || '').trim();
+  if (!alias || !tuyaDeviceId) throw new Error('Nome e ID Tuya sono obbligatori.');
+  return {
+    id, alias, model: 'T & H Sensor with external probe', manufacturer: 'Dewin', type: 'Sensore temperatura e umidità',
+    protocol: 'tuya-cloud', connectionType: 'cloud', identity: { tuyaDeviceId }, metadata: { adapter: 'dewin-tuya' },
+    configurationStatus: 'complete', verificationStatus: 'pending', verifiedAt: null,
+  };
+}
+
 export function createHomeControlServer({
   hardwareStore = new HardwareRegistryStore({ filePath: HARDWARE_FILE, defaults: defaultHardwareRegistry() }),
   roleStore = new DeviceRoleStore({ filePath: ROLE_FILE }),
   thermostatRuntime = null,
   createSensorRuntime,
+  verifySensor = verifyDewinSensor,
 } = {}) {
   let activeThermostatRuntime = thermostatRuntime;
   const homeStatus = new HomeStatusRuntime({ hardwareStore, roleStore, createSensorRuntime,
@@ -123,6 +141,56 @@ export function createHomeControlServer({
       if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
       const entries = await readdir(path.join(ROOT, 'design'), { withFileTypes: true }).catch(() => []);
       return sendJson(response, 200, { assets: entries.filter(entry => entry.isFile() && /^[a-zA-Z0-9_-]+\.svg$/.test(entry.name)).map(entry => entry.name) });
+    }
+    const verifyMatch = /^\/api\/hardware\/sensors\/([^/]+)\/verify$/.exec(url.pathname);
+    if (verifyMatch) {
+      if (request.method !== 'POST') return sendJson(response, 405, { error: 'Metodo non consentito' });
+      try {
+        const registry = await hardwareStore.read();
+        const device = registry.devices.find((item) => item.id === decodeURIComponent(verifyMatch[1]));
+        if (!device || device.metadata?.adapter !== 'dewin-tuya') return sendJson(response, 404, { error: 'Sensore Dewin non configurato' });
+        const detected = await verifySensor(device);
+        const devices = registry.devices.map((item) => item.id === device.id ? { ...item, verificationStatus: 'verified', verifiedAt: detected.verifiedAt || new Date().toISOString() } : item);
+        await hardwareStore.write({ ...registry, devices });
+        homeStatus.invalidate();
+        return sendJson(response, 200, { device: { ...devices.find((item) => item.id === device.id), detected } });
+      } catch (error) { return sendJson(response, 503, { error: error.message || 'Verifica Dewin non riuscita' }); }
+    }
+    const sensorMatch = /^\/api\/hardware\/sensors(?:\/([^/]+))?$/.exec(url.pathname);
+    if (sensorMatch) {
+      try {
+        const registry = await hardwareStore.read();
+        const deviceIds = registry.devices.map((device) => device.id);
+        if (request.method === 'GET' && !sensorMatch[1]) {
+          const assignments = await roleStore.read(deviceIds);
+          return sendJson(response, 200, { sensors: registry.devices.filter((device) => device.metadata?.adapter === 'dewin-tuya').map((device) => ({ ...device, role: assignments[device.id] || 'none' })) });
+        }
+        if (request.method === 'POST' && !sensorMatch[1]) {
+          const device = dewinRecord(await readJson(request));
+          await hardwareStore.write({ ...registry, devices: [...registry.devices, device] });
+          await roleStore.write(await roleStore.read([...deviceIds, device.id]), [...deviceIds, device.id]);
+          homeStatus.invalidate();
+          return sendJson(response, 201, { device: { ...device, role: 'none' } });
+        }
+        if (request.method === 'PUT' && sensorMatch[1]) {
+          const id = decodeURIComponent(sensorMatch[1]); const previous = registry.devices.find((device) => device.id === id);
+          if (!previous || previous.metadata?.adapter !== 'dewin-tuya') return sendJson(response, 404, { error: 'Sensore Dewin non configurato' });
+          const next = dewinRecord(await readJson(request), id);
+          await hardwareStore.write({ ...registry, devices: registry.devices.map((device) => device.id === id ? next : device) });
+          homeStatus.invalidate();
+          return sendJson(response, 200, { device: { ...next, role: (await roleStore.read(deviceIds))[id] || 'none' } });
+        }
+        if (request.method === 'DELETE' && sensorMatch[1]) {
+          const id = decodeURIComponent(sensorMatch[1]);
+          const devices = registry.devices.filter((device) => device.id !== id);
+          if (devices.length === registry.devices.length) return sendJson(response, 404, { error: 'Sensore Dewin non configurato' });
+          await hardwareStore.write({ ...registry, devices });
+          await roleStore.write(await roleStore.read(devices.map((device) => device.id)), devices.map((device) => device.id));
+          homeStatus.invalidate();
+          return sendJson(response, 204, {});
+        }
+        return sendJson(response, 405, { error: 'Metodo non consentito' });
+      } catch (error) { return sendJson(response, 400, { error: error.message || 'Configurazione sensore non valida' }); }
     }
     if (url.pathname === '/api/thermostat') {
       if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
@@ -196,10 +264,21 @@ export function createHomeControlServer({
       });
     }
     if (url.pathname === '/api/device-roles') {
+      if (request.method === 'PUT') {
+        try {
+          const payload = await readJson(request); const registry = await hardwareStore.read();
+          const device = registry.devices.find((item) => item.id === payload?.deviceId);
+          if (!device || device.metadata?.adapter !== 'dewin-tuya') return sendJson(response, 400, { error: 'Sensore Dewin non valido' });
+          const assignments = await roleStore.assignSensor(device.id, payload.role, registry.devices.map((item) => item.id));
+          homeStatus.invalidate();
+          return sendJson(response, 200, { assignments });
+        } catch (error) { return sendJson(response, 400, { error: error.message || 'Ruolo non valido' }); }
+      }
       if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
       const registry = await hardwareStore.read();
       return sendJson(response, 200, {
         validRoles: Object.values(HOME_ROLES),
+        sensorRoles: HOME_SENSOR_ROLE_LABELS,
         assignments: await roleStore.read(registry.devices.map((device) => device.id)),
       });
     }

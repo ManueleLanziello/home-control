@@ -23,12 +23,20 @@
       <div class="section-heading">
         <div>
           <p class="eyebrow">DISPOSITIVI</p>
-          <h2 id="devices-heading">Dispositivi</h2>
+          <h2 id="devices-heading">Sensori Dewin</h2>
         </div>
       </div>
-      <div id="settings-status" class="empty-settings" aria-live="polite">
-        <strong>Nessun dispositivo configurato</strong>
-        <span>La gestione dei dispositivi verrà aggiunta in un passaggio successivo.</span>
+      <p id="settings-status" class="settings-message" aria-live="polite"></p>
+      <form id="sensor-form" class="sensor-form">
+        <input type="hidden" name="id">
+        <label>Nome<input name="alias" required maxlength="80" placeholder="Es. Dewin Cucina"></label>
+        <label>ID Tuya<input name="tuyaDeviceId" required maxlength="160" autocomplete="off"></label>
+        <button class="primary-link" type="submit">Salva sensore</button>
+        <button id="sensor-cancel" type="button" hidden>Annulla</button>
+      </form>
+      <p class="settings-note">S1 Cucina, S2 Camera e S4 Cameretta sono assegnabili. S3 resta riservato al termostato WT200.</p>
+      <div id="sensor-devices" class="sensor-devices" aria-live="polite">
+        <div class="empty-settings"><strong>Nessun sensore configurato</strong></div>
       </div>
     </section>
   </main>

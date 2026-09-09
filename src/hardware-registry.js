@@ -53,9 +53,13 @@ export function validateHardwareRegistry(value) {
   }
   const devices = (value.devices || []).map(normalizeHardwareRecord);
   const ids = new Set();
+  const tuyaDeviceIds = new Set();
   for (const device of devices) {
     if (ids.has(device.id)) throw new HardwareRegistryError('ID dispositivo duplicato.', 'DUPLICATE_ID');
+    const tuyaDeviceId = device.identity?.tuyaDeviceId || device.tuyaDeviceId;
+    if (tuyaDeviceId && tuyaDeviceIds.has(tuyaDeviceId)) throw new HardwareRegistryError('Identità Tuya duplicata.', 'DUPLICATE_TUYA_DEVICE_ID');
     ids.add(device.id);
+    if (tuyaDeviceId) tuyaDeviceIds.add(tuyaDeviceId);
   }
   return { version: HARDWARE_REGISTRY_VERSION, devices };
 }
