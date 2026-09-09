@@ -1,0 +1,58 @@
+/* Only the layout around the existing cards changes; boiler styles stay in style.css. */
+body.layered-dashboard { height: auto; overflow: auto; }
+.layered-dashboard .dashboard-shell { display: block; height: auto; min-height: calc(100svh - 20px); overflow: visible; }
+.layered-dashboard .floorplan-dashboard { overflow: visible; }
+.layered-dashboard .dashboard-map-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); height: auto; align-items: start; }
+.layered-dashboard .dashboard-side { height: auto; }
+.layered-floorplan { min-width: 0; }
+.layered-floorplan-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.layered-floorplan-heading h2 { margin: 0; font-size: 1rem; }
+.layered-floorplan-heading > span { color: #a7bdca; font-size: .78rem; }
+.layered-floorplan-stage { --floorplan-ratio: 4932 / 3091; --floorplan-width-ratio: 1.5956; position: relative; width: min(100%, calc(var(--floorplan-available-height, 65svh) * var(--floorplan-width-ratio))); aspect-ratio: var(--floorplan-ratio); margin: 12px auto; isolation: isolate; }
+.floorplan-stack-layer, .floorplan-mapping-source { position: absolute; inset: 0; width: 100%; height: 100%; display: block; object-fit: contain; pointer-events: none; }
+.floorplan-stack-layer[hidden] { display: none; }
+.floorplan-mapping-source { visibility: hidden; }
+.floorplan-overlay { overflow: visible; }
+.floorplan-marker { display: grid; place-items: center; width: 100%; height: 100%; padding: 0; margin: 0; border: 5px solid transparent; border-radius: 50%; background: rgba(10, 30, 50, 0.25); color: #b7ceda; font: inherit; }
+button.floorplan-marker { pointer-events: auto; cursor: pointer; }
+.floorplan-symbol { position: relative; display: grid; place-items: center; width: 96%; height: 96%; }
+.floorplan-symbol img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.floorplan-symbol [hidden] { display: none; }
+.floorplan-fallback { font: 140px/1 "Segoe UI Symbol", sans-serif; }
+.floorplan-marker[data-on="false"] .floorplan-fallback { filter: grayscale(1); opacity: .55; }
+.floorplan-marker[data-on="true"] { color: #ffe56a; }
+.floorplan-marker-sensor { color: #ffd2af; }
+.floorplan-marker-camera { color: #8adeff; }
+.floorplan-reading { fill: #fff; font-family: system-ui, sans-serif; font-weight: 700; paint-order: stroke; stroke: #06131f; stroke-width: 8; stroke-linejoin: round; }
+.floorplan-boiler-mini { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); width: 100%; height: 100%; background: #071d2ef0; border: 5px solid #5194ae; border-radius: 28px; overflow: hidden; }
+.floorplan-boiler-open { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: center; justify-items: center; gap: 0; border: 0; background: transparent; color: #def1fb; cursor: pointer; pointer-events: auto; padding: 0; }
+.floorplan-boiler-status { width: 64px; height: 64px; border-radius: 50%; background: #ff3434; box-shadow: 0 0 24px #ff3434; }
+.floorplan-boiler-status[data-on="true"] { background: #34f77c; box-shadow: 0 0 24px #34f77c; }
+.floorplan-boiler-mode.boiler-mode { width: 100%; margin: 0; padding: 0; pointer-events: none; }
+.floorplan-boiler-mode.boiler-mode > span { width: 110px; height: 110px; }
+.floorplan-boiler-settings { display: grid; place-items: center; color: #bdefff; text-decoration: none; font-size: 76px; pointer-events: auto; background: #14354c; }
+.floorplan-marker:focus-visible, .floorplan-boiler-open:focus-visible, .floorplan-boiler-settings:focus-visible { outline: 10px solid #fff; outline-offset: -12px; }
+.floorplan-camera-dialog { color: #e3f4ff; background: #071826; border: 1px solid #38768d; border-radius: 18px; padding: 24px; max-width: min(440px, 90vw); }
+.floorplan-camera-dialog::backdrop { background: #000a; }
+.floorplan-camera-dialog form { text-align: right; }
+.floorplan-camera-dialog button { color: #d8f3ff; background: #153449; border: 1px solid #42697f; border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+@media (orientation: portrait), (max-width: 700px) {
+  .layered-dashboard .dashboard-map-grid { grid-template-columns: minmax(0, 1fr); }
+
+}
+
+
+/* Modal shell only: reuse the existing boiler card without changing its design. */
+.boiler-modal { width: min(780px, calc(100vw - 24px)); max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); margin: auto; padding: 0; border: 1px solid #3c718c; border-radius: 24px; background: #081522; color: #e5f3fc; overflow: auto; overscroll-behavior: contain; }
+.boiler-modal::backdrop { background: #0009; }
+.boiler-modal-toolbar { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 12px 18px; background: #081522f5; }
+.boiler-modal-toolbar button { width: 38px; height: 38px; border: 1px solid #476b83; border-radius: 10px; background: #132d40; color: #e5f3fc; cursor: pointer; }
+.boiler-modal-content { padding: 0 16px 16px; min-width: 0; }
+.boiler-modal-card-frame { display: grid; justify-items: center; width: 100%; }
+.boiler-modal .boiler-card { width: max(510px, 100%); max-width: none; height: auto; zoom: var(--boiler-card-scale, 1); }
+.boiler-modal [data-boiler-editor-host] { scroll-margin-top: 70px; }
+.boiler-modal .thermostat-period input { width: 100%; }
+body:has(.boiler-modal[open]) { overflow: hidden; }
+
+button[data-floorplan-light] { user-select: none; touch-action: manipulation; }
+button[data-floorplan-light] .floorplan-symbol { pointer-events: none; }

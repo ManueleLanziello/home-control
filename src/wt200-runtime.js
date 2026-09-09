@@ -29,6 +29,9 @@ export function mergeWt200Snapshots({ cloudSnapshot = null, lanSnapshot = null, 
     ...cloud,
     deviceId: cloud.deviceId ?? lanSnapshot?.deviceId ?? deviceId,
     online: cloud.online === true || lanSnapshot !== null,
+    cloudUpdatedAt: cloud.online === true ? cloud.updatedAt : null,
+    lanUpdatedAt: lanSnapshot?.updatedAt ?? null,
+    scheduleSource: lanSnapshot?.schedule ? 'device' : persistedSchedule?.schedule ? 'persisted' : null,
     heatingActive: lanSnapshot?.heatingActive ?? null,
     rawDps: lanSnapshot?.rawDps ?? null,
     schedule: lanSnapshot?.schedule || persistedSchedule?.schedule || null,
@@ -102,13 +105,13 @@ export class HomeWt200Runtime {
       this.readLanSnapshot(),
     ]);
     if (cloudResult.status === 'fulfilled' && cloudResult.value) this.lastCloudSnapshot = cloudResult.value;
-    const cloudSnapshot = cloudResult.status === 'fulfilled' ? cloudResult.value : this.lastCloudSnapshot;
+    const cloudSnapshot = cloudResult.status === 'fulfilled' ? cloudResult.value : null;
     const lanSnapshot = lanResult.status === 'fulfilled' ? lanResult.value : null;
     if (!cloudSnapshot && !lanSnapshot) {
-      throw cloudResult.status === 'rejected' ? cloudResult.reason : lanResult.reason;
+      return mergeWt200Snapshots({ persistedSchedule, deviceId: this.deviceId });
     }
     const merged = mergeWt200Snapshots({ cloudSnapshot, lanSnapshot, persistedSchedule, deviceId: this.deviceId });
-    if (this.modeOverride || this.setpointOverride !== null) merged.thermostat = { ...merged.thermostat, ...(this.modeOverride ? { mode: this.modeOverride } : {}), ...(this.setpointOverride !== null ? { setpointTemperature: this.setpointOverride } : {}) };
+    // A read reports device state, not an indefinitely retained command override.
     return merged;
   }
 

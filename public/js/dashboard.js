@@ -1,8 +1,13 @@
+import { initThermostat } from './thermostat.js';
+import { initFloorplan } from './floorplan.js';
+import { createFloorplanState } from './floorplan-state.js';
 import { renderWt200Schedule } from './boiler-schedule.js';
 import { homeControlPath } from '../base-path.js';
 
 const THERMOSTAT_CACHE_KEY = 'home-control:thermostat-snapshot';
 let boilerSnapshot = null;
+const floorplanStore = createFloorplanState();
+let boilerEditor = null;
 let modeSaving = false;
 let setpointSaving = false;
 const FLOORPLAN_VIEWBOX = { x: 1763.5, y: 1736.5, width: 1656, height: 1723 };
@@ -219,9 +224,7 @@ function renderBoiler(snapshot = null) {
     onlineElement.classList.toggle('static-status--online', online);
     onlineElement.classList.toggle('static-status--offline', !online);
   }
-  const displayedSetpoint = thermostat.mode === 'auto'
-    ? activeScheduleTemperature(snapshot?.schedule)
-    : thermostat.setpointTemperature;
+  const displayedSetpoint = thermostat.setpointTemperature;
   if (setpoint) setpoint.textContent = temperatureText(displayedSetpoint);
   const setpointControl = document.querySelector('[data-boiler-setpoint-control]');
   if (setpointControl) {
@@ -264,15 +267,35 @@ async function saveSetpoint() {
   } catch (error) { control.value = previous; showModeMessage(error.message); } finally { setpointSaving = false; renderBoiler(boilerSnapshot); }
 }
 
-async function loadBoilerSnapshot() {
+async function loadHomeSnapshot() {
   try {
-    const response = await fetch(homeControlPath('/api/thermostat'));
-    if (!response.ok) throw new Error('Termostato non disponibile');
-    const snapshot = await response.json();
-    boilerSnapshot = snapshot;
-    sessionStorage.setItem(THERMOSTAT_CACHE_KEY, JSON.stringify(snapshot));
-    renderBoiler(snapshot);
-  } catch {}
+    const response = await fetch(homeControlPath('/api/home/status'), { cache: 'no-store', signal: AbortSignal.timeout(30_000) });
+    if (!response.ok) throw new Error('Stato casa non disponibile');
+    const home = await response.json();
+    floorplanStore.applyHomeSnapshot(home);
+    boilerSnapshot = home.thermostat;
+    renderBoiler(boilerSnapshot);
+    boilerEditor?.updateSnapshot(boilerSnapshot);
+    const average = document.querySelector('.boiler-temperature--home');
+    average.querySelector('strong').textContent = temperatureText(home.averageTemperature);
+    average.querySelector('em').textContent = home.indoorSensorCount ? home.indoorSensorCount + ' sensori interni disponibili' : 'Sensori non disponibili';
+    const heading = document.querySelector('.layered-floorplan-heading > span');
+    heading.textContent = Object.values(home.lights).some(light => light.source === 'simulation') ? 'Dati reali · luci simulate' : 'Dati reali';
+    document.querySelector('.status-message').textContent = home.indoorSensorCount + ' sensori disponibili';
+    document.querySelector('.system-status strong')?.replaceChildren(document.createTextNode('Stato casa'));
+  } catch {
+    floorplanStore.applyHomeSnapshot();
+    boilerSnapshot = null;
+    renderBoiler();
+    boilerEditor?.updateSnapshot(null);
+    const average = document.querySelector('.boiler-temperature--home');
+    average.querySelector('strong').textContent = '— °C';
+    average.querySelector('em').textContent = 'Sensori non disponibili';
+    document.querySelector('.layered-floorplan-heading > span').textContent = 'Stato non disponibile';
+    document.querySelector('.status-message').textContent = 'Dati non disponibili';
+  } finally {
+    setTimeout(loadHomeSnapshot, 30_000);
+  }
 }
 
 function showModeMessage(message) {
@@ -313,17 +336,88 @@ function bindBoilerModeControls() {
   }
 }
 
+
+function initBoilerModal() {
+  const modal = document.querySelector('[data-boiler-modal]');
+  const host = modal.querySelector('[data-boiler-editor-host]');
+  let editorPromise;
+  const loadEditor = () => editorPromise ||= (async () => {
+    const response = await fetch(homeControlPath('/thermostat.html'), { cache: 'no-store' });
+    if (!response.ok) throw new Error('Programmazione non disponibile');
+    const page = new DOMParser().parseFromString(await response.text(), 'text/html');
+    const editor = page.querySelector('.thermostat-editor');
+    if (!editor) throw new Error('Editor programmazione non disponibile');
+    host.replaceChildren(document.importNode(editor, true));
+    boilerEditor = initThermostat(modal, {
+      initialSnapshot: boilerSnapshot || {},
+      onSaved(snapshot) {
+        boilerSnapshot = { ...boilerSnapshot, schedule: snapshot.schedule };
+        sessionStorage.setItem(THERMOSTAT_CACHE_KEY, JSON.stringify(boilerSnapshot));
+        renderBoiler(boilerSnapshot);
+      },
+    });
+  })().catch(error => {
+    const message = document.createElement('p');
+    message.setAttribute('role', 'status');
+    message.textContent = error.message;
+    host.replaceChildren(message);
+    editorPromise = null;
+  });
+  const open = async section => {
+    if (!modal.open) modal.showModal();
+    const frame = modal.querySelector('.boiler-modal-card-frame');
+    frame.style.setProperty('--boiler-card-scale', Math.min(1, frame.clientWidth / 510));
+    if (section !== 'programming') modal.scrollTop = 0;
+    await loadEditor();
+    if (modal.open && section === 'programming') {
+      host.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      host.querySelector('input, button')?.focus({ preventScroll: true });
+    }
+  };
+  modal.querySelector('[data-boiler-modal-close]').addEventListener('click', () => modal.close());
+  modal.addEventListener('click', event => {
+    if (event.target !== modal) return;
+    const box = modal.getBoundingClientRect();
+    if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) modal.close();
+  });
+  modal.querySelector('.boiler-settings-link').addEventListener('click', event => { event.preventDefault(); void open('programming'); });
+  document.addEventListener('home-control:open-boiler', event => void open(event.detail?.section));
+  const frame = modal.querySelector('.boiler-modal-card-frame');
+  new ResizeObserver(() => {
+    if (modal.open) frame.style.setProperty('--boiler-card-scale', Math.min(1, frame.clientWidth / 510));
+  }).observe(frame);
+}
+
+function fitFloorplanToViewport() {
+  const stage = document.querySelector('[data-layered-floorplan]');
+  const shell = document.querySelector('.dashboard-shell');
+  const panel = document.querySelector('.floorplan-dashboard');
+
+  const fit = () => {
+    const stageStyle = getComputedStyle(stage);
+    const bottomSpace = [shell, panel].reduce((space, element) => {
+      const style = getComputedStyle(element);
+      return space + parseFloat(style.paddingBottom) + parseFloat(style.borderBottomWidth);
+    }, parseFloat(getComputedStyle(document.body).paddingBottom));
+    const top = stage.getBoundingClientRect().top + window.scrollY;
+    const available = window.innerHeight - top - parseFloat(stageStyle.marginBottom) - bottomSpace;
+    stage.style.setProperty('--floorplan-available-height', Math.max(100, available) + 'px');
+  };
+  for (const element of [document.querySelector('.dashboard-header'), document.querySelector('.layered-floorplan-heading'), document.querySelector('[data-floorplan-status]')]) new ResizeObserver(fit).observe(element);
+  window.addEventListener('resize', fit);
+  fit();
+}
+
 function renderDashboard() {
-  renderFloorplan();
+  initBoilerModal();
+  fitFloorplanToViewport();
+  void initFloorplan({ store: floorplanStore });
   renderExternalLights();
   renderWidgetIcons();
-  try {
-    const cached = JSON.parse(sessionStorage.getItem(THERMOSTAT_CACHE_KEY));
-    if (cached?.deviceId) { boilerSnapshot = cached; renderBoiler(cached); }
-  } catch {}
+  renderBoiler();
   bindBoilerModeControls();
   document.querySelector('[data-boiler-setpoint-control]')?.addEventListener('change', () => void saveSetpoint());
-  void loadBoilerSnapshot();
+  void loadHomeSnapshot();
 }
 
 window.homeControlFloorplan = {

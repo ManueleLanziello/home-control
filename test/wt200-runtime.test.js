@@ -59,7 +59,7 @@ test('Cloud valido e schedule persistito restano disponibili se la LAN cade', as
   assert.equal(result.schedule.raw, schedule.raw);
 });
 
-test('ultimo Cloud valido resta disponibile se LAN e Cloud falliscono nel recovery', async () => {
+test('letture Cloud precedenti non tornano online se LAN e Cloud falliscono', async () => {
   let cloudReads = 0;
   const runtime = new HomeWt200Runtime({
     cloudAdapter: { async read() { if (cloudReads++ === 0) return cloudSnapshot; throw new Error('Cloud unavailable'); } },
@@ -68,8 +68,8 @@ test('ultimo Cloud valido resta disponibile se LAN e Cloud falliscono nel recove
   });
   await runtime.readSnapshot();
   const recovered = await runtime.readSnapshot();
-  assert.equal(recovered.online, true);
-  assert.equal(recovered.thermostat.currentTemperature, 27.8);
+  assert.equal(recovered.online, false);
+  assert.equal(recovered.thermostat.currentTemperature, undefined);
   assert.equal(recovered.schedule.raw, schedule.raw);
 });
 
@@ -122,7 +122,15 @@ test('GET /api/thermostat restituisce il runtime WT200 iniettato', async () => {
     const { port } = server.address();
     const response = await fetch(`http://127.0.0.1:${port}/api/thermostat`);
     assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), snapshot);
+    const payload = await response.json();
+    // This fixture is stale: no measurements or physical datapoints may reach the UI.
+    assert.equal(payload.online, false);
+    assert.equal(payload.thermostat.currentTemperature, null);
+    assert.equal(payload.thermostat.setpointTemperature, null);
+    assert.equal(payload.updatedAt, snapshot.updatedAt);
+    assert.equal(payload.deviceId, 'thermostat');
+    assert.equal(Object.hasOwn(payload, 'rawDatapoints'), false);
+    assert.equal(Object.hasOwn(payload, 'rawDps'), false);
   } finally {
     server.close();
     await once(server, 'close');

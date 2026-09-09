@@ -37,6 +37,10 @@ export function normalizeHardwareRecord(input) {
     connectionType,
     ...(input.manufacturer ? { manufacturer: String(input.manufacturer).trim() } : {}),
     ...(input.type ? { type: String(input.type).trim() } : {}),
+    // Preserve only runtime identity/adapter selection, never cloud credentials.
+    ...(input.identity?.tuyaDeviceId ? { identity: { tuyaDeviceId: String(input.identity.tuyaDeviceId).trim() } } : {}),
+    ...(input.tuyaDeviceId ? { tuyaDeviceId: String(input.tuyaDeviceId).trim() } : {}),
+    ...(input.metadata?.adapter ? { metadata: { adapter: String(input.metadata.adapter).trim() } } : {}),
     configurationStatus: input.configurationStatus === 'complete' ? 'complete' : 'incomplete',
     verificationStatus: input.verificationStatus === 'verified' ? 'verified' : 'pending',
     verifiedAt: input.verificationStatus === 'verified' ? input.verifiedAt || null : null,
