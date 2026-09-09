@@ -279,10 +279,9 @@ async function loadHomeSnapshot() {
     const average = document.querySelector('.boiler-temperature--home');
     average.querySelector('strong').textContent = temperatureText(home.averageTemperature);
     average.querySelector('em').textContent = home.indoorSensorCount ? home.indoorSensorCount + ' sensori interni disponibili' : 'Sensori non disponibili';
-    const heading = document.querySelector('.layered-floorplan-heading > span');
-    heading.textContent = Object.values(home.lights).some(light => light.source === 'simulation') ? 'Dati reali · luci simulate' : 'Dati reali';
+    const dataSource = document.querySelector('.dashboard-data-source');
+    dataSource.textContent = Object.values(home.lights).some(light => light.source === 'simulation') ? 'Dati reali · luci simulate' : 'Dati reali';
     document.querySelector('.status-message').textContent = home.indoorSensorCount + ' sensori disponibili';
-    document.querySelector('.system-status strong')?.replaceChildren(document.createTextNode('Stato casa'));
   } catch {
     floorplanStore.applyHomeSnapshot();
     boilerSnapshot = null;
@@ -291,7 +290,7 @@ async function loadHomeSnapshot() {
     const average = document.querySelector('.boiler-temperature--home');
     average.querySelector('strong').textContent = '— °C';
     average.querySelector('em').textContent = 'Sensori non disponibili';
-    document.querySelector('.layered-floorplan-heading > span').textContent = 'Stato non disponibile';
+    document.querySelector('.dashboard-data-source').textContent = 'Stato non disponibile';
     document.querySelector('.status-message').textContent = 'Dati non disponibili';
   } finally {
     setTimeout(loadHomeSnapshot, 30_000);
@@ -403,7 +402,7 @@ function fitFloorplanToViewport() {
     const available = window.innerHeight - top - parseFloat(stageStyle.marginBottom) - bottomSpace;
     stage.style.setProperty('--floorplan-available-height', Math.max(100, available) + 'px');
   };
-  for (const element of [document.querySelector('.dashboard-header'), document.querySelector('.layered-floorplan-heading'), document.querySelector('[data-floorplan-status]')]) new ResizeObserver(fit).observe(element);
+  for (const element of [document.querySelector('.dashboard-header'), document.querySelector('[data-floorplan-status]')]) new ResizeObserver(fit).observe(element);
   window.addEventListener('resize', fit);
   fit();
 }

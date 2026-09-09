@@ -11,6 +11,27 @@
   --yellow: #ffe86a;
 }
 
+/* Compact runtime bar: keeps the map as the primary dashboard surface. */
+.layered-dashboard .dashboard-header {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  min-height: 32px;
+  gap: clamp(7px, 1vw, 14px);
+  margin-bottom: 6px;
+}
+.layered-dashboard .dashboard-title { color: #f7fafc; font-size: .74rem; font-weight: 850; letter-spacing: .065em; white-space: nowrap; }
+.layered-dashboard .system-status { min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; gap: 6px; white-space: nowrap; }
+.layered-dashboard .system-status-dot { width: 7px; height: 7px; }
+.layered-dashboard .status-message, .layered-dashboard .dashboard-data-source { color: #a7bdca; font-size: .68rem; white-space: nowrap; }
+.layered-dashboard .dashboard-data-source { justify-self: end; overflow: hidden; text-overflow: ellipsis; }
+.layered-dashboard .settings-link { width: 30px; min-height: 30px; padding: 0; border-radius: 8px; font-size: .9rem; line-height: 1; }
+
+@media (max-width: 700px) {
+  .layered-dashboard .dashboard-header { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .layered-dashboard .dashboard-data-source { display: none; }
+}
+
 * { box-sizing: border-box; }
 body { min-height: 100vh; margin: 0; background: radial-gradient(circle at 50% 25%, rgba(0, 172, 210, .13), transparent 48rem), radial-gradient(circle at 12% 0%, rgba(16,111,153,.16), transparent 34rem), linear-gradient(155deg, #030812 0%, #06131f 48%, #02060b 100%); }
 .dashboard-body { padding: clamp(10px, 1.6vw, 22px); }

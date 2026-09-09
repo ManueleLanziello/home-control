@@ -17,28 +17,17 @@
 <body class="dashboard-body layered-dashboard">
   <main class="dashboard-shell">
     <header class="dashboard-header">
-      <div class="brand">
-        <span class="brand-mark" aria-hidden="true">⌂</span>
-        <div>
-          <h1><span>HOME</span> CONTROL</h1>
-          <p>Gestione della casa intelligente</p>
-        </div>
-      </div>
-
+      <span class="dashboard-title">HOME CONTROL</span>
       <section class="system-status" aria-label="Stato sistema">
         <span class="system-status-dot is-neutral" aria-hidden="true"></span>
-        <div>
-          <strong>Pronto per la configurazione</strong>
-          <span class="status-message">Nessun dispositivo configurato</span>
-        </div>
+        <span class="status-message">Stato in aggiornamento</span>
       </section>
-
-      <a class="settings-link" href="settings" aria-label="Apri impostazioni">Impostazioni</a>
+      <span class="dashboard-data-source">Dati in aggiornamento</span>
+      <a class="settings-link" href="settings" aria-label="Apri impostazioni" title="Impostazioni">⚙</a>
     </header>
 
     <section class="floorplan-dashboard" aria-label="Planimetria appartamento">
       <section class="layered-floorplan" aria-label="Planimetria casa">
-        <div class="layered-floorplan-heading"><h2>La casa</h2><span>Caricamento stato</span></div>
         <p data-floorplan-status role="status">Caricamento planimetria…</p>
         <div class="layered-floorplan-stage" data-layered-floorplan></div>
 
