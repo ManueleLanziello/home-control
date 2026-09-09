@@ -127,6 +127,7 @@ export function initThermostat(root = document, { initialSnapshot = null, onSave
     snapshot = next;
     if (!dirty) {
       draft = cloneSchedule(next?.schedule);
+      renderThermostat(snapshot);
       renderEditor();
     }
   } };

@@ -82,13 +82,14 @@ test('UI store synchronizes sensors, boiler, all seven simulated lights, and fai
 });
 test('HTTP aggregate and thermostat share normalized read; static Dashboard/audio served',async()=>{
  let reads=0;
- const server=createHomeControlServer({hardwareStore:{async read(){return {devices:[]};}},roleStore:{async read(){return {};}},thermostatRuntime:{async readSnapshot(){reads++;return {...wt(),updatedAt:new Date().toISOString()};}}});
+ const schedule={weekPattern:'5+2',normalPeriods:[{hour:6,minute:0,temperature:20}],restDayPeriods:[{hour:8,minute:0,temperature:20}]};
+ const server=createHomeControlServer({hardwareStore:{async read(){return {devices:[]};}},roleStore:{async read(){return {};}},thermostatRuntime:{async readSnapshot(){reads++;return {...wt(),schedule,updatedAt:new Date().toISOString()};}}});
  server.listen(0,'127.0.0.1');await once(server,'listening');
  try{
   const base='http://127.0.0.1:'+server.address().port;
   const h=await (await fetch(base+'/api/home/status')).json();
   const t=await (await fetch(base+'/api/thermostat')).json();
-  assert.equal(h.sensors.S3.value,22);assert.deepEqual(t,h.thermostat);assert.equal(reads,1);
+  assert.equal(h.sensors.S3.value,22);assert.deepEqual(t,h.thermostat);assert.deepEqual(h.thermostat.schedule,schedule);assert.equal(reads,1);
   assert.equal((await fetch(base+'/')).status,200);
   const audio=await fetch(base+'/sounds/switch.ogg');assert.equal(audio.status,200);assert.equal(audio.headers.get('content-type'),'audio/ogg');
  }finally{server.close();await once(server,'close');}

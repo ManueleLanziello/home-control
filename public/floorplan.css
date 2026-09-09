@@ -54,5 +54,17 @@ button.floorplan-marker { pointer-events: auto; cursor: pointer; }
 .boiler-modal .thermostat-period input { width: 100%; }
 body:has(.boiler-modal[open]) { overflow: hidden; }
 
+@media (hover: none) and (pointer: coarse) {
+  .boiler-modal {
+    position: fixed;
+    inset: 12px;
+    width: auto;
+    max-width: none;
+    height: auto;
+    max-height: none;
+    margin: 0;
+  }
+}
+
 button[data-floorplan-light] { user-select: none; touch-action: manipulation; }
 button[data-floorplan-light] .floorplan-symbol { pointer-events: none; }
