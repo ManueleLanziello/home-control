@@ -10,6 +10,7 @@ import { Wt200ScheduleStore } from './wt200-schedule-store.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_SCHEDULE_FILE = path.join(ROOT, '..', 'data', 'wt200-schedule.json');
+const FALLBACK_SCHEDULE_FILE = path.join(ROOT, '..', 'config', 'wt200-schedule.json');
 
 function unavailableCloudSnapshot(deviceId) {
   return {
@@ -181,7 +182,7 @@ export function createHomeWt200Runtime({ clientId, clientSecret, deviceId, lanIp
   return new HomeWt200Runtime({
     cloudAdapter,
     lanAdapter,
-    scheduleStore: new Wt200ScheduleStore({ filePath: DEFAULT_SCHEDULE_FILE }),
+    scheduleStore: new Wt200ScheduleStore({ filePath: DEFAULT_SCHEDULE_FILE, fallbackFilePath: FALLBACK_SCHEDULE_FILE }),
     deviceId,
     now,
   });

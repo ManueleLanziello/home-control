@@ -21,13 +21,20 @@ function isSchedule(value) {
 }
 
 export class Wt200ScheduleStore {
-  constructor({ filePath }) {
+  constructor({ filePath, fallbackFilePath = null }) {
     this.filePath = filePath;
+    this.fallbackFilePath = fallbackFilePath;
   }
 
   async read() {
+    const primary = await this.readFile(this.filePath);
+    if (primary) return primary;
+    return this.fallbackFilePath ? this.readFile(this.fallbackFilePath) : null;
+  }
+
+  async readFile(filePath) {
     try {
-      const saved = JSON.parse(await readFile(this.filePath, 'utf8'));
+      const saved = JSON.parse(await readFile(filePath, 'utf8'));
       if (!saved?.deviceId || !isSchedule(saved.schedule)) return null;
       return structuredClone(saved);
     } catch {

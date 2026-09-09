@@ -1,0 +1,21 @@
+{
+  "deviceId": "bf4e2beb8e6333ee38m7lu",
+  "schedule": {
+    "weekPattern": "5+2",
+    "weekPatternRaw": "1",
+    "normalPeriods": [
+      { "hour": 6, "minute": 0, "unknownByte": 0, "temperature": 20 },
+      { "hour": 8, "minute": 0, "unknownByte": 0, "temperature": 21 },
+      { "hour": 12, "minute": 0, "unknownByte": 0, "temperature": 20 },
+      { "hour": 14, "minute": 0, "unknownByte": 0, "temperature": 22 },
+      { "hour": 18, "minute": 0, "unknownByte": 0, "temperature": 23 },
+      { "hour": 23, "minute": 1, "unknownByte": 0, "temperature": 16 }
+    ],
+    "restDayPeriods": [
+      { "hour": 6, "minute": 0, "unknownByte": 0, "temperature": 21 },
+      { "hour": 22, "minute": 0, "unknownByte": 0, "temperature": 21 }
+    ],
+    "raw": "BgAAyAgAANIMAADIDgAA3BIAAOYXAQCgBgAA0hYAANI="
+  },
+  "updatedAt": "2026-09-07T16:21:50.870Z"
+}

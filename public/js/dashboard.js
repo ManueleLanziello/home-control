@@ -10,6 +10,7 @@ const floorplanStore = createFloorplanState();
 let boilerEditor = null;
 let modeSaving = false;
 let setpointSaving = false;
+let setpointDraft = null;
 const FLOORPLAN_VIEWBOX = { x: 1763.5, y: 1736.5, width: 1656, height: 1723 };
 const REFERENCE_VIEWBOX = { x: 925, y: 1730, width: 3343, height: 1731 };
 
@@ -224,13 +225,13 @@ function renderBoiler(snapshot = null) {
     onlineElement.classList.toggle('static-status--online', online);
     onlineElement.classList.toggle('static-status--offline', !online);
   }
-  const displayedSetpoint = thermostat.setpointTemperature;
+  const displayedSetpoint = Number.isFinite(setpointDraft) ? setpointDraft : thermostat.setpointTemperature;
   if (setpoint) setpoint.textContent = temperatureText(displayedSetpoint);
   const setpointControl = document.querySelector('[data-boiler-setpoint-control]');
   if (setpointControl) {
     setpointControl.hidden = thermostat.mode !== 'manual';
     setpointControl.disabled = thermostat.mode !== 'manual' || setpointSaving;
-    if (Number.isFinite(thermostat.setpointTemperature)) setpointControl.value = thermostat.setpointTemperature;
+    if (Number.isFinite(displayedSetpoint)) setpointControl.value = displayedSetpoint;
   }
   if (current) current.textContent = temperatureText(thermostat.currentTemperature);
   if (frost) frost.textContent = booleanText(thermostat.frostProtection);
@@ -256,7 +257,11 @@ async function saveSetpoint() {
   if (!control || setpointSaving || boilerSnapshot?.thermostat?.mode !== 'manual') return;
   const previous = boilerSnapshot.thermostat.setpointTemperature;
   const temperature = Number(control.value);
-  if (temperature === previous) return;
+  if (temperature === previous) {
+    setpointDraft = null;
+    renderBoiler(boilerSnapshot);
+    return;
+  }
   setpointSaving = true; control.disabled = true;
   try {
     const response = await fetch(homeControlPath('/api/thermostat/setpoint'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ temperature }) });
@@ -264,7 +269,17 @@ async function saveSetpoint() {
     if (!response.ok) throw new Error(result.error || 'Setpoint non aggiornato');
     boilerSnapshot = { ...boilerSnapshot, thermostat: { ...boilerSnapshot.thermostat, setpointTemperature: result.temperature } };
     sessionStorage.setItem(THERMOSTAT_CACHE_KEY, JSON.stringify(boilerSnapshot)); renderBoiler(boilerSnapshot);
-  } catch (error) { control.value = previous; showModeMessage(error.message); } finally { setpointSaving = false; renderBoiler(boilerSnapshot); }
+  } catch (error) { control.value = previous; showModeMessage(error.message); } finally { setpointSaving = false; setpointDraft = null; renderBoiler(boilerSnapshot); }
+}
+
+function previewSetpoint() {
+  const control = document.querySelector('[data-boiler-setpoint-control]');
+  if (!control || setpointSaving || boilerSnapshot?.thermostat?.mode !== 'manual') return;
+  const temperature = Number(control.value);
+  if (!Number.isFinite(temperature)) return;
+  setpointDraft = temperature;
+  const setpoint = document.querySelector('[data-boiler-setpoint]');
+  if (setpoint) setpoint.textContent = temperatureText(temperature);
 }
 
 async function loadHomeSnapshot() {
@@ -415,6 +430,7 @@ function renderDashboard() {
   renderWidgetIcons();
   renderBoiler();
   bindBoilerModeControls();
+  document.querySelector('[data-boiler-setpoint-control]')?.addEventListener('input', previewSetpoint);
   document.querySelector('[data-boiler-setpoint-control]')?.addEventListener('change', () => void saveSetpoint());
   void loadHomeSnapshot();
 }

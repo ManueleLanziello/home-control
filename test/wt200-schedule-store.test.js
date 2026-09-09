@@ -39,6 +39,15 @@ test('store gestisce file assente, corrotto e schedule persistito', async () => 
   assert.deepEqual(await store.read(), { deviceId: 'wt200-1', schedule, updatedAt: '2026-09-07T12:00:00.000Z' });
 });
 
+test('store usa il fallback versionato se lo stato runtime non esiste', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'wt200-schedule-fallback-'));
+  const fallbackFilePath = path.join(directory, 'fallback.json');
+  const saved = { deviceId: 'wt200-1', schedule, updatedAt: '2026-09-07T12:00:00.000Z' };
+  await writeFile(fallbackFilePath, JSON.stringify(saved), 'utf8');
+  const store = new Wt200ScheduleStore({ filePath: path.join(directory, 'missing.json'), fallbackFilePath });
+  assert.deepEqual(await store.read(), saved);
+});
+
 test('sceglie fasce normali e riposo e calcola il setpoint ereditato a mezzanotte', () => {
   const monday = new Date(2026, 8, 7, 0, 0);
   const saturday = new Date(2026, 8, 12, 0, 0);
