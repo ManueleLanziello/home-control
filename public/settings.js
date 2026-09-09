@@ -4,7 +4,7 @@ const statusElement = document.querySelector('#settings-status');
 const form = document.querySelector('#sensor-form');
 const list = document.querySelector('#sensor-devices');
 const cancel = document.querySelector('#sensor-cancel');
-const roles = Object.freeze({ none: 'Nessun ruolo', temperature_cucina: 'S1 · Cucina', temperature_camera: 'S2 · Camera', temperature_cameretta: 'S4 · Cameretta' });
+const roles = Object.freeze({ none: 'Nessun ruolo', temperature_cucina: 'S1 · Cucina', temperature_camera: 'S2 · Camera', temperature_cameretta: 'S4 · Cameretta', temperature_giardino: 'S5 · Giardino' });
 
 async function request(path, options = {}) {
   const response = await fetch(homeControlPath(path), { cache: 'no-store', ...options, headers: { 'Content-Type': 'application/json', ...(options.headers || {}) } });

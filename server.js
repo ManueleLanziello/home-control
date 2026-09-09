@@ -97,7 +97,7 @@ function isSchedulePayload(value) {
 }
 
 const HOME_SENSOR_ROLE_LABELS = Object.freeze({
-  S1: 'temperature_cucina', S2: 'temperature_camera', S3: null, S4: 'temperature_cameretta',
+  S1: 'temperature_cucina', S2: 'temperature_camera', S3: null, S4: 'temperature_cameretta', S5: 'temperature_giardino',
 });
 
 function dewinRecord(input, id = `dewin-${crypto.randomUUID()}`) {

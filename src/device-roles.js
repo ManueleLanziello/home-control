@@ -2,7 +2,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const ROLE_PATTERN = /^[a-z][a-z0-9_-]*$/;
-export const HOME_SENSOR_ROLES = Object.freeze(['temperature_cucina', 'temperature_camera', 'temperature_cameretta']);
+export const HOME_SENSOR_ROLES = Object.freeze(['temperature_cucina', 'temperature_camera', 'temperature_cameretta', 'temperature_giardino']);
 
 export class DeviceRoleStore {
   constructor({ filePath }) {
