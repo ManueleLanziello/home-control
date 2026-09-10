@@ -60,3 +60,13 @@ test('sceglie fasce normali e riposo e calcola il setpoint ereditato a mezzanott
   assert.equal(initialWt200SetpointForDate(schedule, sunday), 1.5);
   assert.equal(createWt200ScheduleModel(schedule, monday).initialTemperature, 1.5);
 });
+
+test('sceglie il gruppo corretto del giorno per 5+2, 6+1 e 7', () => {
+  const saturday = new Date(2026, 8, 12, 12, 0);
+  const sunday = new Date(2026, 8, 13, 12, 0);
+  assert.equal(selectWt200PeriodsForDate({ ...schedule, weekPattern: '5+2', groups: undefined }, saturday), schedule.restDayPeriods);
+  assert.equal(selectWt200PeriodsForDate({ ...schedule, weekPattern: '6+1', groups: undefined }, saturday), schedule.normalPeriods);
+  assert.equal(selectWt200PeriodsForDate({ ...schedule, weekPattern: '6+1', groups: undefined }, sunday), schedule.restDayPeriods);
+  assert.equal(selectWt200PeriodsForDate({ ...schedule, weekPattern: '7', groups: undefined }, sunday), schedule.normalPeriods);
+  assert.equal(createWt200ScheduleModel({ ...schedule, weekPattern: '7', groups: undefined }, sunday).periods.length, 6);
+});

@@ -1,7 +1,7 @@
 import { initThermostat } from './thermostat.js';
 import { initFloorplan } from './floorplan.js';
 import { createFloorplanState } from './floorplan-state.js';
-import { renderWt200Schedule } from './boiler-schedule.js';
+import { renderWt200Schedule, selectWt200PeriodsForDate } from './boiler-schedule.js';
 import { homeControlPath } from '../base-path.js';
 
 const THERMOSTAT_CACHE_KEY = 'home-control:thermostat-snapshot';
@@ -181,8 +181,7 @@ function updatedAtText(value) {
 }
 
 function periodsForDate(schedule, date) {
-  if (schedule?.weekPattern !== '5+2') return null;
-  return date.getDay() === 0 || date.getDay() === 6 ? schedule.restDayPeriods : schedule.normalPeriods;
+  return selectWt200PeriodsForDate(schedule, date);
 }
 
 function activeScheduleTemperature(schedule, now = new Date()) {

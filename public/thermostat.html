@@ -36,9 +36,16 @@
 
     <section class="thermostat-editor neon-card" aria-label="Editor programmazione settimanale">
       <header><h2>Programmazione settimanale</h2><p data-thermostat-week-pattern>Modalita settimanale: &mdash;</p></header>
+      <fieldset class="thermostat-week-pattern" data-week-pattern-control aria-label="Programmazione settimanale">
+        <legend>Programmazione settimanale</legend>
+        <button type="button" data-week-pattern="5+2">5+2</button>
+        <button type="button" data-week-pattern="6+1">6+1</button>
+        <button type="button" data-week-pattern="7">7</button>
+      </fieldset>
       <form data-schedule-form>
+        <h3 data-normal-periods-title>Giorni feriali</h3>
         <div data-normal-periods></div>
-        <h3>Giorni di riposo</h3>
+        <h3 data-rest-periods-title>Giorni di riposo</h3>
         <div data-rest-periods></div>
         <p class="thermostat-editor-message" data-schedule-message aria-live="polite"></p>
         <button type="submit" disabled data-schedule-save>Salva programmazione</button>

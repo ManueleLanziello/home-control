@@ -205,3 +205,71 @@ test('PUT mode accetta manual e rifiuta valori arbitrari', async () => {
     await once(server, 'close');
   }
 });
+
+test('runtime usa il canale Cloud specifico e persiste solo dopo conferma DP105', async () => {
+  const saved = [];
+  const cloudAdapter = {
+    async writeSchedule(value) {
+      assert.equal(value.weekPattern, '7');
+      assert.equal(value.restDayPeriods, undefined);
+      return { deviceId: 'wt200-cloud-id', schedule: { ...schedule, weekPattern: '7', weekPatternRaw: '3' }, updatedAt: '2026-09-10T10:00:00.000Z' };
+    },
+  };
+  const runtime = new HomeWt200Runtime({
+    cloudAdapter,
+    scheduleStore: { async read() { return { schedule: { ...schedule, weekPattern: '7' } }; }, async write(value) { saved.push(value); return value; } },
+  });
+  const result = await runtime.updateSchedule({ weekPattern: '7', normalPeriods: schedule.normalPeriods });
+  assert.equal(result.weekPattern, '7');
+  assert.equal(saved.length, 1);
+});
+
+test('PUT week-pattern accetta 5+2, 6+1, 7 e blocca Chiuso/arbitrari', async () => {
+  const calls = [];
+  const server = createHomeControlServer({ thermostatRuntime: {
+    async setWeekPattern(value) { calls.push(value); return { ...schedule, weekPattern: value }; },
+  } });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  try {
+    const { port } = server.address();
+    for (const weekPattern of ['5+2', '6+1', '7']) {
+      const response = await fetch(`http://127.0.0.1:${port}/api/thermostat/week-pattern`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ weekPattern }),
+      });
+      assert.equal(response.status, 200);
+    }
+    for (const weekPattern of ['Chiuso', '0', '8']) {
+      const response = await fetch(`http://127.0.0.1:${port}/api/thermostat/week-pattern`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ weekPattern }),
+      });
+      assert.equal(response.status, 400);
+    }
+    assert.deepEqual(calls, ['5+2', '6+1', '7']);
+  } finally {
+    server.close();
+    await once(server, 'close');
+  }
+});
+
+test('PUT schedule valida il payload in modo specifico per 5+2, 6+1 e 7', async () => {
+  const calls = [];
+  const server = createHomeControlServer({ thermostatRuntime: { async updateSchedule(value) { calls.push(value); return { ...schedule, ...value }; } } });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  try {
+    const { port } = server.address();
+    const put = (body) => fetch(`http://127.0.0.1:${port}/api/thermostat/schedule`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    assert.equal((await put({ weekPattern: '5+2', normalPeriods: schedule.normalPeriods, restDayPeriods: schedule.restDayPeriods })).status, 200);
+    assert.equal((await put({ weekPattern: '6+1', normalPeriods: schedule.normalPeriods, restDayPeriods: schedule.restDayPeriods })).status, 200);
+    assert.equal((await put({ weekPattern: '7', normalPeriods: schedule.normalPeriods })).status, 200);
+    assert.equal((await put({ weekPattern: '6+1', normalPeriods: schedule.normalPeriods })).status, 400);
+    assert.equal((await put({ weekPattern: 'Chiuso', normalPeriods: schedule.normalPeriods, restDayPeriods: schedule.restDayPeriods })).status, 400);
+    assert.equal(calls.length, 3);
+  } finally {
+    server.close();
+    await once(server, 'close');
+  }
+});

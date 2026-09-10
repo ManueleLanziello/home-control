@@ -91,9 +91,12 @@ async function readJson(request) {
 
 function isSchedulePayload(value) {
   const validPeriod = (period) => Number.isInteger(period?.hour) && Number.isInteger(period?.minute) && Number.isFinite(period?.temperature);
-  return value && Array.isArray(value.normalPeriods) && value.normalPeriods.length === 6
-    && Array.isArray(value.restDayPeriods) && value.restDayPeriods.length === 2
-    && value.normalPeriods.every(validPeriod) && value.restDayPeriods.every(validPeriod);
+  const validPattern = value?.weekPattern === undefined || ['5+2', '6+1', '7'].includes(value.weekPattern);
+  const validNormal = Array.isArray(value?.normalPeriods) && value.normalPeriods.length === 6 && value.normalPeriods.every(validPeriod);
+  const restRequired = value?.weekPattern !== '7';
+  const validRest = (!restRequired && value?.restDayPeriods === undefined)
+    || (Array.isArray(value?.restDayPeriods) && value.restDayPeriods.length === 2 && value.restDayPeriods.every(validPeriod));
+  return Boolean(value && validPattern && validNormal && validRest);
 }
 
 const HOME_SENSOR_ROLE_LABELS = Object.freeze({
@@ -212,10 +215,29 @@ export function createHomeControlServer({
         homeStatus.invalidate();
         return sendJson(response, 200, { schedule: await activeThermostatRuntime.updateSchedule(payload) });
       } catch (error) {
-        if (error?.code === 'SCHEDULE_UNAVAILABLE') return sendJson(response, 409, { error: error.message });
+        if (['SCHEDULE_UNAVAILABLE', 'SCHEDULE_NOT_CONFIRMED'].includes(error?.code)) return sendJson(response, 409, { error: error.message });
         if (error?.code === 'LAN_UNAVAILABLE') return sendJson(response, 503, { error: error.message });
         if (error?.code === 'SCHEDULE_INVALID') return sendJson(response, 400, { error: 'Programmazione non valida' });
         return sendJson(response, 503, { error: 'Programmazione WT200 non disponibile' });
+      }
+    }
+    if (url.pathname === '/api/thermostat/week-pattern') {
+      if (request.method !== 'PUT') return sendJson(response, 405, { error: 'Metodo non consentito' });
+      const payload = await readJson(request);
+      if (!['5+2', '6+1', '7'].includes(payload?.weekPattern)) return sendJson(response, 400, { error: 'Modalita settimanale non valida' });
+      try {
+        activeThermostatRuntime ||= createHomeWt200Runtime({
+          clientId: process.env.TUYA_CLIENT_ID, clientSecret: process.env.TUYA_CLIENT_SECRET,
+          deviceId: process.env.TUYA_DEVICE_ID, lanIp: process.env.WT200_LAN_IP, localKey: process.env.WT200_LOCAL_KEY,
+        });
+        const schedule = await activeThermostatRuntime.setWeekPattern(payload.weekPattern);
+        homeStatus.invalidate();
+        return sendJson(response, 200, { schedule });
+      } catch (error) {
+        if (error?.code === 'WEEK_PATTERN_INVALID') return sendJson(response, 400, { error: error.message });
+        if (error?.code === 'WEEK_PATTERN_NOT_CONFIRMED') return sendJson(response, 409, { error: error.message });
+        if (error?.code === 'LAN_UNAVAILABLE') return sendJson(response, 503, { error: error.message });
+        return sendJson(response, 503, { error: 'Modalita settimanale WT200 non disponibile' });
       }
     }
     if (url.pathname === '/api/thermostat/mode') {

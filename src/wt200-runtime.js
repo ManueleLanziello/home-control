@@ -26,16 +26,17 @@ function unavailableCloudSnapshot(deviceId) {
 
 export function mergeWt200Snapshots({ cloudSnapshot = null, lanSnapshot = null, persistedSchedule = null, deviceId = null }) {
   const cloud = cloudSnapshot || unavailableCloudSnapshot(deviceId);
+  const deviceSchedule = cloudSnapshot?.schedule || lanSnapshot?.schedule || null;
   return {
     ...cloud,
     deviceId: cloud.deviceId ?? lanSnapshot?.deviceId ?? deviceId,
     online: cloud.online === true || lanSnapshot !== null,
     cloudUpdatedAt: cloud.online === true ? cloud.updatedAt : null,
     lanUpdatedAt: lanSnapshot?.updatedAt ?? null,
-    scheduleSource: lanSnapshot?.schedule ? 'device' : persistedSchedule?.schedule ? 'persisted' : null,
+    scheduleSource: deviceSchedule ? 'device' : persistedSchedule?.schedule ? 'persisted' : null,
     heatingActive: lanSnapshot?.heatingActive ?? null,
     rawDps: lanSnapshot?.rawDps ?? null,
-    schedule: lanSnapshot?.schedule || persistedSchedule?.schedule || null,
+    schedule: deviceSchedule || persistedSchedule?.schedule || null,
     updatedAt: cloud.updatedAt ?? lanSnapshot?.updatedAt ?? persistedSchedule?.updatedAt ?? null,
   };
 }
@@ -112,32 +113,70 @@ export class HomeWt200Runtime {
       return mergeWt200Snapshots({ persistedSchedule, deviceId: this.deviceId });
     }
     const merged = mergeWt200Snapshots({ cloudSnapshot, lanSnapshot, persistedSchedule, deviceId: this.deviceId });
+    if (merged.scheduleSource === 'device'
+      && (merged.schedule?.raw !== persistedSchedule?.schedule?.raw
+        || merged.schedule?.weekPattern !== persistedSchedule?.schedule?.weekPattern)) {
+      await this.persistScheduleSnapshot(merged);
+    }
     // A read reports device state, not an indefinitely retained command override.
     return merged;
   }
 
-  async updateSchedule({ normalPeriods, restDayPeriods }) {
-    if (!this.lanAdapter) {
-      const error = new Error('Connessione LAN WT200 non disponibile.');
+  async persistScheduleSnapshot(snapshot) {
+    if (!snapshot?.schedule || !this.scheduleStore) return;
+    this.persistedSchedule = await this.scheduleStore.write({
+      deviceId: snapshot.deviceId || this.deviceId,
+      schedule: snapshot.schedule,
+      updatedAt: snapshot.updatedAt || this.now(),
+    });
+  }
+
+  async updateSchedule({ weekPattern = null, normalPeriods, restDayPeriods }) {
+    const writer = typeof this.cloudAdapter?.writeSchedule === 'function' ? this.cloudAdapter : this.lanAdapter;
+    if (!writer?.writeSchedule) {
+      const error = new Error('Connessione WT200 non disponibile.');
       error.code = 'LAN_UNAVAILABLE';
       throw error;
     }
     const persisted = await this.restoreSchedule();
-    const raw = this.lanAdapter.scheduleRaw || persisted?.schedule?.raw;
-    if (!raw) {
+    const raw = this.lanAdapter?.scheduleRaw || persisted?.schedule?.raw;
+    if (!raw && writer === this.lanAdapter) {
       const error = new Error('Programmazione originale WT200 non disponibile.');
       error.code = 'SCHEDULE_UNAVAILABLE';
       throw error;
     }
     let snapshot;
     try {
-      snapshot = await this.lanAdapter.writeSchedule({ normalPeriods, restDayPeriods, raw });
+      snapshot = await writer.writeSchedule({
+        weekPattern: weekPattern || persisted?.schedule?.weekPattern,
+        normalPeriods,
+        ...(restDayPeriods ? { restDayPeriods } : {}),
+        raw,
+      });
     } catch (error) {
       if (error instanceof TypeError) error.code = 'SCHEDULE_INVALID';
       throw error;
     }
     this.bindLanSchedulePersistence();
-    await this.persistLanSchedule();
+    await this.persistScheduleSnapshot(snapshot);
+    return snapshot.schedule;
+  }
+
+  async setWeekPattern(weekPattern) {
+    const writer = typeof this.cloudAdapter?.setWeekPattern === 'function' ? this.cloudAdapter : this.lanAdapter;
+    if (!writer?.setWeekPattern) {
+      const error = new Error('Connessione WT200 non disponibile.');
+      error.code = 'LAN_UNAVAILABLE';
+      throw error;
+    }
+    let snapshot;
+    try {
+      snapshot = await writer.setWeekPattern(weekPattern);
+    } catch (error) {
+      if (error instanceof TypeError) error.code = 'WEEK_PATTERN_INVALID';
+      throw error;
+    }
+    await this.persistScheduleSnapshot(snapshot);
     return snapshot.schedule;
   }
 

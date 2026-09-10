@@ -25,7 +25,18 @@ export function initThermostat(root = document, { initialSnapshot = null, onSave
   }
 
   function cloneSchedule(schedule) {
-    return schedule ? structuredClone(schedule) : null;
+    if (!schedule) return null;
+    const clone = structuredClone(schedule);
+    if (Array.isArray(clone.groups)) {
+      clone.groups = clone.groups.map((group) => ({ ...group, periods: clone[group.key] }));
+    }
+    return clone;
+  }
+
+  function groupLabels(weekPattern) {
+    if (weekPattern === '6+1') return { normal: 'Lunedi - Sabato', rest: 'Domenica' };
+    if (weekPattern === '7') return { normal: 'Tutti i giorni', rest: null };
+    return { normal: 'Lunedi - Venerdi', rest: 'Sabato - Domenica' };
   }
 
   function periodRow(period, name, group, index) {
@@ -40,11 +51,21 @@ export function initThermostat(root = document, { initialSnapshot = null, onSave
     const pattern = root.querySelector('[data-thermostat-week-pattern]');
     if (!normal || !rest || !save || !pattern) return;
     pattern.textContent = `Modalita settimanale: ${draft?.weekPattern || 'non disponibile'}`;
+    const labels = groupLabels(draft?.weekPattern);
+    setText('[data-normal-periods-title]', labels.normal);
+    const restTitle = root.querySelector('[data-rest-periods-title]');
+    if (restTitle) restTitle.hidden = !labels.rest;
+    rest.hidden = !labels.rest;
     normal.innerHTML = draft ? draft.normalPeriods.map((period, index) => periodRow(period, NORMAL_NAMES[index], 'normalPeriods', index)).join('') : '';
-    rest.innerHTML = draft ? draft.restDayPeriods.map((period, index) => periodRow(period, `Fascia riposo ${index + 1}`, 'restDayPeriods', index)).join('') : '';
+    rest.innerHTML = draft && labels.rest ? draft.restDayPeriods.map((period, index) => periodRow(period, `Fascia riposo ${index + 1}`, 'restDayPeriods', index)).join('') : '';
     const changed = JSON.stringify(draft?.normalPeriods) !== JSON.stringify(snapshot?.schedule?.normalPeriods)
-      || JSON.stringify(draft?.restDayPeriods) !== JSON.stringify(snapshot?.schedule?.restDayPeriods);
+      || draft?.weekPattern !== '7' && JSON.stringify(draft?.restDayPeriods) !== JSON.stringify(snapshot?.schedule?.restDayPeriods);
     save.disabled = !draft || saving || !changed;
+    for (const button of root.querySelectorAll('[data-week-pattern]')) {
+      button.classList.toggle('is-active', button.dataset.weekPattern === draft?.weekPattern);
+      button.disabled = saving || !draft;
+      button.setAttribute('aria-pressed', String(button.dataset.weekPattern === draft?.weekPattern));
+    }
   }
 
   function renderDraft() {
@@ -93,8 +114,36 @@ export function initThermostat(root = document, { initialSnapshot = null, onSave
     const period = draft[input.dataset.group][Number(input.dataset.index)];
     if (input.dataset.field === 'time') [period.hour, period.minute] = input.value.split(':').map(Number);
     if (input.dataset.field === 'temperature') period.temperature = Number(input.value);
+    if (Array.isArray(draft.groups)) draft.groups = draft.groups.map((group) => ({ ...group, periods: draft[group.key] }));
     renderDraft();
   });
+
+  for (const button of root.querySelectorAll('[data-week-pattern]')) {
+    button.addEventListener('click', async () => {
+      const weekPattern = button.dataset.weekPattern;
+      if (!draft || saving || weekPattern === draft.weekPattern) return;
+      saving = true;
+      renderEditor();
+      const message = root.querySelector('[data-schedule-message]');
+      if (message) message.textContent = 'Salvataggio modalita...';
+      try {
+        const response = await fetch(homeControlPath('/api/thermostat/week-pattern'), {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ weekPattern }),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Cambio modalita non riuscito');
+        draft = cloneSchedule(result.schedule);
+        snapshot = { ...snapshot, schedule: draft };
+        onSaved?.(snapshot);
+        if (message) message.textContent = `Modalita ${draft.weekPattern} salvata`;
+      } catch (error) {
+        if (message) message.textContent = error.message;
+      } finally {
+        saving = false;
+        renderDraft();
+      }
+    });
+  }
 
   root.querySelector('[data-schedule-form]')?.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -105,7 +154,11 @@ export function initThermostat(root = document, { initialSnapshot = null, onSave
     try {
       const response = await fetch(homeControlPath('/api/thermostat/schedule'), {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ normalPeriods: draft.normalPeriods, restDayPeriods: draft.restDayPeriods }),
+        body: JSON.stringify({
+          weekPattern: draft.weekPattern,
+          normalPeriods: draft.normalPeriods,
+          ...(draft.weekPattern === '7' ? {} : { restDayPeriods: draft.restDayPeriods }),
+        }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Salvataggio non riuscito');

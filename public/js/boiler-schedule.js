@@ -28,15 +28,19 @@ function labelColor(temperature) {
 }
 
 export function selectWt200PeriodsForDate(schedule, date) {
-  if (schedule?.weekPattern !== '5+2') return null;
   const day = date.getDay();
-  return day === 0 || day === 6 ? schedule.restDayPeriods : schedule.normalPeriods;
+  const deviceGroup = schedule?.groups?.find((group) => group.days?.includes(day));
+  if (Array.isArray(deviceGroup?.periods)) return deviceGroup.periods;
+  if (schedule?.weekPattern === '5+2') return day === 0 || day === 6 ? schedule.restDayPeriods : schedule.normalPeriods;
+  if (schedule?.weekPattern === '6+1') return day === 0 ? schedule.restDayPeriods : schedule.normalPeriods;
+  if (schedule?.weekPattern === '7') return schedule.normalPeriods;
+  return null;
 }
 
 export function initialWt200SetpointForDate(schedule, date) {
-  if (schedule?.weekPattern !== '5+2') return null;
-  const day = date.getDay();
-  const previousPeriods = day === 1 || day === 0 ? schedule.restDayPeriods : schedule.normalPeriods;
+  const previousDate = new Date(date);
+  previousDate.setDate(date.getDate() - 1);
+  const previousPeriods = selectWt200PeriodsForDate(schedule, previousDate);
   const previous = previousPeriods?.at(-1);
   return Number.isFinite(previous?.temperature) ? previous.temperature : null;
 }

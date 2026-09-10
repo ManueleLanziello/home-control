@@ -208,6 +208,10 @@ body { min-height: 100vh; margin: 0; background: radial-gradient(circle at 50% 2
 .thermostat-editor h2 { font-size: 1rem; }
 .thermostat-editor h3 { margin: 18px 0 8px; color: #b9d9eb; font-size: .85rem; }
 .thermostat-editor header p { margin-top: 4px; color: #91b9ce; font-size: .8rem; }
+.thermostat-week-pattern { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; padding: 0; border: 0; }
+.thermostat-week-pattern legend { margin-bottom: 7px; color: #b9d9eb; font-size: .78rem; }
+.thermostat-week-pattern button { min-width: 58px; color: #91b9ce; cursor: pointer; }
+.thermostat-week-pattern button.is-active { border-color: #ff9e22; color: #ffbd76; background: rgba(255,132,34,.13); box-shadow: 0 0 12px rgba(255,132,34,.24); }
 .thermostat-period { display: grid; grid-template-columns: minmax(130px, 1fr) minmax(105px, .55fr) minmax(135px, .65fr); gap: 12px; align-items: center; padding: 9px 0; border-top: 1px solid rgba(86,154,196,.2); }
 .thermostat-period strong { color: #dceefa; font-size: .82rem; }
 .thermostat-period span { display: flex; align-items: center; gap: 6px; color: #91b9ce; font-size: .72rem; }
