@@ -387,6 +387,7 @@ function initBoilerModal() {
       host.querySelector('input, button')?.focus({ preventScroll: true });
     }
   };
+  modal.addEventListener('close', () => boilerEditor?.cancelEditing());
   modal.querySelector('[data-boiler-modal-close]').addEventListener('click', () => modal.close());
   modal.addEventListener('click', event => {
     if (event.target !== modal) return;

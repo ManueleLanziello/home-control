@@ -1,12 +1,18 @@
 import { renderWt200Schedule } from './boiler-schedule.js';
 import { homeControlPath } from '../base-path.js';
 
+export function shouldDeferScheduleSnapshot({ saving, scheduleEditing, hasChanges }) {
+  return Boolean(saving || scheduleEditing || hasChanges);
+}
+
 // Shared controller: standalone page or existing Dashboard modal DOM.
 export function initThermostat(root = document, { initialSnapshot = null, onSaved } = {}) {
   const NORMAL_NAMES = ['Mattina presto', 'Mattina', 'Mezzogiorno', 'Pomeriggio', 'Sera', 'Notte'];
   let snapshot = initialSnapshot;
   let draft = initialSnapshot?.schedule ? structuredClone(initialSnapshot.schedule) : null;
   let saving = false;
+  let scheduleEditing = false;
+  let pendingSnapshot = null;
 
   function temperatureText(value) {
     if (!Number.isFinite(value)) return '— °C';
@@ -44,6 +50,21 @@ export function initThermostat(root = document, { initialSnapshot = null, onSave
     return `<label class="thermostat-period"><strong>${name}</strong><span>Ora<input required type="time" data-group="${group}" data-index="${index}" data-field="time" value="${time}"></span><span>Temperatura<input required type="number" step="0.1" data-group="${group}" data-index="${index}" data-field="temperature" value="${period.temperature}"> °C</span></label>`;
   }
 
+  function hasScheduleChanges() {
+    return JSON.stringify(draft?.normalPeriods) !== JSON.stringify(snapshot?.schedule?.normalPeriods)
+      || (draft?.weekPattern !== '7' && JSON.stringify(draft?.restDayPeriods) !== JSON.stringify(snapshot?.schedule?.restDayPeriods));
+  }
+
+  function updateEditorControls() {
+    const save = root.querySelector('[data-schedule-save]');
+    if (save) save.disabled = !draft || saving || !hasScheduleChanges();
+    for (const button of root.querySelectorAll('[data-week-pattern]')) {
+      button.classList.toggle('is-active', button.dataset.weekPattern === draft?.weekPattern);
+      button.disabled = saving || !draft;
+      button.setAttribute('aria-pressed', String(button.dataset.weekPattern === draft?.weekPattern));
+    }
+  }
+
   function renderEditor() {
     const normal = root.querySelector('[data-normal-periods]');
     const rest = root.querySelector('[data-rest-periods]');
@@ -58,14 +79,7 @@ export function initThermostat(root = document, { initialSnapshot = null, onSave
     rest.hidden = !labels.rest;
     normal.innerHTML = draft ? draft.normalPeriods.map((period, index) => periodRow(period, NORMAL_NAMES[index], 'normalPeriods', index)).join('') : '';
     rest.innerHTML = draft && labels.rest ? draft.restDayPeriods.map((period, index) => periodRow(period, `Fascia riposo ${index + 1}`, 'restDayPeriods', index)).join('') : '';
-    const changed = JSON.stringify(draft?.normalPeriods) !== JSON.stringify(snapshot?.schedule?.normalPeriods)
-      || draft?.weekPattern !== '7' && JSON.stringify(draft?.restDayPeriods) !== JSON.stringify(snapshot?.schedule?.restDayPeriods);
-    save.disabled = !draft || saving || !changed;
-    for (const button of root.querySelectorAll('[data-week-pattern]')) {
-      button.classList.toggle('is-active', button.dataset.weekPattern === draft?.weekPattern);
-      button.disabled = saving || !draft;
-      button.setAttribute('aria-pressed', String(button.dataset.weekPattern === draft?.weekPattern));
-    }
+    updateEditorControls();
   }
 
   function renderDraft() {
@@ -73,7 +87,7 @@ export function initThermostat(root = document, { initialSnapshot = null, onSave
     renderEditor();
   }
 
-  function renderThermostat(snapshot = null) {
+  function renderThermostat(snapshot = null, { renderSchedule = true } = {}) {
     const thermostat = snapshot?.thermostat || {};
     const online = snapshot?.online === true;
     const onlineElement = root.querySelector('[data-thermostat-online]');
@@ -88,17 +102,27 @@ export function initThermostat(root = document, { initialSnapshot = null, onSave
     setText('[data-thermostat-heating]', snapshot?.heatingActive === true ? 'Attivo' : snapshot?.heatingActive === false ? 'Inattivo' : 'Non disponibile');
     setText('[data-thermostat-frost]', booleanText(thermostat.frostProtection));
     setText('[data-thermostat-lock]', booleanText(thermostat.childLock));
-    renderWt200Schedule(root.querySelector('[data-boiler-schedule]'), snapshot?.schedule);
+    if (renderSchedule) renderWt200Schedule(root.querySelector('[data-boiler-schedule]'), snapshot?.schedule);
+  }
+
+  function applySnapshot(next) {
+    snapshot = next;
+    draft = cloneSchedule(next?.schedule);
+    pendingSnapshot = null;
+    renderThermostat(snapshot);
+    renderEditor();
+  }
+
+  function finishScheduleEditing() {
+    scheduleEditing = false;
+    if (!saving && pendingSnapshot && !hasScheduleChanges()) applySnapshot(pendingSnapshot);
   }
 
   async function loadThermostat() {
     try {
       const response = await fetch(homeControlPath('/api/thermostat'));
       if (!response.ok) throw new Error('Termostato non disponibile');
-      snapshot = await response.json();
-      draft = cloneSchedule(snapshot.schedule);
-      renderThermostat(snapshot);
-      renderEditor();
+      applySnapshot(await response.json());
     } catch {
       renderThermostat();
     }
@@ -108,14 +132,27 @@ export function initThermostat(root = document, { initialSnapshot = null, onSave
   renderEditor();
   if (!initialSnapshot) void loadThermostat();
 
-  root.querySelector('[data-schedule-form]')?.addEventListener('input', (event) => {
+  const scheduleForm = root.querySelector('[data-schedule-form]');
+  const isScheduleCell = (element) => element?.matches?.('[data-group]');
+  scheduleForm?.addEventListener('focusin', (event) => {
+    if (isScheduleCell(event.target)) scheduleEditing = true;
+  });
+  scheduleForm?.addEventListener('pointerdown', (event) => {
+    if (isScheduleCell(event.target)) scheduleEditing = true;
+  });
+  scheduleForm?.addEventListener('focusout', (event) => {
+    if (isScheduleCell(event.target) && !isScheduleCell(event.relatedTarget)) finishScheduleEditing();
+  });
+
+  scheduleForm?.addEventListener('input', (event) => {
     const input = event.target;
     if (!draft || !input.dataset.group) return;
+    scheduleEditing = true;
     const period = draft[input.dataset.group][Number(input.dataset.index)];
     if (input.dataset.field === 'time') [period.hour, period.minute] = input.value.split(':').map(Number);
     if (input.dataset.field === 'temperature') period.temperature = Number(input.value);
     if (Array.isArray(draft.groups)) draft.groups = draft.groups.map((group) => ({ ...group, periods: draft[group.key] }));
-    renderDraft();
+    updateEditorControls();
   });
 
   for (const button of root.querySelectorAll('[data-week-pattern]')) {
@@ -145,12 +182,13 @@ export function initThermostat(root = document, { initialSnapshot = null, onSave
     });
   }
 
-  root.querySelector('[data-schedule-form]')?.addEventListener('submit', async (event) => {
+  scheduleForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (!draft || saving) return;
     saving = true;
-    renderEditor();
+    updateEditorControls();
     const message = root.querySelector('[data-schedule-message]');
+    let saved = false;
     try {
       const response = await fetch(homeControlPath('/api/thermostat/schedule'), {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -164,26 +202,39 @@ export function initThermostat(root = document, { initialSnapshot = null, onSave
       if (!response.ok) throw new Error(result.error || 'Salvataggio non riuscito');
       draft = cloneSchedule(result.schedule);
       snapshot = { ...snapshot, schedule: draft };
+      pendingSnapshot = null;
       onSaved?.(snapshot);
       if (message) message.textContent = 'Programmazione salvata';
+      saved = true;
     } catch (error) {
       if (message) message.textContent = error.message;
     } finally {
       saving = false;
-      renderDraft();
+      scheduleEditing = false;
+      if (saved) renderDraft();
+      else updateEditorControls();
     }
   });
 
-  return { updateSnapshot(next) {
-    if (saving) return;
-    const dirty = JSON.stringify(draft) !== JSON.stringify(snapshot?.schedule ?? null);
-    snapshot = next;
-    if (!dirty) {
-      draft = cloneSchedule(next?.schedule);
-      renderThermostat(snapshot);
-      renderEditor();
-    }
-  } };
+  return {
+    updateSnapshot(next) {
+      if (shouldDeferScheduleSnapshot({ saving, scheduleEditing, hasChanges: hasScheduleChanges() })) {
+        pendingSnapshot = next;
+        renderThermostat(next, { renderSchedule: false });
+        return;
+      }
+      applySnapshot(next);
+    },
+    cancelEditing() {
+      scheduleEditing = false;
+      if (pendingSnapshot) applySnapshot(pendingSnapshot);
+      else {
+        draft = cloneSchedule(snapshot?.schedule);
+        renderThermostat(snapshot);
+        renderEditor();
+      }
+    },
+  };
 }
 
-if (document.body.classList.contains('thermostat-body')) initThermostat();
+if (typeof document !== 'undefined' && document.body.classList.contains('thermostat-body')) initThermostat();
