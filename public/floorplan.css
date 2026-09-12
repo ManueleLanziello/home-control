@@ -32,12 +32,16 @@ button.floorplan-marker { pointer-events: auto; cursor: pointer; }
 .floorplan-boiler-mode.boiler-mode > span { width: 110px; height: 110px; }
 .floorplan-boiler-settings { display: grid; place-items: center; color: #bdefff; text-decoration: none; font-size: 76px; pointer-events: auto; background: #14354c; }
 .floorplan-marker:focus-visible, .floorplan-boiler-open:focus-visible, .floorplan-boiler-settings:focus-visible { outline: 10px solid #fff; outline-offset: -12px; }
-.floorplan-camera-dialog { color: #e3f4ff; background: #071826; border: 1px solid #38768d; border-radius: 18px; padding: 24px; width: min(660px, 94vw); max-width: 94vw; max-height: 94dvh; }
+.floorplan-camera-dialog { box-sizing: border-box; display: flex; flex-direction: column; gap: 4px; color: #e3f4ff; background: #071826; border: 1px solid #38768d; border-radius: 14px; padding: 10px; width: min(990px, 94vw); height: min(90dvh, max(420px, calc(94vw * .68))); max-width: 94vw; max-height: 90dvh; overflow: hidden; }
 .floorplan-camera-dialog::backdrop { background: #000a; }
-.floorplan-camera-dialog form { text-align: right; }
-.floorplan-camera-dialog button { color: #d8f3ff; background: #153449; border: 1px solid #42697f; border-radius: 8px; padding: 8px 12px; cursor: pointer; }
-.floorplan-camera-dialog img { display: block; width: 100%; max-height: 72dvh; margin: 12px 0; border-radius: 10px; background: #02070c; object-fit: contain; }
+.floorplan-camera-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.floorplan-camera-header h2 { overflow: hidden; margin: 0; font-size: 1rem; line-height: 1.15; text-overflow: ellipsis; white-space: nowrap; }
+.floorplan-camera-dialog [data-camera-close] { flex: 0 0 auto; width: 28px; height: 28px; padding: 0; color: #ff6666; background: transparent; border: 0; border-radius: 6px; font-size: 28px; line-height: 24px; cursor: pointer; }
+.floorplan-camera-dialog [data-camera-close]:hover, .floorplan-camera-dialog [data-camera-close]:focus-visible { color: #ff9999; background: #3b1b25; }
+.floorplan-camera-dialog [data-camera-message] { min-height: 1em; margin: 0; font-size: .7rem; line-height: 1.1; }
+.floorplan-camera-dialog img { display: block; flex: 1 1 auto; min-height: 0; width: 100%; max-height: none; margin: 0; border-radius: 8px; background: #02070c; object-fit: contain; }
 @media (orientation: portrait), (max-width: 700px) {
+  .floorplan-camera-dialog { height: 90dvh; }
   .layered-dashboard .dashboard-map-grid { grid-template-columns: minmax(0, 1fr); }
 
 }

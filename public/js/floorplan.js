@@ -134,7 +134,7 @@ async function showCamera(camera) {
     dialog.dataset.floorplanCameraDialog = '';
     dialog.className = 'floorplan-camera-dialog';
     dialog.setAttribute('aria-labelledby', 'floorplan-camera-title');
-    dialog.innerHTML = '<form><button type="button" data-camera-close aria-label="Chiudi anteprima">Chiudi ×</button></form><h2 id="floorplan-camera-title"></h2><p data-camera-message></p><img data-camera-image alt="Anteprima camera" hidden>';
+    dialog.innerHTML = '<div class="floorplan-camera-header"><h2 id="floorplan-camera-title"></h2><button type="button" data-camera-close aria-label="Chiudi anteprima">×</button></div><p data-camera-message></p><img data-camera-image alt="Anteprima camera" hidden>';
     dialog.addEventListener('click', event => { if (event.target === dialog) void closeCamera(dialog); });
     dialog.addEventListener('cancel', event => { event.preventDefault(); void closeCamera(dialog); });
     dialog.querySelector('[data-camera-close]').addEventListener('click', () => void closeCamera(dialog));

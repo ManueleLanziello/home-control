@@ -19,9 +19,16 @@ test('camera viewer autostarts, preserves frames, and cleans up on close', async
   assert.match(script, /session\.hasFrame/);
 });
 
-test('camera dialog is larger while preserving responsive image bounds', async () => {
+test('camera dialog maximizes the frame area while preserving responsive bounds', async () => {
   const style = await readFile(stylePath, 'utf8');
-  assert.match(style, /width: min\(660px, 94vw\)/);
-  assert.match(style, /max-height: 72dvh/);
+  const script = await readFile(scriptPath, 'utf8');
+  assert.match(script, /floorplan-camera-header/);
+  assert.match(script, />×<\/button>/);
+  assert.doesNotMatch(script, /Chiudi ×/);
+  assert.match(style, /width: min\(990px, 94vw\)/);
+  assert.match(style, /max-height: 90dvh/);
+  assert.match(style, /padding: 10px/);
+  assert.match(style, /flex: 1 1 auto/);
+  assert.match(style, /margin: 0/);
   assert.match(style, /object-fit: contain/);
 });
