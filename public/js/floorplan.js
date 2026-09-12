@@ -86,9 +86,13 @@ const CAMERA_FRAME_INTERVAL_MS = 250;
 
 function cameraEndpoint(id, suffix) { return homeControlPath(`/api/cameras/${id}/${suffix}`); }
 
-async function closeCamera(dialog) {
+async function closeCameraViewer(dialog) {
   const session = dialog._cameraSession;
-  if (!session || session.closing) { dialog.close(); return; }
+  if (!session || session.closing) {
+    if (dialog.open) dialog.close();
+    dialog.remove();
+    return;
+  }
   session.closing = true;
   clearTimeout(session.timer);
   session.controller.abort();
@@ -101,6 +105,7 @@ async function closeCamera(dialog) {
   }
   if (dialog._cameraSession === session) dialog._cameraSession = null;
   if (dialog.open) dialog.close();
+  dialog.remove();
   try {
     await stopRequest;
   } catch {
@@ -141,12 +146,12 @@ async function showCamera(camera) {
     dialog.className = 'floorplan-camera-dialog';
     dialog.setAttribute('aria-labelledby', 'floorplan-camera-title');
     dialog.innerHTML = '<div class="floorplan-camera-header"><h2 id="floorplan-camera-title"></h2><button type="button" data-camera-close aria-label="Chiudi anteprima">×</button></div><p data-camera-message></p><img data-camera-image alt="Anteprima camera" hidden>';
-    dialog.addEventListener('click', event => { if (event.target === dialog) void closeCamera(dialog); });
-    dialog.addEventListener('cancel', event => { event.preventDefault(); void closeCamera(dialog); });
-    dialog.querySelector('[data-camera-close]').addEventListener('click', () => void closeCamera(dialog));
+    dialog.addEventListener('click', event => { if (event.target === dialog) void closeCameraViewer(dialog); });
+    dialog.addEventListener('cancel', event => { event.preventDefault(); void closeCameraViewer(dialog); });
+    dialog.querySelector('[data-camera-close]').addEventListener('click', () => void closeCameraViewer(dialog));
     document.body.append(dialog);
   }
-  if (dialog._cameraSession) await closeCamera(dialog);
+  if (dialog._cameraSession) await closeCameraViewer(dialog);
   dialog.querySelector('h2').textContent = camera.id + ' ' + camera.room;
   const message = dialog.querySelector('[data-camera-message]');
   const session = { id: camera.id, closing: false, frameBusy: false, hasFrame: false, timer: null, objectUrl: null, controller: new AbortController() };
@@ -167,7 +172,7 @@ async function showCamera(camera) {
 
 window.addEventListener('pagehide', () => {
   const dialog = document.querySelector('[data-floorplan-camera-dialog]');
-  if (dialog?._cameraSession) void closeCamera(dialog);
+  if (dialog?._cameraSession) void closeCameraViewer(dialog);
 });
 
 export function renderBoilerMini(container, boiler) {
