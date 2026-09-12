@@ -93,13 +93,19 @@ async function closeCamera(dialog) {
   clearTimeout(session.timer);
   session.controller.abort();
   if (session.objectUrl) URL.revokeObjectURL(session.objectUrl);
+  let stopRequest;
   try {
-    await fetch(cameraEndpoint(session.id, 'live'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ active: false }), keepalive: true });
+    stopRequest = fetch(cameraEndpoint(session.id, 'live'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ active: false }), keepalive: true });
   } catch {
     // La chiusura della UI non deve dipendere dalla disponibilità momentanea della camera.
   }
   if (dialog._cameraSession === session) dialog._cameraSession = null;
   if (dialog.open) dialog.close();
+  try {
+    await stopRequest;
+  } catch {
+    // La chiusura della UI non deve dipendere dalla disponibilità momentanea della camera.
+  }
 }
 
 async function refreshCameraFrame(dialog, session) {
