@@ -26,6 +26,19 @@ test('C2 is read from Pond without creating an owned CameraManager', async () =>
   } finally { await runtime.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
+test('C2 allows Pond enough time to complete a normal camera startup', async () => {
+  const runtime = new HomeCameraRuntime({ hardwareStore: { async read() { return { devices: [] }; } }, roleStore: { async read() { return {}; } }, root: process.cwd(), pondUrl: 'http://pond.fixture' });
+  let request;
+  runtime.requestPond = async (...args) => { request = args; return new Response('{}', { status: 200 }); };
+  runtime.sharedState = async () => ({ role: 'C2', sourceType: 'shared', configured: true, live: true });
+  try {
+    await runtime.setLive('C2', true);
+    assert.equal(request[0], '/api/camera/live');
+    assert.equal(request[2], 30_000);
+    assert.equal(runtime.owned.entries.size, 0);
+  } finally { await runtime.close(); }
+});
+
 test('owned C1 passes its registered IP to the CameraManager runtime', async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'home-camera-owned-'));
   const hardwareStore = { async read() { return { devices: [{ id: 'c1', alias: 'Terrazzo', model: 'C410', connection: { ip: '192.168.1.9' }, identity: { mac: '30:68:93:09:34:A3' }, metadata: { adapter: 'tapo-c410-owned' }, configurationStatus: 'complete', verificationStatus: 'verified' }] }; } };

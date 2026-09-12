@@ -66,7 +66,7 @@ export class HomeCameraRuntime {
   async setLive(role, active) {
     if (role === 'C2') {
       if (!this.pondUrl) throw new Error('Pond non configurato');
-      const response = await this.requestPond('/api/camera/live', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ active }) }, 8000);
+      const response = await this.requestPond('/api/camera/live', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ active }) }, 30_000);
       if (!response.ok) throw new Error('Comando camera Pond non disponibile');
       return this.sharedState();
     }
