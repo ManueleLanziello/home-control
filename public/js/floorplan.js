@@ -82,22 +82,26 @@ function markerElement(label, interactive = false) {
   return element;
 }
 
-function showCamera(camera) {
+async function showCamera(camera) {
   let dialog = document.querySelector('[data-floorplan-camera-dialog]');
   if (!dialog) {
     dialog = document.createElement('dialog');
     dialog.dataset.floorplanCameraDialog = '';
     dialog.className = 'floorplan-camera-dialog';
     dialog.setAttribute('aria-labelledby', 'floorplan-camera-title');
-    dialog.innerHTML = '<form method="dialog"><button aria-label="Chiudi anteprima">Chiudi ×</button></form><h2 id="floorplan-camera-title"></h2><p>Anteprima simulata · nessuno stream collegato</p>';
+    dialog.innerHTML = '<form method="dialog"><button aria-label="Chiudi anteprima">Chiudi ×</button></form><h2 id="floorplan-camera-title"></h2><p data-camera-message></p><img data-camera-image alt="Anteprima camera" hidden><button type="button" data-camera-live></button>';
     dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });
     document.body.append(dialog);
   }
   dialog.querySelector('h2').textContent = camera.id + ' ' + camera.room;
-  const details = camera.status;
-  dialog.querySelector('p').textContent = details?.configured
-    ? (details.alias || camera.room) + ' · ' + (details.available ? (details.online ? 'Online' : 'Offline') : 'Stato non disponibile') + ' · nessuno stream collegato'
-    : 'Camera non configurata · nessuno stream collegato';
+  const details = camera.status || await fetch(homeControlPath(`/api/cameras/${camera.id}/status`), { cache: 'no-store' }).then(response => response.ok ? response.json() : null).catch(() => null);
+  const message = dialog.querySelector('[data-camera-message]'); const image = dialog.querySelector('[data-camera-image]'); const live = dialog.querySelector('[data-camera-live]');
+  message.textContent = details?.configured ? `${details.alias || camera.room} · ${details.online ? 'Online' : 'Offline'}` : 'Camera non configurata';
+  image.hidden = !details?.imageAvailable;
+  if (details?.imageAvailable) image.src = `${homeControlPath(`/api/cameras/${camera.id}/image`)}?v=${Date.now()}`;
+  live.disabled = !details?.configured || details?.available === false;
+  live.textContent = details?.live ? 'Ferma live' : 'Avvia live';
+  live.onclick = async () => { const response = await fetch(homeControlPath(`/api/cameras/${camera.id}/live`), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ active: !details?.live }) }); if (response.ok) await showCamera({ ...camera, status: await response.json() }); };
   dialog.dataset.cameraId = camera.id;
   dialog.showModal();
 }

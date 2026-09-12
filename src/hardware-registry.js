@@ -38,9 +38,10 @@ export function normalizeHardwareRecord(input) {
     ...(input.manufacturer ? { manufacturer: String(input.manufacturer).trim() } : {}),
     ...(input.type ? { type: String(input.type).trim() } : {}),
     // Preserve only runtime identity/adapter selection, never cloud credentials.
-    ...(input.identity?.tuyaDeviceId ? { identity: { tuyaDeviceId: String(input.identity.tuyaDeviceId).trim() } } : {}),
+    ...(input.identity?.tuyaDeviceId || input.identity?.mac ? { identity: { ...(input.identity?.tuyaDeviceId ? { tuyaDeviceId: String(input.identity.tuyaDeviceId).trim() } : {}), ...(input.identity?.mac ? { mac: String(input.identity.mac).trim().toUpperCase() } : {}) } } : {}),
+    ...(input.connection?.ip ? { connection: { ip: String(input.connection.ip).trim() } } : {}),
     ...(input.tuyaDeviceId ? { tuyaDeviceId: String(input.tuyaDeviceId).trim() } : {}),
-    ...(input.metadata?.adapter ? { metadata: { adapter: String(input.metadata.adapter).trim() } } : {}),
+    ...(input.metadata?.adapter ? { metadata: { adapter: String(input.metadata.adapter).trim(), ...(input.metadata?.sourceApp ? { sourceApp: String(input.metadata.sourceApp).trim() } : {}) } } : {}),
     configurationStatus: input.configurationStatus === 'complete' ? 'complete' : 'incomplete',
     verificationStatus: input.verificationStatus === 'verified' ? 'verified' : 'pending',
     verifiedAt: input.verificationStatus === 'verified' ? input.verifiedAt || null : null,

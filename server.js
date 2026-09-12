@@ -6,6 +6,7 @@ import path from 'node:path';
 import { loadEnvFile } from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { DeviceRoleStore, HOME_SENSOR_ROLES } from './src/device-roles.js';
+import { HomeCameraRuntime, OWNED_CAMERA_ADAPTER } from './src/camera-runtime.js';
 import { verifyDewinSensor } from './src/dewin-verifier.js';
 import { HardwareRegistryStore, defaultHardwareRegistry } from './src/hardware-registry.js';
 import { createHomeWt200Runtime } from './src/wt200-runtime.js';
@@ -114,15 +115,33 @@ function dewinRecord(input, id = `dewin-${crypto.randomUUID()}`) {
   };
 }
 
+function cameraRecord(input, id = `camera-${crypto.randomUUID()}`) {
+  const alias = String(input?.alias || '').trim(); const ip = String(input?.ip || '').trim(); const mac = String(input?.mac || '').trim();
+  if (!alias || !ip) throw new Error('Nome e IP camera sono obbligatori.');
+  return { id, alias, model: 'C410', manufacturer: 'TP-Link Tapo', type: 'Telecamera IP', protocol: 'pytapo-https', connectionType: 'lan',
+    identity: mac ? { mac } : {}, connection: { ip }, metadata: { adapter: OWNED_CAMERA_ADAPTER },
+    configurationStatus: 'complete', verificationStatus: 'pending', verifiedAt: null };
+}
+
+async function sendCameraImage(response, imagePath) {
+  if (!imagePath) return sendJson(response, 404, { error: 'Nessuna immagine camera disponibile.' });
+  const content = await readFile(imagePath);
+  response.writeHead(200, { 'Content-Type': 'image/jpeg', 'Content-Length': content.length, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
+  response.end(content);
+}
+
 export function createHomeControlServer({
   hardwareStore = new HardwareRegistryStore({ filePath: HARDWARE_FILE, defaults: defaultHardwareRegistry() }),
   roleStore = new DeviceRoleStore({ filePath: ROLE_FILE }),
   thermostatRuntime = null,
   createSensorRuntime,
   verifySensor = verifyDewinSensor,
+  cameraRuntime = null,
 } = {}) {
   let activeThermostatRuntime = thermostatRuntime;
+  const cameras = cameraRuntime || new HomeCameraRuntime({ hardwareStore, roleStore, root: ROOT });
   const homeStatus = new HomeStatusRuntime({ hardwareStore, roleStore, createSensorRuntime,
+    readCameras: () => cameras.snapshot(),
     // Retain the existing WT200 configuration path; never use its env ID for Dewin roles.
     readThermostat: () => {
       activeThermostatRuntime ||= createHomeWt200Runtime({
@@ -133,7 +152,7 @@ export function createHomeControlServer({
     },
   });
 
-  return http.createServer(async (request, response) => {
+  const server = http.createServer(async (request, response) => {
     const url = new URL(request.url || '/', 'http://localhost');
     if (url.pathname === '/api/home/status') {
       if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
@@ -144,6 +163,52 @@ export function createHomeControlServer({
       if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
       const entries = await readdir(path.join(ROOT, 'design'), { withFileTypes: true }).catch(() => []);
       return sendJson(response, 200, { assets: entries.filter(entry => entry.isFile() && /^[a-zA-Z0-9_-]+\.svg$/.test(entry.name)).map(entry => entry.name) });
+    }
+    const cameraImageMatch = /^\/api\/cameras\/(C[123])\/image$/.exec(url.pathname);
+    if (cameraImageMatch) {
+      if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
+      const role = cameraImageMatch[1];
+      try {
+        if (role === 'C2') {
+          const state = (await cameras.snapshot()).C2;
+          if (!state.available || !cameras.pondUrl) return sendJson(response, 503, { error: state.error || 'Pond non disponibile' });
+          const upstream = await cameras.requestPond('/api/camera/image', { cache: 'no-store' }, 8000);
+          if (!upstream.ok) return sendJson(response, 503, { error: 'Immagine Pond non disponibile' });
+          const content = Buffer.from(await upstream.arrayBuffer());
+          response.writeHead(200, { 'Content-Type': 'image/jpeg', 'Content-Length': content.length, 'Cache-Control': 'no-store' }); response.end(content); return;
+        }
+        return sendCameraImage(response, await cameras.imagePath(role));
+      } catch { return sendJson(response, 503, { error: 'Immagine camera non disponibile' }); }
+    }
+    const cameraStatusMatch = /^\/api\/cameras\/(C[123])\/status$/.exec(url.pathname);
+    if (cameraStatusMatch) {
+      if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
+      return sendJson(response, 200, (await cameras.snapshot())[cameraStatusMatch[1]]);
+    }
+    const cameraLiveMatch = /^\/api\/cameras\/(C[123])\/live$/.exec(url.pathname);
+    if (cameraLiveMatch) {
+      if (request.method !== 'PUT') return sendJson(response, 405, { error: 'Metodo non consentito' });
+      try { const payload = await readJson(request); if (typeof payload?.active !== 'boolean') throw new Error('Stato camera non valido'); return sendJson(response, 200, await cameras.setLive(cameraLiveMatch[1], payload.active)); }
+      catch (error) { return sendJson(response, 503, { error: error.message || 'Comando camera non disponibile' }); }
+    }
+    const cameraVerifyMatch = /^\/api\/hardware\/cameras\/([^/]+)\/verify$/.exec(url.pathname);
+    if (cameraVerifyMatch) {
+      if (request.method !== 'POST') return sendJson(response, 405, { error: 'Metodo non consentito' });
+      try { const registry = await hardwareStore.read(); const id = decodeURIComponent(cameraVerifyMatch[1]); const camera = registry.devices.find(device => device.id === id && device.metadata?.adapter === OWNED_CAMERA_ADAPTER); if (!camera) return sendJson(response, 404, { error: 'Camera non configurata' }); const detected = await cameras.verify(camera); const devices = registry.devices.map(device => device.id === id ? { ...device, verificationStatus: 'verified', verifiedAt: new Date().toISOString() } : device); await hardwareStore.write({ ...registry, devices }); homeStatus.invalidate(); return sendJson(response, 200, { device: devices.find(device => device.id === id), detected }); }
+      catch (error) { return sendJson(response, 503, { error: error.message || 'Verifica camera non riuscita' }); }
+    }
+    const cameraMatch = /^\/api\/hardware\/cameras(?:\/([^/]+))?$/.exec(url.pathname);
+    if (cameraMatch) {
+      try {
+        const registry = await hardwareStore.read(); const deviceIds = registry.devices.map(device => device.id); const id = cameraMatch[1] && decodeURIComponent(cameraMatch[1]);
+        if (request.method === 'GET' && !id) { const assignments = await roleStore.read(deviceIds); return sendJson(response, 200, { cameras: registry.devices.filter(device => device.metadata?.adapter === OWNED_CAMERA_ADAPTER).map(device => ({ ...device, role: assignments[device.id] || 'none' })), shared: { role: 'camera_pond', sourceApp: 'Pond-Control', configured: Boolean(cameras.pondUrl) } }); }
+        if (request.method === 'POST' && !id) { const payload = await readJson(request); const camera = cameraRecord(payload); await hardwareStore.write({ ...registry, devices: [...registry.devices, camera] }); const ids = [...deviceIds, camera.id]; if (payload?.role && payload.role !== 'none') await roleStore.assignCamera(camera.id, payload.role, ids); else await roleStore.write(await roleStore.read(ids), ids); homeStatus.invalidate(); return sendJson(response, 201, { device: camera }); }
+        const previous = registry.devices.find(device => device.id === id && device.metadata?.adapter === OWNED_CAMERA_ADAPTER);
+        if (!previous) return sendJson(response, 404, { error: 'Camera non configurata' });
+        if (request.method === 'PUT') { const payload = await readJson(request); const camera = cameraRecord(payload, id); await hardwareStore.write({ ...registry, devices: registry.devices.map(device => device.id === id ? camera : device) }); if (payload?.role) await roleStore.assignCamera(id, payload.role, deviceIds); homeStatus.invalidate(); return sendJson(response, 200, { device: camera }); }
+        if (request.method === 'DELETE') { const devices = registry.devices.filter(device => device.id !== id); await hardwareStore.write({ ...registry, devices }); await roleStore.write(await roleStore.read(devices.map(device => device.id)), devices.map(device => device.id)); homeStatus.invalidate(); return sendJson(response, 204, {}); }
+        return sendJson(response, 405, { error: 'Metodo non consentito' });
+      } catch (error) { return sendJson(response, 400, { error: error.message || 'Configurazione camera non valida' }); }
     }
     const verifyMatch = /^\/api\/hardware\/sensors\/([^/]+)\/verify$/.exec(url.pathname);
     if (verifyMatch) {
@@ -309,6 +374,8 @@ export function createHomeControlServer({
     response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
     response.end('Pagina non trovata');
   });
+  server.on('close', () => { void cameras.close().catch(() => {}); });
+  return server;
 }
 
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);

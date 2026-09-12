@@ -36,6 +36,7 @@ button.floorplan-marker { pointer-events: auto; cursor: pointer; }
 .floorplan-camera-dialog::backdrop { background: #000a; }
 .floorplan-camera-dialog form { text-align: right; }
 .floorplan-camera-dialog button { color: #d8f3ff; background: #153449; border: 1px solid #42697f; border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+.floorplan-camera-dialog img { display: block; width: 100%; margin: 12px 0; border-radius: 10px; background: #02070c; }
 @media (orientation: portrait), (max-width: 700px) {
   .layered-dashboard .dashboard-map-grid { grid-template-columns: minmax(0, 1fr); }
 

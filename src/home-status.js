@@ -36,8 +36,8 @@ export function normalizeThermostat(snapshot, now = Date.now()) {
 }
 
 export class HomeStatusRuntime {
-  constructor({ hardwareStore, roleStore, readThermostat, createSensorRuntime, now = Date.now, cacheMs = 30_000, timeoutMs = 12_000 }) {
-    Object.assign(this, { hardwareStore, roleStore, readThermostat, now, cacheMs, timeoutMs });
+  constructor({ hardwareStore, roleStore, readThermostat, createSensorRuntime, readCameras = null, now = Date.now, cacheMs = 30_000, timeoutMs = 12_000 }) {
+    Object.assign(this, { hardwareStore, roleStore, readThermostat, readCameras, now, cacheMs, timeoutMs });
     this.createSensorRuntime = createSensorRuntime || (device => new HomeDewinRuntime({ device, client: new TuyaCloudClient({
       clientId: process.env.TUYA_CLIENT_ID, clientSecret: process.env.TUYA_CLIENT_SECRET,
       deviceId: device.identity?.tuyaDeviceId || device.tuyaDeviceId,
@@ -106,9 +106,10 @@ export class HomeStatusRuntime {
     const room = thermostat.thermostat.currentTemperature;
     sensors.S3 = { source: 'thermostat', value: room, available: Number.isFinite(room), online: thermostat.online, updatedAt: thermostat.updatedAt };
     const indoors = ['S1','S2','S3','S4'].map(id => sensors[id].value).filter(Number.isFinite);
+    const cameras = this.readCameras ? await this.readCameras() : Object.fromEntries(Object.entries(values).filter(([id]) => id.startsWith('C')));
     const snapshot = { updatedAt: new Date(this.now()).toISOString(), sensors, thermostat,
       lights: Object.fromEntries(Object.entries(values).filter(([id]) => id.startsWith('L'))),
-      cameras: Object.fromEntries(Object.entries(values).filter(([id]) => id.startsWith('C'))),
+      cameras,
       // S3 alone is the WT200 room reading, not a whole-house average.
       averageTemperature: indoors.length > 1 ? indoors.reduce((a,b)=>a+b,0)/indoors.length : null,
       indoorSensorCount: indoors.length,

@@ -39,6 +39,29 @@
         <div class="empty-settings"><strong>Nessun sensore configurato</strong></div>
       </div>
     </section>
+
+    <section class="settings-section" aria-labelledby="cameras-heading">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">TELECAMERE</p>
+          <h2 id="cameras-heading">C1 e C3 locali</h2>
+        </div>
+      </div>
+      <form id="camera-form" class="sensor-form">
+        <input type="hidden" name="id">
+        <label>Nome<input name="alias" required maxlength="80" placeholder="Es. Terrazzo"></label>
+        <label>IP locale<input name="ip" required maxlength="80" inputmode="url" placeholder="192.168.1.50"></label>
+        <label>MAC (facoltativo)<input name="mac" maxlength="32" autocomplete="off"></label>
+        <label>Posizione<select name="role"><option value="none">Nessuna posizione</option><option value="camera_terrazzo">C1 · Terrazzo</option><option value="camera_giardino">C3 · Giardino</option></select></label>
+        <button class="primary-link" type="submit">Salva camera</button>
+        <button id="camera-cancel" type="button" hidden>Annulla</button>
+      </form>
+      <p class="settings-note">C2 · Laghetto è condivisa da Pond-Control: Home ne legge solo stato, immagine e comando live tramite l’API di Pond.</p>
+      <div id="shared-camera" class="sensor-devices" aria-live="polite"></div>
+      <div id="camera-devices" class="sensor-devices" aria-live="polite">
+        <div class="empty-settings"><strong>Nessuna camera locale configurata</strong></div>
+      </div>
+    </section>
   </main>
   <script type="module" src="settings.js"></script>
   <script type="module" src="pwa.js"></script>
