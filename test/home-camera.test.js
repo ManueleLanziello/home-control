@@ -26,6 +26,21 @@ test('C2 is read from Pond without creating an owned CameraManager', async () =>
   } finally { await runtime.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
+test('owned C1 passes its registered IP to the CameraManager runtime', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'home-camera-owned-'));
+  const hardwareStore = { async read() { return { devices: [{ id: 'c1', alias: 'Terrazzo', model: 'C410', connection: { ip: '192.168.1.9' }, identity: { mac: '30:68:93:09:34:A3' }, metadata: { adapter: 'tapo-c410-owned' }, configurationStatus: 'complete', verificationStatus: 'verified' }] }; } };
+  const roleStore = { async read() { return { c1: 'camera_terrazzo' }; } };
+  const runtime = new HomeCameraRuntime({ hardwareStore, roleStore, root: directory, pondUrl: '' });
+  let createdWith;
+  runtime.owned.createRuntime = async record => { createdWith = record; return { async snapshot() { return { configured: true, status: 'READY' }; }, async stop() {} }; };
+  try {
+    const snapshot = await runtime.snapshot();
+    assert.equal(createdWith.ip, '192.168.1.9');
+    assert.equal(snapshot.C1.configured, true);
+    assert.equal(snapshot.C1.status, 'READY');
+  } finally { await runtime.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
 test('camera configuration keeps C1/C3 local and proxies C2 media through Pond only', async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'home-camera-api-'));
   const hardwareStore = new HardwareRegistryStore({ filePath: path.join(directory, 'hardware.json'), defaults: defaultHardwareRegistry() });

@@ -15,7 +15,7 @@ export class HomeCameraRuntime {
   constructor({ hardwareStore, roleStore, root, env = process.env, fetchImpl = fetch, pondUrl = env.POND_CONTROL_URL?.trim() || '' }) {
     Object.assign(this, { hardwareStore, roleStore, root, env, fetchImpl, pondUrl: pondUrl.replace(/\/$/, '') });
     this.owned = new RoleRuntimeManager({ category: 'camera', emptySnapshot: () => EMPTY('C1'), createRuntime: (record, signature) => new CameraManager({
-      ip: record.connection?.ip, pythonPath: defaultCameraPython(root), workerPath: c410WorkerPath(), env,
+      ip: record.ip, pythonPath: defaultCameraPython(root), workerPath: c410WorkerPath(), env,
       outputDirectory: path.join(root, 'data', 'camera', record.id, signature),
     }) });
   }
