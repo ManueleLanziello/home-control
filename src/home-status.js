@@ -39,8 +39,8 @@ export class HomeStatusRuntime {
   constructor({ hardwareStore, roleStore, readThermostat, createSensorRuntime, readCameras = null, now = Date.now, cacheMs = 30_000, timeoutMs = 12_000 }) {
     Object.assign(this, { hardwareStore, roleStore, readThermostat, readCameras, now, cacheMs, timeoutMs });
     this.createSensorRuntime = createSensorRuntime || (device => new HomeDewinRuntime({ device, client: new TuyaCloudClient({
-      clientId: process.env.TUYA_CLIENT_ID, clientSecret: process.env.TUYA_CLIENT_SECRET,
-      deviceId: device.identity?.tuyaDeviceId || device.tuyaDeviceId,
+      clientId: process.env.TUYA_CLIENT_ID_HOME, clientSecret: process.env.TUYA_CLIENT_SECRET_HOME,
+      deviceId: process.env.TUYA_DEWIN_ID?.trim() || device.identity?.tuyaDeviceId || device.tuyaDeviceId,
     }) }));
     this.runtimes = new Map();
     this.pendingReads = new Map();

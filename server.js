@@ -145,7 +145,7 @@ export function createHomeControlServer({
     // Retain the existing WT200 configuration path; never use its env ID for Dewin roles.
     readThermostat: () => {
       activeThermostatRuntime ||= createHomeWt200Runtime({
-        deviceId: process.env.TUYA_DEVICE_ID, lanIp: process.env.WT200_LAN_IP, localKey: process.env.WT200_LOCAL_KEY,
+        deviceId: process.env.TUYA_WT200_ID, lanIp: process.env.WT200_LAN_IP, localKey: process.env.WT200_LOCAL_KEY,
       });
       return activeThermostatRuntime.readSnapshot();
     },
@@ -273,8 +273,7 @@ export function createHomeControlServer({
       if (!isSchedulePayload(payload)) return sendJson(response, 400, { error: 'Programmazione non valida' });
       try {
         activeThermostatRuntime ||= createHomeWt200Runtime({
-          clientId: process.env.TUYA_CLIENT_ID, clientSecret: process.env.TUYA_CLIENT_SECRET,
-          deviceId: process.env.TUYA_DEVICE_ID, lanIp: process.env.WT200_LAN_IP, localKey: process.env.WT200_LOCAL_KEY,
+          deviceId: process.env.TUYA_WT200_ID, lanIp: process.env.WT200_LAN_IP, localKey: process.env.WT200_LOCAL_KEY,
         });
         homeStatus.invalidate();
         return sendJson(response, 200, { schedule: await activeThermostatRuntime.updateSchedule(payload) });
@@ -291,8 +290,7 @@ export function createHomeControlServer({
       if (!['5+2', '6+1', '7'].includes(payload?.weekPattern)) return sendJson(response, 400, { error: 'Modalita settimanale non valida' });
       try {
         activeThermostatRuntime ||= createHomeWt200Runtime({
-          clientId: process.env.TUYA_CLIENT_ID, clientSecret: process.env.TUYA_CLIENT_SECRET,
-          deviceId: process.env.TUYA_DEVICE_ID, lanIp: process.env.WT200_LAN_IP, localKey: process.env.WT200_LOCAL_KEY,
+          deviceId: process.env.TUYA_WT200_ID, lanIp: process.env.WT200_LAN_IP, localKey: process.env.WT200_LOCAL_KEY,
         });
         const schedule = await activeThermostatRuntime.setWeekPattern(payload.weekPattern);
         homeStatus.invalidate();
@@ -309,7 +307,7 @@ export function createHomeControlServer({
       const payload = await readJson(request);
       if (!['manual', 'auto'].includes(payload?.mode)) return sendJson(response, 400, { error: 'Modalita non valida' });
       try {
-        activeThermostatRuntime ||= createHomeWt200Runtime({ clientId: process.env.TUYA_CLIENT_ID, clientSecret: process.env.TUYA_CLIENT_SECRET, deviceId: process.env.TUYA_DEVICE_ID, lanIp: process.env.WT200_LAN_IP, localKey: process.env.WT200_LOCAL_KEY });
+        activeThermostatRuntime ||= createHomeWt200Runtime({ deviceId: process.env.TUYA_WT200_ID, lanIp: process.env.WT200_LAN_IP, localKey: process.env.WT200_LOCAL_KEY });
         homeStatus.invalidate();
         return sendJson(response, 200, { mode: await activeThermostatRuntime.setMode(payload.mode) });
       } catch (error) {
@@ -324,7 +322,7 @@ export function createHomeControlServer({
       const raw = Number(payload?.temperature) * 10;
       if (!Number.isFinite(payload?.temperature) || payload.temperature < 0 || payload.temperature > 30 || !Number.isInteger(raw) || raw % 5 !== 0) return sendJson(response, 400, { error: 'Setpoint non valido' });
       try {
-        activeThermostatRuntime ||= createHomeWt200Runtime({ clientId: process.env.TUYA_CLIENT_ID, clientSecret: process.env.TUYA_CLIENT_SECRET, deviceId: process.env.TUYA_DEVICE_ID, lanIp: process.env.WT200_LAN_IP, localKey: process.env.WT200_LOCAL_KEY });
+        activeThermostatRuntime ||= createHomeWt200Runtime({ deviceId: process.env.TUYA_WT200_ID, lanIp: process.env.WT200_LAN_IP, localKey: process.env.WT200_LOCAL_KEY });
         homeStatus.invalidate();
         return sendJson(response, 200, { temperature: await activeThermostatRuntime.setSetpointTemperature(payload.temperature) });
       } catch (error) {

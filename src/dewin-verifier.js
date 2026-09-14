@@ -2,9 +2,9 @@ import { DewinTuyaAdapter, TuyaCloudClient } from '@smarthome/core';
 
 export async function verifyDewinSensor(device, {
   client = new TuyaCloudClient({
-    clientId: process.env.TUYA_CLIENT_ID,
-    clientSecret: process.env.TUYA_CLIENT_SECRET,
-    deviceId: device.identity?.tuyaDeviceId,
+    clientId: process.env.TUYA_CLIENT_ID_HOME,
+    clientSecret: process.env.TUYA_CLIENT_SECRET_HOME,
+    deviceId: process.env.TUYA_DEWIN_ID?.trim() || device.identity?.tuyaDeviceId,
   }),
   now = () => new Date().toISOString(),
 } = {}) {
