@@ -35,9 +35,22 @@ export function normalizeThermostat(snapshot, now = Date.now()) {
   };
 }
 
+export function normalizeCiarraState(snapshot, now = Date.now()) {
+  const online = snapshot?.online === true && fresh(snapshot.updatedAt, now);
+  const fanSpeed = Number.isInteger(snapshot?.fanSpeed) && snapshot.fanSpeed >= 0 && snapshot.fanSpeed <= 4 ? snapshot.fanSpeed : null;
+  return {
+    online,
+    power: bool(snapshot?.power),
+    fanSpeed,
+    light: ['off', 'level1', 'level2'].includes(snapshot?.light) ? snapshot.light : null,
+    operatingStatus: ['off', 'on'].includes(snapshot?.operatingStatus) ? snapshot.operatingStatus : null,
+    updatedAt: snapshot?.updatedAt ?? null,
+  };
+}
+
 export class HomeStatusRuntime {
-  constructor({ hardwareStore, roleStore, readThermostat, createSensorRuntime, readCameras = null, now = Date.now, cacheMs = 30_000, timeoutMs = 12_000 }) {
-    Object.assign(this, { hardwareStore, roleStore, readThermostat, readCameras, now, cacheMs, timeoutMs });
+  constructor({ hardwareStore, roleStore, readThermostat, readHood = null, createSensorRuntime, readCameras = null, now = Date.now, cacheMs = 30_000, timeoutMs = 12_000 }) {
+    Object.assign(this, { hardwareStore, roleStore, readThermostat, readHood, readCameras, now, cacheMs, timeoutMs });
     this.createSensorRuntime = createSensorRuntime || (device => new HomeDewinRuntime({ device, client: new TuyaCloudClient({
       clientId: process.env.TUYA_CLIENT_ID_HOME, clientSecret: process.env.TUYA_CLIENT_SECRET_HOME,
       deviceId: process.env.TUYA_DEWIN_ID?.trim() || device.identity?.tuyaDeviceId || device.tuyaDeviceId,
@@ -75,6 +88,9 @@ export class HomeStatusRuntime {
     for (const key of this.runtimes.keys()) if (!currentKeys.has(key)) this.runtimes.delete(key);
     const thermostatRead = this.readDevice('thermostat', this.readThermostat).then(
       value => value, () => null);
+    const hoodRead = this.readHood
+      ? this.readDevice('hood', this.readHood).then(value => value, () => null)
+      : Promise.resolve(null);
     const entries = await Promise.all(Object.entries(HOME_ROLES).map(async ([id, role]) => {
       const devices = registry.devices.filter(device => assignments[device.id] === role);
       const device = devices.length === 1 ? devices[0] : null;
@@ -98,6 +114,7 @@ export class HomeStatusRuntime {
     }));
     const values = Object.fromEntries(entries);
     const thermostat = normalizeThermostat(await thermostatRead, this.now());
+    const hood = normalizeCiarraState(await hoodRead, this.now());
     // Another device may have taken time: check freshness again at snapshot publication.
     for (const entry of Object.values(values)) {
       if (entry.available && !fresh(entry.updatedAt, this.now())) Object.assign(entry, { available: false, online: false, value: null, reason: 'stale' });
@@ -107,14 +124,14 @@ export class HomeStatusRuntime {
     sensors.S3 = { source: 'thermostat', value: room, available: Number.isFinite(room), online: thermostat.online, updatedAt: thermostat.updatedAt };
     const indoors = ['S1','S2','S3','S4'].map(id => sensors[id].value).filter(Number.isFinite);
     const cameras = this.readCameras ? await this.readCameras() : Object.fromEntries(Object.entries(values).filter(([id]) => id.startsWith('C')));
-    const snapshot = { updatedAt: new Date(this.now()).toISOString(), sensors, thermostat,
+    const snapshot = { updatedAt: new Date(this.now()).toISOString(), sensors, thermostat, hood,
       lights: Object.fromEntries(Object.entries(values).filter(([id]) => id.startsWith('L'))),
       cameras,
       // S3 alone is the WT200 room reading, not a whole-house average.
       averageTemperature: indoors.length > 1 ? indoors.reduce((a,b)=>a+b,0)/indoors.length : null,
       indoorSensorCount: indoors.length,
     };
-    const timestamps = [...Object.values(sensors).filter(sensor => sensor.available).map(sensor => sensor.updatedAt), thermostat.online ? thermostat.updatedAt : null].filter(Boolean);
+    const timestamps = [...Object.values(sensors).filter(sensor => sensor.available).map(sensor => sensor.updatedAt), thermostat.online ? thermostat.updatedAt : null, hood.online ? hood.updatedAt : null].filter(Boolean);
     const expiresAt = Math.min(this.now() + this.cacheMs, ...timestamps.map(time => Date.parse(time) + MAX_AGE_MS));
     this.cached = { signature, expiresAt, snapshot };
     return structuredClone(snapshot);

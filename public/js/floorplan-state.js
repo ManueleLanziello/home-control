@@ -11,13 +11,32 @@ export function createFloorplanState() {
     lightSources: Object.fromEntries(floorplanConfig.lights.map(light => [light.id, 'unavailable'])),
     cameras: {},
     boiler: { on: null, mode: null },
+    hood: { online: false, power: null, fanSpeed: null, light: null, operatingStatus: null, updatedAt: null },
   };
   const listeners = new Set();
+  const applyHood = hood => {
+    if (!hood || typeof hood !== 'object') {
+      state.hood.online = false;
+      return;
+    }
+    state.hood = {
+      online: hood.online === true,
+      power: typeof hood.power === 'boolean' ? hood.power : state.hood.power,
+      fanSpeed: Number.isInteger(hood.fanSpeed) ? hood.fanSpeed : state.hood.fanSpeed,
+      light: typeof hood.light === 'string' ? hood.light : state.hood.light,
+      operatingStatus: typeof hood.operatingStatus === 'string' ? hood.operatingStatus : state.hood.operatingStatus,
+      updatedAt: hood.updatedAt ?? state.hood.updatedAt,
+    };
+  };
   return {
     snapshot: () => structuredClone(state),
     setLight(id, on) {
       if (!Object.hasOwn(state.lights, id) || state.lightSources[id] !== 'simulation') return;
       state.lights[id] = on === true;
+      for (const listener of listeners) listener(this.snapshot());
+    },
+    applyHoodSnapshot(hood) {
+      applyHood(hood);
       for (const listener of listeners) listener(this.snapshot());
     },
     applyHomeSnapshot(home = {}) {
@@ -31,6 +50,7 @@ export function createFloorplanState() {
       }
       state.cameras = home.cameras || {};
       state.boiler = { on: home.thermostat?.heatingActive ?? null, mode: home.thermostat?.thermostat?.mode ?? null };
+      applyHood(home.hood);
       for (const listener of listeners) listener(this.snapshot());
     },
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },

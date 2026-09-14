@@ -10,6 +10,7 @@ import { HomeCameraRuntime, OWNED_CAMERA_ADAPTER } from './src/camera-runtime.js
 import { verifyDewinSensor } from './src/dewin-verifier.js';
 import { HardwareRegistryStore, defaultHardwareRegistry } from './src/hardware-registry.js';
 import { createHomeWt200Runtime } from './src/wt200-runtime.js';
+import { HomeCiarraRuntime, createHomeCiarraRuntime } from './src/ciarra-runtime.js';
 import { HomeStatusRuntime, HOME_ROLES } from './src/home-status.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -134,14 +135,18 @@ export function createHomeControlServer({
   hardwareStore = new HardwareRegistryStore({ filePath: HARDWARE_FILE, defaults: defaultHardwareRegistry() }),
   roleStore = new DeviceRoleStore({ filePath: ROLE_FILE }),
   thermostatRuntime = null,
+  hoodRuntime = null,
   createSensorRuntime,
   verifySensor = verifyDewinSensor,
   cameraRuntime = null,
 } = {}) {
   let activeThermostatRuntime = thermostatRuntime;
+  let activeHoodRuntime = hoodRuntime;
+  const getHoodRuntime = () => activeHoodRuntime ||= new HomeCiarraRuntime({ adapter: null });
   const cameras = cameraRuntime || new HomeCameraRuntime({ hardwareStore, roleStore, root: ROOT });
   const homeStatus = new HomeStatusRuntime({ hardwareStore, roleStore, createSensorRuntime,
     readCameras: () => cameras.snapshot(),
+    readHood: () => getHoodRuntime().getState(),
     // Retain the existing WT200 configuration path; never use its env ID for Dewin roles.
     readThermostat: () => {
       activeThermostatRuntime ||= createHomeWt200Runtime({
@@ -157,6 +162,32 @@ export function createHomeControlServer({
       if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
       try { return sendJson(response, 200, await homeStatus.readSnapshot()); }
       catch { return sendJson(response, 503, { error: 'Stato casa non disponibile' }); }
+    }
+    if (url.pathname === '/api/hood') {
+      if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
+      try { return sendJson(response, 200, (await homeStatus.readSnapshot()).hood); }
+      catch { return sendJson(response, 503, { error: 'Stato cappa non disponibile' }); }
+    }
+    if (url.pathname === '/api/hood/power') {
+      if (request.method !== 'PUT') return sendJson(response, 405, { error: 'Metodo non consentito' });
+      const payload = await readJson(request);
+      if (typeof payload?.power !== 'boolean') return sendJson(response, 400, { error: 'Stato power non valido' });
+      try { const state = await getHoodRuntime().setPower(payload.power); homeStatus.invalidate(); return sendJson(response, 200, state); }
+      catch (error) { return sendJson(response, error?.code === 'CIARRA_WRITE_NOT_CONFIRMED' ? 409 : 503, { error: error.message || 'Comando power non disponibile' }); }
+    }
+    if (url.pathname === '/api/hood/fan-speed') {
+      if (request.method !== 'PUT') return sendJson(response, 405, { error: 'Metodo non consentito' });
+      const payload = await readJson(request);
+      if (!Number.isInteger(payload?.fanSpeed) || payload.fanSpeed < 0 || payload.fanSpeed > 4) return sendJson(response, 400, { error: 'Velocita non valida' });
+      try { const state = await getHoodRuntime().setFanSpeed(payload.fanSpeed); homeStatus.invalidate(); return sendJson(response, 200, state); }
+      catch (error) { return sendJson(response, error?.code === 'CIARRA_WRITE_NOT_CONFIRMED' ? 409 : 503, { error: error.message || 'Comando velocita non disponibile' }); }
+    }
+    if (url.pathname === '/api/hood/light') {
+      if (request.method !== 'PUT') return sendJson(response, 405, { error: 'Metodo non consentito' });
+      const payload = await readJson(request);
+      if (!['off', 'level1', 'level2'].includes(payload?.light)) return sendJson(response, 400, { error: 'Luce non valida' });
+      try { const state = await getHoodRuntime().setLight(payload.light); homeStatus.invalidate(); return sendJson(response, 200, state); }
+      catch (error) { return sendJson(response, error?.code === 'CIARRA_WRITE_NOT_CONFIRMED' ? 409 : 503, { error: error.message || 'Comando luce non disponibile' }); }
     }
     if (url.pathname === '/api/floorplan/assets') {
       if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
@@ -377,7 +408,13 @@ export function createHomeControlServer({
 
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
-  const server = createHomeControlServer();
+  const server = createHomeControlServer({
+    hoodRuntime: createHomeCiarraRuntime({
+      deviceId: process.env.TUYA_CAPPA_ID,
+      lanIp: process.env.TUYA_CAPPA_IP,
+      localKey: process.env.TUYA_CAPPA_LOCAL_KEY,
+    }),
+  });
   server.listen(PORT, HOST, () => {
     console.log(`Home Control disponibile su http://${HOST}:${PORT}`);
   });

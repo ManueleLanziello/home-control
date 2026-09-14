@@ -196,6 +196,10 @@ function openBoiler(section = 'card') {
   document.dispatchEvent(new CustomEvent('home-control:open-boiler', { detail: { section: typeof section === 'string' ? section : 'card' } }));
 }
 
+function openCappa() {
+  document.dispatchEvent(new CustomEvent('home-control:open-cappa'));
+}
+
 export async function initFloorplan({ store = createFloorplanState(), onCameraSelect = showCamera, onLightToggle = id => store.setLight(id, !store.snapshot().lights[id]) } = {}) {
   const stage = document.querySelector('[data-layered-floorplan]');
   const status = document.querySelector('[data-floorplan-status]');
@@ -206,7 +210,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     const response = await fetch(homeControlPath('/api/floorplan/assets'), { cache: 'no-store' });
     if (!response.ok) throw new Error('Elenco asset non disponibile');
     const assets = new Set((await response.json()).assets);
-    const required = [...Object.values(config.backgrounds), ...config.rooms.filter(room => !room.optional).flatMap(room => [room.on, room.off]), ...Object.values(config.mappings)];
+    const required = [...Object.values(config.backgrounds), ...config.rooms.filter(room => !room.optional).flatMap(room => [room.on, room.off]), ...Object.values(config.mappings), config.icons.cappaOn, config.icons.cappaOff];
     const missing = required.filter(name => !assets.has(name));
     if (missing.length) throw new Error('Asset planimetria mancanti: ' + missing.join(', '));
     const imageLayers = new Map();
@@ -235,6 +239,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     const sensorMapping = await loadMapping(config.mappings.sensors, stage); mappings.push(sensorMapping);
     const cameraMapping = await loadMapping(config.mappings.cameras, stage); mappings.push(cameraMapping);
     const boilerMapping = await loadMapping(config.mappings.boiler, stage); mappings.push(boilerMapping);
+    const cappaMapping = await loadMapping(config.mappings.cappa, stage); mappings.push(cappaMapping);
     const lightMarkers = new Map();
     for (const light of config.lights) {
       const element = markerElement('Luce ' + light.room, true);
@@ -288,7 +293,12 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     settings.addEventListener('click', event => { event.preventDefault(); openBoiler('programming'); });
     mini.append(open, settings);
     placeHtml(boilerMapping, config.boiler.card, mini);
+    const cappa = markerElement('Apri controllo CAPPA', true);
+    cappa.classList.add('floorplan-marker-cappa');
+    cappa.addEventListener('click', openCappa);
+    placeHtml(cappaMapping, config.cappa.marker, cappa);
     let previousLights = {};
+    let previousCappaPower;
     const render = state => {
       for (const room of config.rooms) {
         const on = state.lights[room.lightId] === true;
@@ -313,6 +323,12 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
       }
       open.setAttribute('aria-label', 'Apri CALDAIA completa · ' + (state.boiler.on === null ? 'stato non disponibile' : state.boiler.on ? 'riscaldamento ON' : 'riscaldamento OFF') + ' · ' + (state.boiler.mode || 'modalità non disponibile'));
       renderBoilerMini(open, state.boiler);
+      const cappaPower = typeof state.hood.power === 'boolean' ? state.hood.power : previousCappaPower ?? false;
+      cappa.dataset.on = String(cappaPower);
+      cappa.dataset.online = String(state.hood.online === true);
+      cappa.setAttribute('aria-label', 'Apri controllo CAPPA · ' + (state.hood.online ? cappaPower ? 'ON' : 'OFF' : 'stato non disponibile'));
+      if (cappaPower !== previousCappaPower) cappa.replaceChildren(createIcon(assets, cappaPower ? config.icons.cappaOn : config.icons.cappaOff, '⌂'));
+      previousCappaPower = cappaPower;
     };
     render(store.snapshot());
     const unsubscribe = store.subscribe(render);

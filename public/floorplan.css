@@ -23,6 +23,7 @@ button.floorplan-marker { pointer-events: auto; cursor: pointer; }
 .floorplan-marker[data-on="true"] { color: #ffe56a; }
 .floorplan-marker-sensor { color: #ffd2af; }
 .floorplan-marker-camera { color: #8adeff; }
+.floorplan-marker-cappa[data-online="false"] { opacity: .58; }
 .floorplan-reading { fill: #fff; font-family: system-ui, sans-serif; font-weight: 700; paint-order: stroke; stroke: #06131f; stroke-width: 8; stroke-linejoin: round; }
 .floorplan-boiler-mini { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); width: 100%; height: 100%; background: #071d2ef0; border: 5px solid #5194ae; border-radius: 28px; overflow: hidden; }
 .floorplan-boiler-open { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: center; justify-items: center; gap: 0; border: 0; background: transparent; color: #def1fb; cursor: pointer; pointer-events: auto; padding: 0; }
@@ -57,6 +58,32 @@ button.floorplan-marker { pointer-events: auto; cursor: pointer; }
 .boiler-modal [data-boiler-editor-host] { scroll-margin-top: 70px; }
 .boiler-modal .thermostat-period input { width: 100%; }
 body:has(.boiler-modal[open]) { overflow: hidden; }
+
+.cappa-card { box-sizing: border-box; width: min(100%, 510px); min-height: 560px; margin: 0 auto; padding: 22px; }
+.cappa-card-header { grid-template-columns: 76px minmax(0, 1fr) auto; align-items: center; }
+.cappa-card-header p { margin: 3px 0 0; color: #8eacbd; }
+.cappa-main-icon { width: 68px; height: 68px; object-fit: contain; }
+.cappa-control { margin-top: 18px; padding: 18px; border: 1px solid #284e64; border-radius: 18px; background: #071826; }
+.cappa-control h3 { margin: 0 0 12px; font-size: .95rem; text-transform: uppercase; letter-spacing: .08em; }
+.cappa-power { display: flex; align-items: center; justify-content: center; gap: 14px; width: 100%; min-height: 74px; border: 1px solid #39738e; border-radius: 14px; color: #dff5ff; background: #102d3f; cursor: pointer; }
+.cappa-power img, .cappa-light-control img { width: 52px; height: 52px; object-fit: contain; }
+.cappa-selector { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.cappa-selector button { min-height: 48px; border: 1px solid #39738e; border-radius: 12px; color: #dff5ff; background: #102d3f; cursor: pointer; font: inherit; font-weight: 700; }
+.cappa-selector button.is-active { border-color: #52e3ff; color: #041019; background: #52e3ff; box-shadow: 0 0 16px #52e3ff55; }
+.cappa-selector button:disabled, .cappa-power:disabled { cursor: not-allowed; opacity: .48; }
+.cappa-light-control > div:first-child { display: flex; align-items: center; gap: 12px; }
+.cappa-light-control > div:first-child h3 { margin: 0; }
+.cappa-light-control .cappa-selector { grid-template-columns: 2fr 1fr 1fr; margin-top: 12px; }
+.cappa-footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 20px; margin-top: 18px; color: #8eacbd; font-size: .8rem; }
+.cappa-message { min-height: 1.2em; margin: 12px 0 0; color: #ffbc7d; text-align: center; }
+
+@media (max-width: 540px) {
+  .cappa-card { min-height: 0; padding: 14px; }
+  .cappa-card-header { grid-template-columns: 58px minmax(0, 1fr); }
+  .cappa-card-header .static-status { grid-column: 1 / -1; justify-self: start; }
+  .cappa-main-icon { width: 52px; height: 52px; }
+  .cappa-control { margin-top: 12px; padding: 13px; }
+}
 
 @media (hover: none) and (pointer: coarse) {
   .boiler-modal {

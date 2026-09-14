@@ -6,11 +6,13 @@ import { homeControlPath } from '../base-path.js';
 
 const THERMOSTAT_CACHE_KEY = 'home-control:thermostat-snapshot';
 let boilerSnapshot = null;
+let cappaSnapshot = null;
 const floorplanStore = createFloorplanState();
 let boilerEditor = null;
 let modeSaving = false;
 let setpointSaving = false;
 let setpointDraft = null;
+let cappaSaving = false;
 const FLOORPLAN_VIEWBOX = { x: 1763.5, y: 1736.5, width: 1656, height: 1723 };
 const REFERENCE_VIEWBOX = { x: 925, y: 1730, width: 3343, height: 1731 };
 
@@ -251,6 +253,67 @@ function renderBoiler(snapshot = null) {
   }
 }
 
+const cappaAsset = name => homeControlPath('/design/' + name);
+
+function renderCappa(snapshot = cappaSnapshot) {
+  const online = snapshot?.online === true;
+  const power = typeof snapshot?.power === 'boolean' ? snapshot.power : null;
+  const light = ['off', 'level1', 'level2'].includes(snapshot?.light) ? snapshot.light : null;
+  const disabled = !online || cappaSaving;
+  const onlineElement = document.querySelector('[data-cappa-online]');
+  if (onlineElement) {
+    onlineElement.textContent = online ? 'Online' : 'Offline';
+    onlineElement.classList.toggle('static-status--online', online);
+    onlineElement.classList.toggle('static-status--offline', !online);
+  }
+  const mainIcon = document.querySelector('[data-cappa-main-icon]');
+  if (mainIcon && power !== null) mainIcon.src = cappaAsset(power ? 'CAPPAON.svg' : 'CAPPAOFF.svg');
+  const powerButton = document.querySelector('[data-cappa-power]');
+  if (powerButton) {
+    powerButton.disabled = disabled || power === null;
+    powerButton.setAttribute('aria-pressed', String(power === true));
+  }
+  const powerIcon = document.querySelector('[data-cappa-power-icon]');
+  if (powerIcon && power !== null) powerIcon.src = cappaAsset(power ? 'poweron.svg' : 'poweroff.svg');
+  const powerLabel = document.querySelector('[data-cappa-power-label]');
+  if (powerLabel) powerLabel.textContent = power === null ? 'Non disponibile' : power ? 'Accesa' : 'Spenta';
+  for (const button of document.querySelectorAll('[data-cappa-fan-speed]')) {
+    button.disabled = disabled;
+    button.classList.toggle('is-active', Number(button.dataset.cappaFanSpeed) === snapshot?.fanSpeed);
+  }
+  const lightIcon = document.querySelector('[data-cappa-light-icon]');
+  if (lightIcon && light) lightIcon.src = cappaAsset(light === 'off' ? 'lampoff.svg' : 'lampon.svg');
+  for (const button of document.querySelectorAll('[data-cappa-light]')) {
+    button.disabled = disabled;
+    button.classList.toggle('is-active', button.dataset.cappaLight === light);
+  }
+  const operatingStatus = document.querySelector('[data-cappa-operating-status]');
+  if (operatingStatus) operatingStatus.textContent = snapshot?.operatingStatus === 'on' ? 'Operativa' : snapshot?.operatingStatus === 'off' ? 'Spenta' : '—';
+  const updated = document.querySelector('[data-cappa-updated]');
+  if (updated) updated.textContent = updatedAtText(snapshot?.updatedAt);
+}
+
+async function sendCappaCommand(path, payload) {
+  if (cappaSaving) return;
+  cappaSaving = true;
+  const message = document.querySelector('[data-cappa-message]');
+  if (message) message.textContent = 'Comando in corso…';
+  renderCappa();
+  try {
+    const response = await fetch(homeControlPath(path), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Comando cappa non riuscito');
+    cappaSnapshot = result;
+    floorplanStore.applyHoodSnapshot(result);
+    if (message) message.textContent = '';
+  } catch (error) {
+    if (message) message.textContent = error.message;
+  } finally {
+    cappaSaving = false;
+    renderCappa();
+  }
+}
+
 async function saveSetpoint() {
   const control = document.querySelector('[data-boiler-setpoint-control]');
   if (!control || setpointSaving || boilerSnapshot?.thermostat?.mode !== 'manual') return;
@@ -288,7 +351,9 @@ async function loadHomeSnapshot() {
     const home = await response.json();
     floorplanStore.applyHomeSnapshot(home);
     boilerSnapshot = home.thermostat;
+    cappaSnapshot = home.hood;
     renderBoiler(boilerSnapshot);
+    renderCappa(cappaSnapshot);
     boilerEditor?.updateSnapshot(boilerSnapshot);
     const average = document.querySelector('.boiler-temperature--home');
     average.querySelector('strong').textContent = temperatureText(home.averageTemperature);
@@ -299,7 +364,9 @@ async function loadHomeSnapshot() {
   } catch {
     floorplanStore.applyHomeSnapshot();
     boilerSnapshot = null;
+    cappaSnapshot = cappaSnapshot ? { ...cappaSnapshot, online: false } : null;
     renderBoiler();
+    renderCappa(cappaSnapshot);
     boilerEditor?.updateSnapshot(null);
     const average = document.querySelector('.boiler-temperature--home');
     average.querySelector('strong').textContent = '— °C';
@@ -402,6 +469,30 @@ function initBoilerModal() {
   }).observe(frame);
 }
 
+function initCappaModal() {
+  const modal = document.querySelector('[data-cappa-modal]');
+  if (!modal) return;
+  const close = () => modal.close();
+  modal.querySelector('[data-cappa-modal-close]').addEventListener('click', close);
+  modal.addEventListener('click', event => {
+    if (event.target !== modal) return;
+    const box = modal.getBoundingClientRect();
+    if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) close();
+  });
+  document.addEventListener('home-control:open-cappa', () => { renderCappa(); if (!modal.open) modal.showModal(); });
+  modal.querySelector('[data-cappa-power]').addEventListener('click', () => {
+    if (typeof cappaSnapshot?.power === 'boolean') void sendCappaCommand('/api/hood/power', { power: !cappaSnapshot.power });
+  });
+  for (const button of modal.querySelectorAll('[data-cappa-fan-speed]')) button.addEventListener('click', () => {
+    const fanSpeed = Number(button.dataset.cappaFanSpeed);
+    if (fanSpeed !== cappaSnapshot?.fanSpeed) void sendCappaCommand('/api/hood/fan-speed', { fanSpeed });
+  });
+  for (const button of modal.querySelectorAll('[data-cappa-light]')) button.addEventListener('click', () => {
+    const light = button.dataset.cappaLight;
+    if (light !== cappaSnapshot?.light) void sendCappaCommand('/api/hood/light', { light });
+  });
+}
+
 function fitFloorplanToViewport() {
   const stage = document.querySelector('[data-layered-floorplan]');
   const shell = document.querySelector('.dashboard-shell');
@@ -424,11 +515,13 @@ function fitFloorplanToViewport() {
 
 function renderDashboard() {
   initBoilerModal();
+  initCappaModal();
   fitFloorplanToViewport();
   void initFloorplan({ store: floorplanStore });
   renderExternalLights();
   renderWidgetIcons();
   renderBoiler();
+  renderCappa();
   bindBoilerModeControls();
   document.querySelector('[data-boiler-setpoint-control]')?.addEventListener('input', previewSetpoint);
   document.querySelector('[data-boiler-setpoint-control]')?.addEventListener('change', () => void saveSetpoint());

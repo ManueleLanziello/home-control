@@ -113,6 +113,36 @@
       <div data-boiler-editor-host><p data-boiler-editor-status role="status">Caricamento programmazione…</p></div>
     </div>
   </dialog>
+  <dialog class="boiler-modal cappa-modal" aria-label="Controllo CAPPA" data-cappa-modal>
+    <header class="boiler-modal-toolbar"><strong>CAPPA</strong><button type="button" data-cappa-modal-close aria-label="Chiudi popup CAPPA">X</button></header>
+    <div class="boiler-modal-content">
+      <article class="cappa-card neon-card" aria-label="Cappa CIARRA CBCW6736N">
+        <header class="widget-header cappa-card-header">
+          <img class="cappa-main-icon" src="design/CAPPAOFF.svg" alt="" data-cappa-main-icon>
+          <div><h2>Cappa</h2><p>CIARRA CBCW6736N</p></div>
+          <span class="static-status static-status--offline" data-cappa-online>Offline</span>
+        </header>
+        <section class="cappa-control" aria-label="Accensione cappa">
+          <h3>Power</h3>
+          <button class="cappa-power" type="button" data-cappa-power disabled><img src="design/poweroff.svg" alt="" data-cappa-power-icon><strong data-cappa-power-label>Non disponibile</strong></button>
+        </section>
+        <section class="cappa-control" aria-label="Velocità ventola">
+          <h3>Velocità ventola</h3>
+          <div class="cappa-selector" data-cappa-fan-selector>
+            <button type="button" data-cappa-fan-speed="0">0</button><button type="button" data-cappa-fan-speed="1">1</button><button type="button" data-cappa-fan-speed="2">2</button><button type="button" data-cappa-fan-speed="3">3</button><button type="button" data-cappa-fan-speed="4">4</button>
+          </div>
+        </section>
+        <section class="cappa-control cappa-light-control" aria-label="Luce cappa">
+          <div><img src="design/lampoff.svg" alt="" data-cappa-light-icon><h3>Luce</h3></div>
+          <div class="cappa-selector" data-cappa-light-selector>
+            <button type="button" data-cappa-light="off">SPENTO</button><button type="button" data-cappa-light="level1">1</button><button type="button" data-cappa-light="level2">2</button>
+          </div>
+        </section>
+        <footer class="cappa-footer"><span>Stato operativo: <strong data-cappa-operating-status>—</strong></span><span>Ultimo aggiornamento: <strong data-cappa-updated>—</strong></span></footer>
+        <p class="cappa-message" data-cappa-message role="status"></p>
+      </article>
+    </div>
+  </dialog>
   <script type="module" src="js/dashboard.js"></script>
   <script type="module" src="pwa.js"></script>
 </body>
