@@ -145,7 +145,6 @@ export function createHomeControlServer({
     // Retain the existing WT200 configuration path; never use its env ID for Dewin roles.
     readThermostat: () => {
       activeThermostatRuntime ||= createHomeWt200Runtime({
-        clientId: process.env.TUYA_CLIENT_ID, clientSecret: process.env.TUYA_CLIENT_SECRET,
         deviceId: process.env.TUYA_DEVICE_ID, lanIp: process.env.WT200_LAN_IP, localKey: process.env.WT200_LOCAL_KEY,
       });
       return activeThermostatRuntime.readSnapshot();

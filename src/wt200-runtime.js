@@ -1,8 +1,6 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  TuyaCloudClient,
-  Wt200TuyaAdapter,
   Wt200TuyaLanAdapter,
   buildWt200LanSnapshot,
 } from '@smarthome/core';
@@ -30,9 +28,10 @@ export function mergeWt200Snapshots({ cloudSnapshot = null, lanSnapshot = null, 
   return {
     ...cloud,
     deviceId: cloud.deviceId ?? lanSnapshot?.deviceId ?? deviceId,
-    online: cloud.online === true || lanSnapshot !== null,
+    online: lanSnapshot !== null || cloud.online === true,
     cloudUpdatedAt: cloud.online === true ? cloud.updatedAt : null,
     lanUpdatedAt: lanSnapshot?.updatedAt ?? null,
+    thermostat: lanSnapshot?.thermostat ?? cloudSnapshot?.thermostat ?? cloud.thermostat,
     scheduleSource: deviceSchedule ? 'device' : persistedSchedule?.schedule ? 'persisted' : null,
     heatingActive: lanSnapshot?.heatingActive ?? null,
     rawDps: lanSnapshot?.rawDps ?? null,
@@ -42,14 +41,12 @@ export function mergeWt200Snapshots({ cloudSnapshot = null, lanSnapshot = null, 
 }
 
 export class HomeWt200Runtime {
-  constructor({ cloudAdapter = null, lanAdapter = null, scheduleStore = null, deviceId = null, now = () => new Date().toISOString(), client = null, adapter = null }) {
-    this.cloudAdapter = cloudAdapter || adapter || (client ? new Wt200TuyaAdapter({ client, now }) : null);
+  constructor({ lanAdapter = null, scheduleStore = null, deviceId = null, now = () => new Date().toISOString() }) {
     this.lanAdapter = lanAdapter;
     this.scheduleStore = scheduleStore;
     this.deviceId = deviceId;
     this.now = now;
     this.persistedSchedule = null;
-    this.lastCloudSnapshot = null;
     this.modeOverride = null;
     this.setpointOverride = null;
     this.restorePromise = null;
@@ -102,17 +99,12 @@ export class HomeWt200Runtime {
 
   async readSnapshot() {
     const persistedSchedule = await this.restoreSchedule();
-    const [cloudResult, lanResult] = await Promise.allSettled([
-      this.cloudAdapter ? this.cloudAdapter.read() : Promise.resolve(null),
-      this.readLanSnapshot(),
-    ]);
-    if (cloudResult.status === 'fulfilled' && cloudResult.value) this.lastCloudSnapshot = cloudResult.value;
-    const cloudSnapshot = cloudResult.status === 'fulfilled' ? cloudResult.value : null;
+    const [lanResult] = await Promise.allSettled([this.readLanSnapshot()]);
     const lanSnapshot = lanResult.status === 'fulfilled' ? lanResult.value : null;
-    if (!cloudSnapshot && !lanSnapshot) {
+    if (!lanSnapshot) {
       return mergeWt200Snapshots({ persistedSchedule, deviceId: this.deviceId });
     }
-    const merged = mergeWt200Snapshots({ cloudSnapshot, lanSnapshot, persistedSchedule, deviceId: this.deviceId });
+    const merged = mergeWt200Snapshots({ lanSnapshot, persistedSchedule, deviceId: this.deviceId });
     if (merged.scheduleSource === 'device'
       && (merged.schedule?.raw !== persistedSchedule?.schedule?.raw
         || merged.schedule?.weekPattern !== persistedSchedule?.schedule?.weekPattern)) {
@@ -132,7 +124,7 @@ export class HomeWt200Runtime {
   }
 
   async updateSchedule({ weekPattern = null, normalPeriods, restDayPeriods }) {
-    const writer = typeof this.cloudAdapter?.writeSchedule === 'function' ? this.cloudAdapter : this.lanAdapter;
+    const writer = this.lanAdapter;
     if (!writer?.writeSchedule) {
       const error = new Error('Connessione WT200 non disponibile.');
       error.code = 'LAN_UNAVAILABLE';
@@ -163,7 +155,7 @@ export class HomeWt200Runtime {
   }
 
   async setWeekPattern(weekPattern) {
-    const writer = typeof this.cloudAdapter?.setWeekPattern === 'function' ? this.cloudAdapter : this.lanAdapter;
+    const writer = this.lanAdapter;
     if (!writer?.setWeekPattern) {
       const error = new Error('Connessione WT200 non disponibile.');
       error.code = 'LAN_UNAVAILABLE';
@@ -211,15 +203,11 @@ export class HomeWt200Runtime {
   }
 }
 
-export function createHomeWt200Runtime({ clientId, clientSecret, deviceId, lanIp, localKey, now }) {
-  const cloudAdapter = clientId && clientSecret && deviceId
-    ? new Wt200TuyaAdapter({ client: new TuyaCloudClient({ clientId, clientSecret, deviceId }), now })
-    : null;
+export function createHomeWt200Runtime({ deviceId, lanIp, localKey, now }) {
   const lanAdapter = deviceId && lanIp && localKey
     ? new Wt200TuyaLanAdapter({ deviceId, ip: lanIp, localKey, now })
     : null;
   return new HomeWt200Runtime({
-    cloudAdapter,
     lanAdapter,
     scheduleStore: new Wt200ScheduleStore({ filePath: DEFAULT_SCHEDULE_FILE, fallbackFilePath: FALLBACK_SCHEDULE_FILE }),
     deviceId,

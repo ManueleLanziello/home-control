@@ -65,13 +65,12 @@ test('configured unsupported lights/cameras stay unavailable, never become simul
  assert.equal(h.lights.L1.reason,'unsupported_adapter');assert.equal(h.lights.L1.source,'hardware');
  assert.equal(h.cameras.C1.alias,'camera');assert.equal(h.cameras.C1.available,false);
 });
-test('WT200 cloud failure clears measurements while LAN heating remains independent',async()=>{
- let fail=false;
- const runtime=new HomeWt200Runtime({cloudAdapter:{async read(){if(fail)throw Error('Cloud');return wt();}},lanAdapter:{async read(){return {updatedAt:stamp,heatingActive:false};}}});
- assert.equal(normalizeThermostat(await runtime.readSnapshot(),time).thermostat.currentTemperature,22);
- fail=true;const h=normalizeThermostat(await runtime.readSnapshot(),time);
- assert.equal(h.thermostat.currentTemperature,null);assert.equal(h.thermostat.mode,null);assert.equal(h.heatingActive,false);
- assert.equal(normalizeThermostat(wt(),time+100000).thermostat.currentTemperature,null);
+test('WT200 LAN senza Cloud mantiene misure, modalita, relay e S3',async()=>{
+ const runtime=new HomeWt200Runtime({lanAdapter:{async read(){return {updatedAt:stamp,heatingActive:false,thermostat:{currentTemperature:25.9,setpointTemperature:5.5,mode:'manual'}};}}});
+ const thermostat=normalizeThermostat(await runtime.readSnapshot(),time);
+ assert.equal(thermostat.online,true);assert.equal(thermostat.thermostat.currentTemperature,25.9);assert.equal(thermostat.thermostat.setpointTemperature,5.5);assert.equal(thermostat.thermostat.mode,'manual');assert.equal(thermostat.heatingActive,false);
+ const home=await new HomeStatusRuntime({...fixture(),readThermostat:async()=>runtime.readSnapshot()}).readSnapshot();
+ assert.equal(home.sensors.S3.value,25.9);assert.equal(home.sensors.S3.available,true);assert.equal(home.sensors.S3.online,true);
 });
 test('UI store synchronizes sensors, boiler, all seven simulated lights, and failure fallback',async()=>{
  const h=await new HomeStatusRuntime(fixture()).readSnapshot();const store=createFloorplanState();store.applyHomeSnapshot(h);

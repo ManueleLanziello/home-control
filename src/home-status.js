@@ -19,7 +19,7 @@ export function normalizeThermostat(snapshot, now = Date.now()) {
   const lanTime = snapshot && Object.hasOwn(snapshot, 'lanUpdatedAt') ? snapshot.lanUpdatedAt : snapshot?.updatedAt;
   const cloudValid = snapshot?.online === true && fresh(cloudTime, now);
   const lanValid = snapshot?.online === true && fresh(lanTime, now);
-  const source = cloudValid ? snapshot.thermostat || {} : {};
+  const source = lanValid ? snapshot?.thermostat || {} : cloudValid ? snapshot?.thermostat || {} : {};
   const thermostat = Object.fromEntries(['currentTemperature', 'setpointTemperature', 'upperTemperatureLimit', 'temperatureCorrection'].map(key => [key, finite(source[key])]));
   for (const key of ['enabled', 'childLock', 'frostProtection', 'sound']) thermostat[key] = bool(source[key]);
   thermostat.mode = typeof source.mode === 'string' ? source.mode : null;

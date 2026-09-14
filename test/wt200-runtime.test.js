@@ -24,12 +24,11 @@ const cloudSnapshot = {
   updatedAt: '2026-09-07T10:00:00.000Z',
 };
 
-test('unisce dati Cloud esistenti e dati LAN verificati', () => {
+test('unisce le misure LAN e la programmazione verificata', () => {
   const merged = mergeWt200Snapshots({
-    cloudSnapshot,
-    lanSnapshot: { deviceId: 'wt200-lan-id', heatingActive: true, rawDps: { 5: '1', 107: '1' }, schedule },
+    lanSnapshot: { deviceId: 'wt200-lan-id', heatingActive: true, thermostat: { currentTemperature: 25.9, setpointTemperature: 5.5, mode: 'manual' }, rawDps: { 5: '1', 107: '1' }, schedule },
   });
-  assert.equal(merged.thermostat.currentTemperature, 27.8);
+  assert.equal(merged.thermostat.currentTemperature, 25.9);
   assert.equal(merged.heatingActive, true);
   assert.deepEqual(merged.rawDps, { 5: '1', 107: '1' });
   assert.equal(merged.schedule, schedule);
@@ -45,28 +44,24 @@ test('LAN senza DP105 conserva lo schedule persistito', () => {
   assert.equal(merged.schedule, schedule);
 });
 
-test('Cloud valido e schedule persistito restano disponibili se la LAN cade', async () => {
+test('schedule persistito resta disponibile ma il WT200 e offline se la LAN cade', async () => {
   const runtime = new HomeWt200Runtime({
-    cloudAdapter: { async read() { return cloudSnapshot; } },
     lanAdapter: { async read() { throw new Error('LAN disconnected'); } },
     scheduleStore: { async read() { return { deviceId: cloudSnapshot.deviceId, schedule, updatedAt: '2026-09-07T11:00:00.000Z' }; } },
   });
   const result = await runtime.readSnapshot();
-  assert.equal(result.online, true);
-  assert.equal(result.thermostat.currentTemperature, 27.8);
-  assert.equal(result.thermostat.setpointTemperature, 31.5);
+  assert.equal(result.online, false);
+  assert.equal(result.thermostat.currentTemperature, undefined);
+  assert.equal(result.thermostat.setpointTemperature, undefined);
   assert.equal(result.heatingActive, null);
   assert.equal(result.schedule.raw, schedule.raw);
 });
 
-test('letture Cloud precedenti non tornano online se LAN e Cloud falliscono', async () => {
-  let cloudReads = 0;
+test('letture LAN precedenti non tornano online se la LAN fallisce', async () => {
   const runtime = new HomeWt200Runtime({
-    cloudAdapter: { async read() { if (cloudReads++ === 0) return cloudSnapshot; throw new Error('Cloud unavailable'); } },
     lanAdapter: { async read() { throw new Error('LAN disconnected'); } },
     scheduleStore: { async read() { return { deviceId: cloudSnapshot.deviceId, schedule, updatedAt: null }; } },
   });
-  await runtime.readSnapshot();
   const recovered = await runtime.readSnapshot();
   assert.equal(recovered.online, false);
   assert.equal(recovered.thermostat.currentTemperature, undefined);
@@ -157,13 +152,13 @@ test('schedule appena scritta resta disponibile se la LAN cade dopo il write', a
     async read() { throw new Error('LAN disconnected'); },
   };
   const runtime = new HomeWt200Runtime({
-    cloudAdapter: { async read() { return cloudSnapshot; } }, lanAdapter,
+    lanAdapter,
     scheduleStore: { async read() { return { schedule }; }, async write(value) { saved.push(value); return value; } },
   });
   await runtime.updateSchedule({ normalPeriods: schedule.normalPeriods, restDayPeriods: schedule.restDayPeriods });
   const afterDisconnect = await runtime.readSnapshot();
   assert.equal(saved.at(-1).schedule.raw, UPDATED_SCHEDULE_RAW);
-  assert.equal(afterDisconnect.online, true);
+  assert.equal(afterDisconnect.online, false);
   assert.equal(afterDisconnect.schedule.raw, UPDATED_SCHEDULE_RAW);
 });
 
@@ -206,17 +201,17 @@ test('PUT mode accetta manual e rifiuta valori arbitrari', async () => {
   }
 });
 
-test('runtime usa il canale Cloud specifico e persiste solo dopo conferma DP105', async () => {
+test('runtime usa esclusivamente il canale LAN e persiste solo dopo conferma DP105', async () => {
   const saved = [];
-  const cloudAdapter = {
+  const lanAdapter = {
     async writeSchedule(value) {
       assert.equal(value.weekPattern, '7');
       assert.equal(value.restDayPeriods, undefined);
-      return { deviceId: 'wt200-cloud-id', schedule: { ...schedule, weekPattern: '7', weekPatternRaw: '3' }, updatedAt: '2026-09-10T10:00:00.000Z' };
+      return { deviceId: 'wt200-lan-id', schedule: { ...schedule, weekPattern: '7', weekPatternRaw: '3' }, updatedAt: '2026-09-10T10:00:00.000Z' };
     },
   };
   const runtime = new HomeWt200Runtime({
-    cloudAdapter,
+    lanAdapter,
     scheduleStore: { async read() { return { schedule: { ...schedule, weekPattern: '7' } }; }, async write(value) { saved.push(value); return value; } },
   });
   const result = await runtime.updateSchedule({ weekPattern: '7', normalPeriods: schedule.normalPeriods });
