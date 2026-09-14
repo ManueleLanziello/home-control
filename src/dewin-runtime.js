@@ -5,6 +5,7 @@ export const DEWIN_CAPABILITIES = Object.freeze([
   'ambientHumidity',
   'externalProbeTemperature',
 ]);
+export const DEWIN_REFRESH_INTERVAL_MS = 30 * 60 * 1000;
 
 export function isDewinTuyaDevice(device) {
   const protocol = String(device?.protocol || '').trim().toLowerCase();
@@ -18,22 +19,33 @@ export function dewinCapabilitiesFromSnapshot(snapshot) {
 }
 
 export class HomeDewinRuntime {
-  constructor({ device, client, adapter = null, now = () => new Date().toISOString() }) {
+  constructor({ device, client, adapter = null, now = () => new Date().toISOString(), nowMs = Date.now, refreshIntervalMs = DEWIN_REFRESH_INTERVAL_MS }) {
     if (!device || typeof device !== 'object') throw new TypeError('Dispositivo Home Dewin obbligatorio.');
     this.device = device;
     this.adapter = adapter || new DewinTuyaAdapter({ client, now });
+    this.nowMs = nowMs;
+    this.refreshIntervalMs = refreshIntervalMs;
+    this.cached = null;
+    this.pending = null;
   }
 
   async readSnapshot() {
-    const snapshot = await this.adapter.read();
-    return {
-      deviceId: this.device.id,
-      physicalDeviceId: snapshot.deviceId,
-      alias: this.device.alias,
-      online: snapshot.online,
-      updatedAt: snapshot.updatedAt,
-      capabilities: dewinCapabilitiesFromSnapshot(snapshot),
-      measurements: snapshot.measurements,
-    };
+    if (this.cached && this.nowMs() < this.cached.expiresAt) return structuredClone(this.cached.snapshot);
+    if (this.pending) return this.pending;
+    this.pending = (async () => {
+      const snapshot = await this.adapter.read();
+      const normalized = {
+        deviceId: this.device.id,
+        physicalDeviceId: snapshot.deviceId,
+        alias: this.device.alias,
+        online: snapshot.online,
+        updatedAt: snapshot.updatedAt,
+        capabilities: dewinCapabilitiesFromSnapshot(snapshot),
+        measurements: snapshot.measurements,
+      };
+      this.cached = { snapshot: normalized, expiresAt: this.nowMs() + this.refreshIntervalMs };
+      return structuredClone(normalized);
+    })().finally(() => { this.pending = null; });
+    return this.pending;
   }
 }

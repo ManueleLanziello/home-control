@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { DewinTuyaAdapter } from '@smarthome/core';
 import { defaultHardwareRegistry, validateHardwareRegistry } from '../src/hardware-registry.js';
-import { HomeDewinRuntime, dewinCapabilitiesFromSnapshot, isDewinTuyaDevice } from '../src/dewin-runtime.js';
+import { DEWIN_REFRESH_INTERVAL_MS, HomeDewinRuntime, dewinCapabilitiesFromSnapshot, isDewinTuyaDevice } from '../src/dewin-runtime.js';
 
 const specification = {
   status: [
@@ -22,6 +22,29 @@ function homeDewinDevice() {
     capabilities: ['ambientTemperature', 'ambientHumidity'],
   };
 }
+
+test('Dewin Home refreshes Cloud at most every 30 minutes', async () => {
+  let now = 0;
+  let reads = 0;
+  const runtime = new HomeDewinRuntime({
+    device: homeDewinDevice(),
+    nowMs: () => now,
+    adapter: {
+      async read() {
+        reads += 1;
+        return { deviceId: 'cloud-device-test', online: true, updatedAt: '2026-09-04T10:00:00.000Z', measurements: {} };
+      },
+    },
+  });
+
+  await runtime.readSnapshot();
+  now = DEWIN_REFRESH_INTERVAL_MS - 1;
+  await runtime.readSnapshot();
+  assert.equal(reads, 1);
+  now = DEWIN_REFRESH_INTERVAL_MS;
+  await runtime.readSnapshot();
+  assert.equal(reads, 2);
+});
 
 test('Home-Control importa e usa DewinTuyaAdapter dal Core', async () => {
   let readCount = 0;
