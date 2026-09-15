@@ -12,7 +12,7 @@ import {
   runHeatingFastFollow,
   shouldAcceptThermostatStatus,
 } from './thermostat.js';
-import { initFloorplan } from './floorplan.js';
+import { initFloorplan, updateFloorplanWeather } from './floorplan.js';
 import { createFloorplanState } from './floorplan-state.js';
 import { renderWt200Schedule, selectWt200PeriodsForDate } from './boiler-schedule.js';
 import { homeControlPath } from '../base-path.js';
@@ -21,6 +21,7 @@ const THERMOSTAT_CACHE_KEY = 'home-control:thermostat-snapshot';
 const THERMOSTAT_REFRESH_MS = 5_000;
 const THERMOSTAT_FAST_FOLLOW_MS = 5_000;
 const THERMOSTAT_FAST_FOLLOW_INTERVAL_MS = 450;
+const WEATHER_REFRESH_MS = 15 * 60_000;
 let boilerSnapshot = null;
 let cappaSnapshot = null;
 const floorplanStore = createFloorplanState();
@@ -489,6 +490,18 @@ async function loadHomeSnapshot() {
   }
 }
 
+async function loadWeatherSnapshot() {
+  try {
+    const response = await fetch(homeControlPath('/api/weather'), { cache: 'no-store', signal: AbortSignal.timeout(10_000) });
+    if (!response.ok) throw new Error('Meteo non disponibile');
+    updateFloorplanWeather(await response.json());
+  } catch {
+    // The floorplan keeps the last valid snapshot (or its unavailable placeholder).
+  } finally {
+    setTimeout(loadWeatherSnapshot, WEATHER_REFRESH_MS);
+  }
+}
+
 function showModeMessage(message) {
   const element = document.querySelector('[data-boiler-raw-mode]');
   if (!element) return;
@@ -656,6 +669,7 @@ function renderDashboard() {
   document.querySelector('[data-boiler-setpoint-control]')?.addEventListener('input', previewSetpoint);
   document.querySelector('[data-boiler-setpoint-control]')?.addEventListener('change', () => void saveSetpoint());
   void loadHomeSnapshot();
+  void loadWeatherSnapshot();
   setTimeout(loadThermostatSnapshot, THERMOSTAT_REFRESH_MS);
   connectThermostatEvents();
 }

@@ -12,6 +12,8 @@ import { HardwareRegistryStore, defaultHardwareRegistry } from './src/hardware-r
 import { createHomeWt200Runtime } from './src/wt200-runtime.js';
 import { HomeCiarraRuntime, createHomeCiarraRuntime } from './src/ciarra-runtime.js';
 import { HomeStatusRuntime, HOME_ROLES, normalizeThermostat } from './src/home-status.js';
+import { WEATHER_CONFIG } from './config/weather.js';
+import { WeatherService } from './src/weather-service.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_ROOT = path.join(ROOT, 'public');
@@ -139,6 +141,7 @@ export function createHomeControlServer({
   createSensorRuntime,
   verifySensor = verifyDewinSensor,
   cameraRuntime = null,
+  weatherService = null,
 } = {}) {
   let activeThermostatRuntime = thermostatRuntime;
   let observedThermostatRuntime = null;
@@ -164,6 +167,7 @@ export function createHomeControlServer({
   let activeHoodRuntime = hoodRuntime;
   const getHoodRuntime = () => activeHoodRuntime ||= new HomeCiarraRuntime({ adapter: null });
   const cameras = cameraRuntime || new HomeCameraRuntime({ hardwareStore, roleStore, root: ROOT });
+  const activeWeatherService = weatherService || new WeatherService({ config: WEATHER_CONFIG, logError: message => console.error(message) });
   homeStatus = new HomeStatusRuntime({ hardwareStore, roleStore, createSensorRuntime,
     readCameras: () => cameras.snapshot(),
     readHood: () => getHoodRuntime().getState(),
@@ -200,6 +204,10 @@ export function createHomeControlServer({
       if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
       try { return sendJson(response, 200, await homeStatus.readSnapshot()); }
       catch { return sendJson(response, 503, { error: 'Stato casa non disponibile' }); }
+    }
+    if (url.pathname === '/api/weather') {
+      if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
+      return sendJson(response, 200, await activeWeatherService.getSnapshot());
     }
     if (url.pathname === '/api/hood') {
       if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });

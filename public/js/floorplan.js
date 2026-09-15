@@ -5,6 +5,13 @@ import { backgroundPeriod, createFloorplanState } from './floorplan-state.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const assetUrl = name => homeControlPath('/design/' + name);
+let weatherSnapshot = null;
+let renderWeatherSnapshot = () => {};
+
+export function updateFloorplanWeather(snapshot) {
+  weatherSnapshot = snapshot;
+  renderWeatherSnapshot(snapshot);
+}
 const svgElement = (tag, attributes = {}) => {
   const element = document.createElementNS(SVG_NS, tag);
   for (const [name, value] of Object.entries(attributes)) element.setAttribute(name, value);
@@ -30,7 +37,7 @@ async function loadMapping(name, stage) {
   return {
     overlay,
     box({ selector, index }) {
-      const shape = source.querySelectorAll(selector)[index];
+      const shape = index === undefined ? source.querySelector(selector) : source.querySelectorAll(selector)[index];
       if (!shape) throw new Error('Marker mancante in ' + name);
       const bounds = shape.getBBox();
       const matrix = source.getCTM().inverse().multiply(shape.getCTM());
@@ -202,6 +209,83 @@ function openCappa() {
   document.dispatchEvent(new CustomEvent('home-control:open-cappa'));
 }
 
+const weatherNumber = value => Number.isFinite(value) ? new Intl.NumberFormat('it-IT', { maximumFractionDigits: 1 }).format(value) : '—';
+const weatherTemperature = value => Number.isFinite(value) ? `${weatherNumber(value)} °C` : '— °C';
+const weatherPercent = value => Number.isFinite(value) ? `${Math.round(value)}%` : '—';
+const weatherTime = value => value ? new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit' }).format(new Date(value)) : '—';
+const weatherDay = value => value ? new Intl.DateTimeFormat('it-IT', { weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(`${value}T12:00:00`)) : '—';
+const windDirection = value => {
+  if (!Number.isFinite(value)) return '—';
+  return ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'][Math.round(value / 45) % 8];
+};
+
+function weatherImage(assets, icon, className = '') {
+  const image = document.createElement('img');
+  image.className = className;
+  image.alt = '';
+  image.src = assetUrl(assets.has(icon) ? icon : 'weather.svg');
+  return image;
+}
+
+function updateWeatherDialog(snapshot) {
+  const dialog = document.querySelector('[data-weather-dialog]');
+  if (!dialog) return;
+  const current = snapshot?.current;
+  dialog.querySelector('[data-weather-popup-location]').textContent = snapshot?.location || 'METEO OGGI';
+  dialog.querySelector('[data-weather-popup-updated]').textContent = snapshot?.updatedAt ? `Aggiornato ${weatherTime(snapshot.updatedAt)}${snapshot.stale ? ' · dati precedenti' : ''}` : 'Dati non disponibili';
+  const currentHost = dialog.querySelector('[data-weather-popup-current]');
+  const details = dialog.querySelector('[data-weather-popup-details]');
+  const hourly = dialog.querySelector('[data-weather-popup-hourly]');
+  const daily = dialog.querySelector('[data-weather-popup-daily]');
+  currentHost.replaceChildren(); details.replaceChildren(); hourly.replaceChildren(); daily.replaceChildren();
+  if (!current) {
+    currentHost.textContent = 'Dati meteo non disponibili';
+    return;
+  }
+  const icon = document.createElement('img'); icon.src = assetUrl(current.icon || 'weather.svg'); icon.alt = '';
+  const text = document.createElement('div'); text.innerHTML = `<strong>${weatherTemperature(current.temperature)}</strong><span>${current.condition}</span><small>Percepita ${weatherTemperature(current.apparentTemperature)}</small>`;
+  currentHost.append(icon, text);
+  for (const [label, value] of [
+    ['Min / Max', `${weatherTemperature(snapshot.today?.minTemperature)} / ${weatherTemperature(snapshot.today?.maxTemperature)}`],
+    ['Umidità', weatherPercent(current.humidity)], ['Vento', `${weatherNumber(current.windSpeed)} km/h ${windDirection(current.windDirection)}`],
+    ['Probabilità pioggia', weatherPercent(current.rainProbability)], ['Precipitazioni', Number.isFinite(current.precipitation) ? `${weatherNumber(current.precipitation)} mm` : '—'],
+  ]) {
+    const item = document.createElement('div'); item.innerHTML = `<span>${label}</span><strong>${value}</strong>`; details.append(item);
+  }
+  for (const item of snapshot.hourly || []) {
+    const card = document.createElement('div');
+    card.innerHTML = `<strong>${weatherTime(item.time)}</strong><img src="${assetUrl(item.icon || 'weather.svg')}" alt=""><span>${weatherTemperature(item.temperature)}</span><small>${weatherPercent(item.rainProbability)}</small>`;
+    hourly.append(card);
+  }
+  for (const item of snapshot.daily || []) {
+    const card = document.createElement('div');
+    card.innerHTML = `<strong>${weatherDay(item.date)}</strong><img src="${assetUrl(item.icon || 'weather.svg')}" alt=""><span>${item.condition}</span><small>${weatherTemperature(item.minTemperature)} / ${weatherTemperature(item.maxTemperature)} · ${weatherPercent(item.rainProbability)}</small>`;
+    daily.append(card);
+  }
+}
+
+function openWeather() {
+  let dialog = document.querySelector('[data-weather-dialog]');
+  if (!dialog) {
+    dialog = document.createElement('dialog');
+    dialog.className = 'weather-dialog';
+    dialog.dataset.weatherDialog = '';
+    dialog.innerHTML = '<header><div><h2 data-weather-popup-location>METEO OGGI</h2><p data-weather-popup-updated></p></div><button type="button" data-weather-popup-close aria-label="Chiudi METEO"><img src="' + assetUrl('close.svg') + '" alt=""></button></header><section class="weather-popup-current" data-weather-popup-current></section><section class="weather-popup-details" data-weather-popup-details></section><section><h3>Prossime ore</h3><div class="weather-popup-hourly" data-weather-popup-hourly></div></section><section><h3>Previsioni</h3><div class="weather-popup-daily" data-weather-popup-daily></div></section>';
+    dialog.querySelector('[data-weather-popup-close]').addEventListener('click', () => dialog.close());
+    dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });
+    document.body.append(dialog);
+  }
+  updateWeatherDialog(weatherSnapshot);
+  if (!dialog.open) dialog.showModal();
+}
+
+export function bindWeatherPopupTrigger(element, opener = openWeather) {
+  element.addEventListener('click', opener);
+  element.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); opener(); }
+  });
+}
+
 export async function initFloorplan({ store = createFloorplanState(), onCameraSelect = showCamera, onLightToggle = id => store.setLight(id, !store.snapshot().lights[id]) } = {}) {
   const stage = document.querySelector('[data-layered-floorplan]');
   const status = document.querySelector('[data-floorplan-status]');
@@ -242,6 +326,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     const cameraMapping = await loadMapping(config.mappings.cameras, stage); mappings.push(cameraMapping);
     const boilerMapping = await loadMapping(config.mappings.boiler, stage); mappings.push(boilerMapping);
     const cappaMapping = await loadMapping(config.mappings.cappa, stage); mappings.push(cappaMapping);
+    const weatherMapping = await loadMapping(config.mappings.weather, stage); mappings.push(weatherMapping);
     const lightMarkers = new Map();
     for (const light of config.lights) {
       const element = markerElement('Luce ' + light.room, true);
@@ -302,6 +387,37 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     cappa.classList.add('floorplan-marker-cappa');
     cappa.addEventListener('click', openCappa);
     placeHtml(cappaMapping, config.cappa.marker, cappa);
+    const weatherMarker = markerElement('Apri METEO OGGI', true);
+    weatherMarker.classList.add('floorplan-marker-weather');
+    bindWeatherPopupTrigger(weatherMarker);
+    placeHtml(weatherMapping, config.weather.marker, weatherMarker);
+    const weatherCard = document.createElement('article');
+    weatherCard.className = 'floorplan-weather-card';
+    weatherCard.setAttribute('aria-label', 'Apri METEO OGGI');
+    weatherCard.tabIndex = 0;
+    weatherCard.setAttribute('role', 'button');
+    bindWeatherPopupTrigger(weatherCard);
+    placeHtml(weatherMapping, config.weather.card, weatherCard);
+    const weatherTemperatureBox = weatherMapping.box(config.weather.temperatureLabel);
+    const weatherTemperatureReading = svgElement('text', { x: weatherTemperatureBox.x + weatherTemperatureBox.width / 2, y: weatherTemperatureBox.y + weatherTemperatureBox.height / 2, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': weatherTemperatureBox.height * .34, class: 'floorplan-reading' });
+    weatherTemperatureReading.dataset.weatherTemperature = '';
+    weatherMapping.overlay.append(weatherTemperatureReading);
+    const renderWeather = snapshot => {
+      const current = snapshot?.current;
+      weatherMarker.replaceChildren(weatherImage(assets, current?.icon || 'weather.svg'));
+      weatherMarker.dataset.available = String(Boolean(current));
+      weatherMarker.setAttribute('aria-label', current ? `Apri METEO OGGI · ${current.condition}, ${weatherTemperature(current.temperature)}` : 'Apri METEO OGGI · dati non disponibili');
+      weatherCard.replaceChildren();
+      const facts = document.createElement('div'); facts.className = 'floorplan-weather-facts';
+      for (const [icon, valueText] of [['umidity.svg', weatherPercent(current?.humidity)], ['wind.svg', `${weatherNumber(current?.windSpeed)} km/h`], ['rain.svg', weatherPercent(snapshot?.today?.rainProbability)]]) {
+        const fact = document.createElement('span'); fact.append(weatherImage(assets, icon), document.createTextNode(valueText)); facts.append(fact);
+      }
+      weatherCard.append(facts);
+      weatherTemperatureReading.textContent = Number.isFinite(current?.temperature) ? current.temperature.toFixed(1) + ' °C' : '— °C';
+      updateWeatherDialog(snapshot);
+    };
+    renderWeatherSnapshot = renderWeather;
+    renderWeather(weatherSnapshot);
     let previousLights = {};
     let previousCappaPower;
     const render = state => {
@@ -355,7 +471,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     window.addEventListener('pageshow', tick);
     status.hidden = true;
     stage.dataset.ready = 'true';
-    return { store, destroy() { clearTimeout(timer); unsubscribe(); document.removeEventListener('visibilitychange', tick); window.removeEventListener('pageshow', tick); stage.replaceChildren(); } };
+    return { store, destroy() { clearTimeout(timer); unsubscribe(); document.removeEventListener('visibilitychange', tick); window.removeEventListener('pageshow', tick); if (renderWeatherSnapshot === renderWeather) renderWeatherSnapshot = () => {}; stage.replaceChildren(); } };
   } catch (error) {
     status.textContent = error.message;
   } finally {

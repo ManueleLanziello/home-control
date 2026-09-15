@@ -1,13 +1,14 @@
 // Geometry comes from the original mapping SVGs, never from copied coordinates.
 const marker = (index, selector = 'path') => ({ selector, index });
 const reading = index => marker(index, 'rect[stroke="#000000"]');
+const exactShape = selector => ({ selector });
 export const floorplanConfig = {
   backgrounds: { day: 'LAYER-00-GIORNO.svg', night: 'LAYER-00-NOTTE.svg' },
   rooms: Array.from({ length: 6 }, (_, index) => {
     const number = String(index + 1).padStart(2, '0');
     return { lightId: 'L' + (index + 1), on: 'LAYER-' + number + '-ON.svg', off: 'LAYER-' + number + '-OFF.svg' };
   }).concat({ lightId: 'L7', on: 'LAYER-11-ON.svg', off: 'LAYER-11-OFF.svg', optional: true }),
-  mappings: { lights: 'LAYER-07-LUCI.svg', sensors: 'LAYER-08-SENSORI.svg', cameras: 'LAYER-09-CAM.svg', boiler: 'LAYER-10-CALDAIA.svg', cappa: 'LAYER-12-CAPPA.svg' },
+  mappings: { lights: 'LAYER-07-LUCI.svg', sensors: 'LAYER-08-SENSORI.svg', cameras: 'LAYER-09-CAM.svg', boiler: 'LAYER-10-CALDAIA.svg', cappa: 'LAYER-12-CAPPA.svg', weather: 'LAYER-13-METEO.svg' },
   icons: { lightOn: 'lampon.svg', lightOff: 'lampoff.svg', sensor: 'temp.svg', camera: 'cam.svg', boiler: 'boiler.svg', cappaOn: 'CAPPAON.svg', cappaOff: 'CAPPAOFF.svg' },
   // Paths are in document order; camera C2 is the third path, C3 the second.
   lights: ['CUCINA', 'CAMERA', 'SALOTTO', 'DISIMPEGNO', 'BAGNO', 'CAMERETTA', 'GAZEBO'].map((room, index) => ({ id: 'L' + (index + 1), room, marker: marker(index) })),
@@ -19,4 +20,10 @@ export const floorplanConfig = {
   ],
   boiler: { marker: marker(0), card: reading(0), target: '.boiler-card', settings: '.boiler-settings-link' },
   cappa: { id: 'K1', marker: marker(0) },
+  // Exact geometries enclosing the M1/QM1 labels in LAYER-13; never rely on document order.
+  weather: {
+    marker: exactShape('path[d^="M518.5 3281C518.5 3191.25"]'),
+    card: exactShape('rect[x="356.5"][y="3470.5"][width="649"][height="388"][stroke="#000000"]'),
+    temperatureLabel: exactShape('rect[x="851.5"][y="3190.5"][width="325"][height="167"][stroke="#000000"]'),
+  },
 };
