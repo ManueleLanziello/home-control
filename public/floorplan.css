@@ -27,18 +27,18 @@ button.floorplan-marker { pointer-events: auto; cursor: pointer; }
 .floorplan-reading { fill: #fff; font-family: system-ui, sans-serif; font-weight: 700; paint-order: stroke; stroke: #06131f; stroke-width: 8; stroke-linejoin: round; }
 .floorplan-boiler-mini { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); width: 100%; height: 100%; background: #071d2ef0; border: 5px solid #5194ae; border-radius: 28px; overflow: hidden; }
 .floorplan-boiler-open { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: center; justify-items: center; gap: 0; border: 0; background: transparent; color: #def1fb; cursor: pointer; pointer-events: auto; padding: 0; }
-.floorplan-boiler-status { width: 64px; height: 64px; border-radius: 50%; background: #ff3434; box-shadow: 0 0 24px #ff3434; }
-.floorplan-boiler-status[data-on="true"] { background: #34f77c; box-shadow: 0 0 24px #34f77c; }
-.floorplan-boiler-mode.boiler-mode { width: 100%; margin: 0; padding: 0; pointer-events: none; }
-.floorplan-boiler-mode.boiler-mode > span { width: 110px; height: 110px; }
-.floorplan-boiler-settings { display: grid; place-items: center; color: #bdefff; text-decoration: none; font-size: 76px; pointer-events: auto; background: #14354c; }
+.floorplan-boiler-status, .floorplan-boiler-mode { width: 72%; height: 72%; object-fit: contain; }
+.floorplan-boiler-status[data-available="false"], .floorplan-boiler-mode[data-mode="unknown"] { opacity: .45; }
+.floorplan-boiler-settings { display: grid; place-items: center; color: #bdefff; text-decoration: none; pointer-events: auto; background: #14354c; }
+.floorplan-boiler-settings img { width: 72%; height: 72%; object-fit: contain; }
 .floorplan-marker:focus-visible, .floorplan-boiler-open:focus-visible, .floorplan-boiler-settings:focus-visible { outline: 10px solid #fff; outline-offset: -12px; }
 .floorplan-camera-dialog { box-sizing: border-box; display: flex; flex-direction: column; gap: 4px; color: #e3f4ff; background: #071826; border: 1px solid #38768d; border-radius: 14px; padding: 10px; width: min(990px, 94vw); max-width: 94vw; max-height: 90dvh; overflow: auto; }
 .floorplan-camera-dialog::backdrop { background: #000a; }
 .floorplan-camera-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
 .floorplan-camera-header h2 { overflow: hidden; margin: 0; font-size: 1rem; line-height: 1.15; text-overflow: ellipsis; white-space: nowrap; }
-.floorplan-camera-dialog [data-camera-close] { flex: 0 0 auto; width: 28px; height: 28px; padding: 0; color: #ff6666; background: transparent; border: 0; border-radius: 6px; font-size: 28px; line-height: 24px; cursor: pointer; }
-.floorplan-camera-dialog [data-camera-close]:hover, .floorplan-camera-dialog [data-camera-close]:focus-visible { color: #ff9999; background: #3b1b25; }
+.floorplan-camera-dialog [data-camera-close] { flex: 0 0 auto; width: 28px; height: 28px; padding: 3px; background: transparent; border: 0; border-radius: 6px; cursor: pointer; }
+.floorplan-camera-dialog [data-camera-close] img { width: 100%; height: 100%; margin: 0; border-radius: 0; background: transparent; object-fit: contain; }
+.floorplan-camera-dialog [data-camera-close]:hover, .floorplan-camera-dialog [data-camera-close]:focus-visible { background: #3b1b25; }
 .floorplan-camera-dialog [data-camera-message] { min-height: 1em; margin: 0; font-size: .7rem; line-height: 1.1; }
 .floorplan-camera-dialog img { display: block; width: 100%; height: auto; margin: 0; border-radius: 8px; background: #02070c; object-fit: contain; }
 @media (orientation: portrait), (max-width: 700px) {
@@ -52,6 +52,7 @@ button.floorplan-marker { pointer-events: auto; cursor: pointer; }
 .boiler-modal::backdrop { background: #0009; }
 .boiler-modal-toolbar { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 12px 18px; background: #081522f5; }
 .boiler-modal-toolbar button { width: 38px; height: 38px; border: 1px solid #476b83; border-radius: 10px; background: #132d40; color: #e5f3fc; cursor: pointer; }
+.boiler-modal-toolbar button img { width: 100%; height: 100%; object-fit: contain; }
 .boiler-modal-content { padding: 0 16px 16px; min-width: 0; }
 .boiler-modal-card-frame { display: grid; justify-items: center; width: 100%; }
 .boiler-modal .boiler-card { width: max(510px, 100%); max-width: none; height: auto; zoom: var(--boiler-card-scale, 1); }
@@ -65,15 +66,20 @@ body:has(.boiler-modal[open]) { overflow: hidden; }
 .cappa-main-icon { width: 68px; height: 68px; object-fit: contain; }
 .cappa-control { margin-top: 18px; padding: 18px; border: 1px solid #284e64; border-radius: 18px; background: #071826; }
 .cappa-control h3 { margin: 0 0 12px; font-size: .95rem; text-transform: uppercase; letter-spacing: .08em; }
+.cappa-control-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.cappa-control-heading h3 { margin: 0; }
+.cappa-control-heading img { width: 42px; height: 42px; object-fit: contain; }
 .cappa-power { display: flex; align-items: center; justify-content: center; gap: 14px; width: 100%; min-height: 74px; border: 1px solid #39738e; border-radius: 14px; color: #dff5ff; background: #102d3f; cursor: pointer; }
 .cappa-power img, .cappa-light-control img { width: 52px; height: 52px; object-fit: contain; }
 .cappa-selector { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
 .cappa-selector button { min-height: 48px; border: 1px solid #39738e; border-radius: 12px; color: #dff5ff; background: #102d3f; cursor: pointer; font: inherit; font-weight: 700; }
 .cappa-selector button.is-active { border-color: #52e3ff; color: #041019; background: #52e3ff; box-shadow: 0 0 16px #52e3ff55; }
 .cappa-selector button:disabled, .cappa-power:disabled { cursor: not-allowed; opacity: .48; }
+.cappa-fan-slider { width: 100%; margin: 16px 0 0; accent-color: #52e3ff; background: linear-gradient(90deg, #52e3ff var(--fan-speed, 0%), #183b50 var(--fan-speed, 0%)); cursor: pointer; }
+.cappa-fan-slider:disabled { cursor: not-allowed; opacity: .48; }
 .cappa-light-control > div:first-child { display: flex; align-items: center; gap: 12px; }
 .cappa-light-control > div:first-child h3 { margin: 0; }
-.cappa-light-control .cappa-selector { grid-template-columns: 2fr 1fr 1fr; margin-top: 12px; }
+.cappa-light-control .cappa-selector { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 12px; }
 .cappa-footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 20px; margin-top: 18px; color: #8eacbd; font-size: .8rem; }
 .cappa-message { min-height: 1.2em; margin: 12px 0 0; color: #ffbc7d; text-align: center; }
 

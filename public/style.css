@@ -91,8 +91,9 @@ body { min-height: 100vh; margin: 0; background: radial-gradient(circle at 50% 2
 .boiler-subtitle { margin: 0; color: #9daed7; font-size: clamp(.78rem, 1.05vw, 1rem); font-weight: 720; }
 .boiler-card .widget-header { align-items: center; }
 .boiler-card .static-status { margin-left: auto; padding-top: 0; font-size: clamp(.78rem, 1vw, 1rem); }
-.boiler-flame-icon { display: grid; width: clamp(58px, 5vw, 78px); aspect-ratio: 1; place-items: center; color: #ff8b27; filter: drop-shadow(0 0 12px rgba(255,126,32,.68)); }
+.boiler-flame-icon { display: grid; width: clamp(58px, 5vw, 78px); aspect-ratio: 1; place-items: center; }
 .boiler-flame-icon svg { width: 100%; height: 100%; fill: currentColor; stroke: #ffd6a7; stroke-width: 1; stroke-linejoin: round; }
+.boiler-flame-icon img { width: 100%; height: 100%; object-fit: contain; }
 .widget-icon-slot { display: grid; width: clamp(48px, 5vw, 70px); aspect-ratio: 1; place-items: center; flex: 0 0 auto; border-radius: 50%; }
 .widget-icon { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
 .widget-icon--camera { color: #18d8ff; filter: drop-shadow(0 0 8px rgba(24, 216, 255, .82)); }
@@ -128,6 +129,7 @@ body { min-height: 100vh; margin: 0; background: radial-gradient(circle at 50% 2
 .boiler-mode { display: grid; justify-items: center; gap: 6px; padding: 0 5px; color: #91b8d2; text-align: center; }
 .boiler-mode > span { display: grid; width: clamp(52px, 4.5vw, 68px); height: clamp(52px, 4.5vw, 68px); place-items: center; border: 2px solid rgba(133,177,221,.65); border-radius: 50%; }
 .boiler-mode svg { width: 58%; height: 58%; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.boiler-mode img { width: 72%; height: 72%; object-fit: contain; }
 .boiler-mode strong { color: inherit; font-size: clamp(.77rem, 1vw, .96rem); text-transform: uppercase; }
 .boiler-mode small { color: #91a9bb; font-size: clamp(.57rem, .72vw, .68rem); }
 .boiler-mode.is-active { color: #ffad55; text-shadow: 0 0 12px rgba(255,150,55,.62); }
@@ -137,13 +139,14 @@ body { min-height: 100vh; margin: 0; background: radial-gradient(circle at 50% 2
 .boiler-schedule { margin-top: 20px; padding: 17px; border: 1px solid rgba(82,155,211,.4); border-radius: 18px; background: linear-gradient(145deg, rgba(9,35,58,.82), rgba(5,20,35,.9)); }
 .boiler-schedule header { display: flex; align-items: center; gap: 11px; color: #e0edf8; }
 .boiler-section-icon { width: 28px; height: 28px; fill: none; stroke: #c4d8f6; stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; }
+.boiler-schedule img.boiler-section-icon { object-fit: contain; }
 .boiler-schedule h3 { margin: 0; font-size: clamp(.9rem, 1.16vw, 1.1rem); }
 .boiler-schedule header .boiler-settings-link { width: 28px; height: 28px; }
 .boiler-schedule header .boiler-settings-link svg { width: 15px; height: 15px; }
 .boiler-schedule-placeholder { display: grid; min-height: 145px; place-items: center; margin-top: 14px; border: 1px dashed rgba(105,156,196,.38); border-radius: 11px; color: #91a8bb; font-size: clamp(.7rem, .9vw, .85rem); background: linear-gradient(rgba(86,141,180,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(86,141,180,.07) 1px, transparent 1px), rgba(3,16,28,.42); background-size: 18% 25%, 14.28% 100%, auto; }
 .boiler-schedule-placeholder--chart { display: block; width: 100%; min-width: 0; min-height: 0; justify-self: stretch; align-self: stretch; place-items: stretch; margin-inline: -3px; padding: 2px 0 8px; border-style: solid; border-color: rgba(80,166,218,.24); }
 .boiler-schedule-chart-shell { display: block; width: 100%; min-width: 0; max-width: none; overflow: hidden; border-radius: 7px; background: radial-gradient(circle at 50% 0%, rgba(20,126,187,.14), transparent 63%), linear-gradient(180deg, rgba(3,26,47,.82), rgba(1,14,28,.76)); box-shadow: inset 0 0 26px rgba(23,155,222,.07); }
-.boiler-schedule-chart { display: block; width: 100% !important; min-width: 0; max-width: none !important; height: clamp(180px, 22vw, 210px); aspect-ratio: auto; overflow: visible; }
+.boiler-schedule-chart { display: block; width: 100% !important; min-width: 0; max-width: none !important; height: clamp(252px, 30.8vw, 294px); aspect-ratio: auto; overflow: visible; }
 .boiler-schedule-chart text { fill: #b2cfdf; font: 7.5px "Trebuchet MS", sans-serif; }
 .boiler-schedule-chart .boiler-schedule-value { fill: #f7fdff; font-size: 9px; font-weight: 850; paint-order: stroke; stroke: rgba(2,17,31,.72); stroke-width: 2px; text-shadow: 0 0 6px rgba(205,246,255,.88); }
 .boiler-schedule-axis-title { fill: #bad6e8 !important; font-size: 8px !important; }
@@ -169,6 +172,7 @@ body { min-height: 100vh; margin: 0; background: radial-gradient(circle at 50% 2
 .boiler-status-row strong { color: #d5e5f1; font-size: clamp(.63rem, .8vw, .76rem); }
 .boiler-status-row small { color: #8ca8bb; font-size: clamp(.59rem, .72vw, .68rem); }
 .boiler-status-icon { width: 30px; height: 30px; flex: 0 0 auto; fill: none; stroke: #c2d9ed; stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; }
+.boiler-state-icon { object-fit: contain; }
 .boiler-status-icon--warm { fill: #ff902f; stroke: #ffc180; filter: drop-shadow(0 0 6px rgba(255,127,31,.58)); }
 .boiler-updated { display: flex; align-items: center; justify-content: center; gap: 7px; margin-top: 12px; color: #8ba5b7; font-size: clamp(.61rem, .76vw, .72rem); }
 .boiler-updated svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
@@ -398,7 +402,7 @@ body { min-height: 100vh; margin: 0; background: radial-gradient(circle at 50% 2
   .boiler-schedule h3 { font-size: clamp(.72rem, 1.35vh, .84rem); }
   .boiler-schedule header .boiler-settings-link { width: 24px; height: 24px; }
   .boiler-schedule-placeholder--chart { margin-top: 6px; margin-inline: 0; padding-bottom: 4px; }
-  .boiler-schedule-chart { height: clamp(82px, 13vh, 106px); }
+  .boiler-schedule-chart { height: clamp(115px, 18.2vh, 148px); }
   .boiler-schedule-periods { margin-top: 3px; }
   .boiler-schedule-period { padding-top: 5px; }
   .boiler-weekdays { gap: 4px; margin-top: 6px; }

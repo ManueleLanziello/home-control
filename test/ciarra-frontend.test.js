@@ -32,11 +32,17 @@ test('popup CAPPA eredita il modal CALDAIA e offre controlli indipendenti power 
   assert.match(html, /class="boiler-modal cappa-modal"/);
   assert.equal((html.match(/data-cappa-fan-speed=/g) || []).length, 5);
   assert.equal((html.match(/data-cappa-light=/g) || []).length, 3);
+  assert.match(html, /design\/ventola\.svg/);
+  assert.match(html, /type="range"[^>]*data-cappa-fan-slider/);
+  assert.match(html, /data-cappa-light="off">OFF<\/button>/);
   assert.match(script, /\/api\/hood\/power/);
   assert.match(script, /\/api\/hood\/fan-speed/);
   assert.match(script, /\/api\/hood\/light/);
   assert.match(script, /power \? 'CAPPAON\.svg' : 'CAPPAOFF\.svg'/);
   assert.match(script, /light === 'off' \? 'lampoff\.svg' : 'lampon\.svg'/);
+  assert.match(script, /power \? 'poweron\.svg' : 'poweroff\.svg'/);
+  assert.match(script, /power \? 'SPEGNI' : 'ACCENDI'/);
+  assert.match(script, /syncCappaFanPresentation/);
   assert.doesNotMatch(script, /fanSpeed[\s\S]{0,80}\/api\/hood\/power/);
   assert.match(style, /\.boiler-modal \{ width: min\(780px/);
 });

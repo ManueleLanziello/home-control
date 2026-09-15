@@ -74,7 +74,7 @@ function timelineSegments(periods) {
 
 function graphMarkup(periods, now, showNow) {
   const width = 760;
-  const height = 252;
+  const height = 353;
   const left = 48;
   const right = 10;
   const top = 14;

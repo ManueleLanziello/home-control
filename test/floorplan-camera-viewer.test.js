@@ -94,8 +94,9 @@ test('camera dialog preserves width and follows the image height without artific
   const dialogRule = style.match(/\.floorplan-camera-dialog \{([^}]*)\}/)[1];
   const imageRule = style.match(/\.floorplan-camera-dialog img \{([^}]*)\}/)[1];
   assert.match(script, /floorplan-camera-header/);
-  assert.match(script, />×<\/button>/);
-  assert.doesNotMatch(script, /Chiudi ×/);
+  assert.match(script, /assetUrl\('close\.svg'\)/);
+  assert.match(script, /data-camera-close[^>]*><img/);
+  assert.doesNotMatch(script, />×<\/button>/);
   assert.match(style, /width: min\(990px, 94vw\)/);
   assert.match(style, /max-width: 94vw/);
   assert.match(style, /max-height: 90dvh/);

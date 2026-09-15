@@ -5,6 +5,10 @@ import { shouldDeferScheduleSnapshot } from '../public/js/thermostat.js';
 
 const htmlPath = new URL('../public/thermostat.html', import.meta.url);
 const scriptPath = new URL('../public/js/thermostat.js', import.meta.url);
+const dashboardHtmlPath = new URL('../public/index.html', import.meta.url);
+const dashboardScriptPath = new URL('../public/js/dashboard.js', import.meta.url);
+const floorplanScriptPath = new URL('../public/js/floorplan.js', import.meta.url);
+const stylePath = new URL('../public/style.css', import.meta.url);
 
 test('popup CALDAIA espone soltanto i tre week pattern consentiti', async () => {
   const html = await readFile(htmlPath, 'utf8');
@@ -40,4 +44,24 @@ test('editing delle celle non ricrea gli input e protegge il rendering schedule 
   assert.match(script, /pendingSnapshot = next;\s*renderThermostat\(next, \{ renderSchedule: false \}\)/);
   assert.match(script, /scheduleForm\?\.addEventListener\('input'[\s\S]*?updateEditorControls\(\);\s*}\);/);
   assert.doesNotMatch(script.match(/scheduleForm\?\.addEventListener\('input'[\s\S]*?\n  }\);/)?.[0] || '', /render(?:Draft|Editor)\(/);
+});
+
+test('dashboard CALDAIA usa il nuovo set icone e QD1 resta sincronizzata allo stato esistente', async () => {
+  const [html, dashboard, floorplan, style] = await Promise.all([
+    readFile(dashboardHtmlPath, 'utf8'),
+    readFile(dashboardScriptPath, 'utf8'),
+    readFile(floorplanScriptPath, 'utf8'),
+    readFile(stylePath, 'utf8'),
+  ]);
+  for (const icon of ['close', 'boiler', 'manual', 'auto', 'smart', 'prog', 'nofire']) assert.match(html, new RegExp(`design/${icon}\\.svg`));
+  assert.equal((html.match(/class="boiler-tile-icon"/g) || []).length, 0);
+  assert.match(dashboard, /heatingActive === true \? 'fire\.svg' : 'nofire\.svg'/);
+  assert.match(floorplan, /boiler\.on === true \? 'fire\.svg' : 'nofire\.svg'/);
+  assert.match(floorplan, /modeKey.*manual.*auto.*smart/);
+  assert.match(floorplan, /container\.replaceChildren\(indicator, modeIcon\)/);
+  assert.match(floorplan, /assetUrl\('option\.svg'\)/);
+  assert.match(floorplan, /settings\.append\(settingsIcon\)/);
+  assert.doesNotMatch(floorplan, /settings\.textContent/);
+  assert.match(floorplan, /event\.stopPropagation\(\)/);
+  assert.match(style, /height: clamp\(252px, 30\.8vw, 294px\)/);
 });

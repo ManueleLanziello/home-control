@@ -145,7 +145,7 @@ async function showCamera(camera) {
     dialog.dataset.floorplanCameraDialog = '';
     dialog.className = 'floorplan-camera-dialog';
     dialog.setAttribute('aria-labelledby', 'floorplan-camera-title');
-    dialog.innerHTML = '<div class="floorplan-camera-header"><h2 id="floorplan-camera-title"></h2><button type="button" data-camera-close aria-label="Chiudi anteprima">×</button></div><p data-camera-message></p><img data-camera-image alt="Anteprima camera" hidden>';
+    dialog.innerHTML = '<div class="floorplan-camera-header"><h2 id="floorplan-camera-title"></h2><button type="button" data-camera-close aria-label="Chiudi anteprima"><img src="' + assetUrl('close.svg') + '" alt=""></button></div><p data-camera-message></p><img data-camera-image alt="Anteprima camera" hidden>';
     dialog.addEventListener('click', event => { if (event.target === dialog) void closeCameraViewer(dialog); });
     dialog.addEventListener('cancel', event => { event.preventDefault(); void closeCameraViewer(dialog); });
     dialog.querySelector('[data-camera-close]').addEventListener('click', () => void closeCameraViewer(dialog));
@@ -176,20 +176,22 @@ window.addEventListener('pagehide', () => {
 });
 
 export function renderBoilerMini(container, boiler) {
-  const indicator = document.createElement('span');
+  const indicator = document.createElement('img');
   indicator.className = 'floorplan-boiler-status';
+  indicator.src = assetUrl(boiler.on === true ? 'fire.svg' : 'nofire.svg');
+  indicator.alt = '';
   indicator.dataset.on = String(boiler.on === true);
   indicator.setAttribute('aria-hidden', 'true');
-  if (typeof boiler.on !== 'boolean') indicator.style.background = 'transparent';
+  if (typeof boiler.on !== 'boolean') indicator.dataset.available = 'false';
   const mode = String(boiler.mode || '').toLowerCase();
   const modeKey = ['manual', 'auto', 'smart'].includes(mode) ? mode : 'unknown';
-  const modeIcon = document.querySelector('[data-boiler-mode-option="' + modeKey + '"] > span');
-  const modeHolder = document.createElement('span');
-  modeHolder.className = 'floorplan-boiler-mode boiler-mode' + (modeKey !== 'unknown' ? ' is-active' : '');
-  modeHolder.dataset.mode = modeKey;
-  modeHolder.setAttribute('aria-hidden', 'true');
-  if (modeIcon) modeHolder.append(modeIcon.cloneNode(true));
-  container.replaceChildren(indicator, modeHolder);
+  const modeIcon = document.createElement('img');
+  modeIcon.className = 'floorplan-boiler-mode';
+  modeIcon.src = assetUrl((modeKey === 'unknown' ? 'auto' : modeKey) + '.svg');
+  modeIcon.alt = '';
+  modeIcon.dataset.mode = modeKey;
+  modeIcon.setAttribute('aria-hidden', 'true');
+  container.replaceChildren(indicator, modeIcon);
 }
 
 function openBoiler(section = 'card') {
@@ -287,10 +289,13 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     open.addEventListener('click', openBoiler);
     const settings = document.createElement('a');
     settings.className = 'floorplan-boiler-settings';
-    settings.textContent = '⚙';
+    const settingsIcon = document.createElement('img');
+    settingsIcon.src = assetUrl('option.svg');
+    settingsIcon.alt = '';
+    settings.append(settingsIcon);
     settings.setAttribute('aria-label', 'Programmazione CALDAIA');
     settings.href = '#boiler-programming';
-    settings.addEventListener('click', event => { event.preventDefault(); openBoiler('programming'); });
+    settings.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); openBoiler('programming'); });
     mini.append(open, settings);
     placeHtml(boilerMapping, config.boiler.card, mini);
     const cappa = markerElement('Apri controllo CAPPA', true);

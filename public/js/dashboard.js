@@ -219,6 +219,7 @@ function renderBoiler(snapshot = null) {
   const updated = document.querySelector('[data-boiler-updated]');
   const rawMode = document.querySelector('[data-boiler-raw-mode]');
   const heating = document.querySelector('[data-boiler-heating]');
+  const heatingIcon = document.querySelector('[data-boiler-heating-icon]');
   const schedule = document.querySelector('[data-boiler-schedule]');
 
   if (onlineElement) {
@@ -238,6 +239,7 @@ function renderBoiler(snapshot = null) {
   if (frost) frost.textContent = booleanText(thermostat.frostProtection);
   if (lock) lock.textContent = booleanText(thermostat.childLock);
   if (heating) heating.textContent = snapshot?.heatingActive === true ? 'Attivo' : snapshot?.heatingActive === false ? 'Inattivo' : 'Non disponibile';
+  if (heatingIcon) heatingIcon.src = homeControlPath('/design/' + (snapshot?.heatingActive === true ? 'fire.svg' : 'nofire.svg'));
   if (updated) updated.textContent = updatedAtText(snapshot?.updatedAt);
   renderWt200Schedule(schedule, snapshot?.schedule);
   renderFloorplanThermostatTemperature(snapshot);
@@ -254,6 +256,18 @@ function renderBoiler(snapshot = null) {
 }
 
 const cappaAsset = name => homeControlPath('/design/' + name);
+
+function syncCappaFanPresentation(fanSpeed) {
+  const speed = Number.isInteger(fanSpeed) && fanSpeed >= 0 && fanSpeed <= 4 ? fanSpeed : 0;
+  for (const button of document.querySelectorAll('[data-cappa-fan-speed]')) {
+    button.classList.toggle('is-active', Number(button.dataset.cappaFanSpeed) === speed);
+  }
+  const slider = document.querySelector('[data-cappa-fan-slider]');
+  if (slider) {
+    slider.value = String(speed);
+    slider.style.setProperty('--fan-speed', String(speed / 4 * 100) + '%');
+  }
+}
 
 function renderCappa(snapshot = cappaSnapshot) {
   const online = snapshot?.online === true;
@@ -276,11 +290,13 @@ function renderCappa(snapshot = cappaSnapshot) {
   const powerIcon = document.querySelector('[data-cappa-power-icon]');
   if (powerIcon && power !== null) powerIcon.src = cappaAsset(power ? 'poweron.svg' : 'poweroff.svg');
   const powerLabel = document.querySelector('[data-cappa-power-label]');
-  if (powerLabel) powerLabel.textContent = power === null ? 'Non disponibile' : power ? 'Accesa' : 'Spenta';
+  if (powerLabel) powerLabel.textContent = power === null ? 'Non disponibile' : power ? 'SPEGNI' : 'ACCENDI';
   for (const button of document.querySelectorAll('[data-cappa-fan-speed]')) {
     button.disabled = disabled;
-    button.classList.toggle('is-active', Number(button.dataset.cappaFanSpeed) === snapshot?.fanSpeed);
   }
+  syncCappaFanPresentation(snapshot?.fanSpeed);
+  const fanSlider = document.querySelector('[data-cappa-fan-slider]');
+  if (fanSlider) fanSlider.disabled = disabled;
   const lightIcon = document.querySelector('[data-cappa-light-icon]');
   if (lightIcon && light) lightIcon.src = cappaAsset(light === 'off' ? 'lampoff.svg' : 'lampon.svg');
   for (const button of document.querySelectorAll('[data-cappa-light]')) {
@@ -485,6 +501,12 @@ function initCappaModal() {
   });
   for (const button of modal.querySelectorAll('[data-cappa-fan-speed]')) button.addEventListener('click', () => {
     const fanSpeed = Number(button.dataset.cappaFanSpeed);
+    if (fanSpeed !== cappaSnapshot?.fanSpeed) void sendCappaCommand('/api/hood/fan-speed', { fanSpeed });
+  });
+  const fanSlider = modal.querySelector('[data-cappa-fan-slider]');
+  fanSlider.addEventListener('input', () => syncCappaFanPresentation(Number(fanSlider.value)));
+  fanSlider.addEventListener('change', () => {
+    const fanSpeed = Number(fanSlider.value);
     if (fanSpeed !== cappaSnapshot?.fanSpeed) void sendCappaCommand('/api/hood/fan-speed', { fanSpeed });
   });
   for (const button of modal.querySelectorAll('[data-cappa-light]')) button.addEventListener('click', () => {
