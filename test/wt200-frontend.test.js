@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
-import { shouldDeferScheduleSnapshot } from '../public/js/thermostat.js';
+import { displayedThermostatSetpoint, shouldAcceptThermostatStatus, shouldDeferScheduleSnapshot } from '../public/js/thermostat.js';
+import { HomeWt200Runtime } from '../src/wt200-runtime.js';
 
 const htmlPath = new URL('../public/thermostat.html', import.meta.url);
 const scriptPath = new URL('../public/js/thermostat.js', import.meta.url);
@@ -70,7 +71,44 @@ test('setpoint ottimistico applica lo snapshot confermato e scarta status preced
   const dashboard = await readFile(dashboardScriptPath, 'utf8');
   assert.match(dashboard, /setpointDraft = temperature;\s*setpointSaving = true/);
   assert.match(dashboard, /boilerSnapshot = result\.snapshot/);
-  assert.match(dashboard, /requestedThermostatRevision === thermostatRevision/);
+  assert.match(dashboard, /shouldAcceptThermostatStatus\(\{ saving: setpointSaving, requestedRevision: requestedThermostatRevision, currentRevision: thermostatRevision \}\)/);
   assert.match(dashboard, /acceptThermostat \? home : \{ \.\.\.home, thermostat: boilerSnapshot \}/);
   assert.match(dashboard, /boilerSnapshot = error\.snapshot \|\| previousSnapshot/);
+});
+
+test('DP2 55 dopo write 220 non ripristina la UI e il successivo DP2 220 conferma 22 gradi', async () => {
+  const oldSnapshot = { updatedAt: '2026-09-15T10:00:00.000Z', heatingActive: false,
+    thermostat: { currentTemperature: 20, setpointTemperature: 5.5, mode: 'manual' }, rawDps: { 2: 55, 3: 200, 4: 'home', 5: '0' } };
+  const confirmedSnapshot = { updatedAt: '2026-09-15T10:00:01.000Z', heatingActive: true,
+    thermostat: { currentTemperature: 20, setpointTemperature: 22, mode: 'manual' }, rawDps: { 2: 220, 3: 200, 4: 'home', 5: '1' } };
+  let releaseFirstRetry;
+  let signalFirstRetry;
+  let waiting = new Promise(resolve => { signalFirstRetry = resolve; });
+  const runtime = new HomeWt200Runtime({
+    lanAdapter: {
+      async setSetpointTemperature(value) { assert.equal(value, 22); },
+      async read() { return this.firstRead ? confirmedSnapshot : (this.firstRead = true, oldSnapshot); },
+    },
+    setpointReadbackAttempts: 4,
+    setpointReadbackDelayMs: 0,
+    wait: async () => {
+      if (!releaseFirstRetry) {
+        await new Promise(resolve => { releaseFirstRetry = resolve; signalFirstRetry(); });
+      }
+    },
+  });
+
+  let uiSnapshot = oldSnapshot;
+  let draft = 22;
+  const command = runtime.setSetpointTemperature(22);
+  await waiting;
+  assert.equal(displayedThermostatSetpoint(uiSnapshot, draft), 22);
+  assert.equal(shouldAcceptThermostatStatus({ saving: true, requestedRevision: 0, currentRevision: 1 }), false);
+  releaseFirstRetry();
+
+  uiSnapshot = await command;
+  draft = null;
+  assert.equal(uiSnapshot.rawDps['2'], 220);
+  assert.equal(displayedThermostatSetpoint(uiSnapshot, draft), 22);
+  assert.equal(uiSnapshot.heatingActive, true);
 });

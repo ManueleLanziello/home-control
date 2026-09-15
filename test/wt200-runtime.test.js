@@ -79,7 +79,7 @@ test('setpoint usa read-back LAN reali e restituisce soltanto lo stato WT200 sta
   ];
   const runtime = new HomeWt200Runtime({
     lanAdapter: {
-      async setSetpointTemperature(value) { calls.push(['write', value]); return snapshots.shift(); },
+      async setSetpointTemperature(value) { calls.push(['write', value]); },
       async read() { calls.push(['read']); return snapshots.shift(); },
     },
     setpointReadbackDelayMs: 0,
@@ -87,7 +87,7 @@ test('setpoint usa read-back LAN reali e restituisce soltanto lo stato WT200 sta
   });
 
   const confirmed = await runtime.setSetpointTemperature(21);
-  assert.deepEqual(calls, [['write', 21], ['read'], ['read'], ['read']]);
+  assert.deepEqual(calls, [['write', 21], ['read'], ['read'], ['read'], ['read']]);
   assert.equal(confirmed.thermostat.setpointTemperature, 21);
   assert.equal(confirmed.thermostat.currentTemperature, 20);
   assert.equal(confirmed.thermostat.mode, 'manual');

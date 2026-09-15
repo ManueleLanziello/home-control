@@ -5,6 +5,14 @@ export function shouldDeferScheduleSnapshot({ saving, scheduleEditing, hasChange
   return Boolean(saving || scheduleEditing || hasChanges);
 }
 
+export function displayedThermostatSetpoint(snapshot, draft) {
+  return Number.isFinite(draft) ? draft : snapshot?.thermostat?.setpointTemperature;
+}
+
+export function shouldAcceptThermostatStatus({ saving, requestedRevision, currentRevision }) {
+  return !saving && requestedRevision === currentRevision;
+}
+
 // Shared controller: standalone page or existing Dashboard modal DOM.
 export function initThermostat(root = document, { initialSnapshot = null, onSaved } = {}) {
   const NORMAL_NAMES = ['Mattina presto', 'Mattina', 'Mezzogiorno', 'Pomeriggio', 'Sera', 'Notte'];

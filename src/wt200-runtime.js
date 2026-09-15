@@ -46,8 +46,8 @@ export class HomeWt200Runtime {
     scheduleStore = null,
     deviceId = null,
     now = () => new Date().toISOString(),
-    setpointReadbackAttempts = 4,
-    setpointReadbackDelayMs = 400,
+    setpointReadbackAttempts = 7,
+    setpointReadbackDelayMs = 500,
     wait = delay => new Promise(resolve => setTimeout(resolve, delay)),
   }) {
     this.lanAdapter = lanAdapter;
@@ -208,8 +208,7 @@ export class HomeWt200Runtime {
 
   async setSetpointTemperature(temperature) {
     if (!this.lanAdapter) { const error = new Error('Connessione LAN WT200 non disponibile.'); error.code = 'LAN_UNAVAILABLE'; throw error; }
-    let writeReadback;
-    try { writeReadback = await this.lanAdapter.setSetpointTemperature(temperature); } catch (error) { if (error instanceof TypeError) error.code = 'SETPOINT_INVALID'; throw error; }
+    try { await this.lanAdapter.setSetpointTemperature(temperature); } catch (error) { if (error instanceof TypeError) error.code = 'SETPOINT_INVALID'; throw error; }
     let lastSnapshot = null;
     let lastCompleteSnapshot = null;
     let previousState = null;
@@ -218,11 +217,7 @@ export class HomeWt200Runtime {
     for (let attempt = 0; attempt < this.setpointReadbackAttempts; attempt += 1) {
       if (attempt > 0) await this.wait(this.setpointReadbackDelayMs);
       try {
-        const lanSnapshot = attempt === 0 && writeReadback ? writeReadback : await this.readLanSnapshot();
-        if (attempt === 0 && writeReadback) {
-          this.bindLanSchedulePersistence();
-          if (lanSnapshot.schedule) await this.persistLanSchedule();
-        }
+        const lanSnapshot = await this.readLanSnapshot();
         const state = {
           setpointTemperature: lanSnapshot?.thermostat?.setpointTemperature,
           currentTemperature: lanSnapshot?.thermostat?.currentTemperature,

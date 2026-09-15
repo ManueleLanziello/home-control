@@ -1,4 +1,4 @@
-import { initThermostat } from './thermostat.js';
+import { displayedThermostatSetpoint, initThermostat, shouldAcceptThermostatStatus } from './thermostat.js';
 import { initFloorplan } from './floorplan.js';
 import { createFloorplanState } from './floorplan-state.js';
 import { renderWt200Schedule, selectWt200PeriodsForDate } from './boiler-schedule.js';
@@ -228,7 +228,7 @@ function renderBoiler(snapshot = null) {
     onlineElement.classList.toggle('static-status--online', online);
     onlineElement.classList.toggle('static-status--offline', !online);
   }
-  const displayedSetpoint = Number.isFinite(setpointDraft) ? setpointDraft : thermostat.setpointTemperature;
+  const displayedSetpoint = displayedThermostatSetpoint(snapshot, setpointDraft);
   if (setpoint) setpoint.textContent = temperatureText(displayedSetpoint);
   const setpointControl = document.querySelector('[data-boiler-setpoint-control]');
   if (setpointControl) {
@@ -384,7 +384,7 @@ async function loadHomeSnapshot() {
     const response = await fetch(homeControlPath('/api/home/status'), { cache: 'no-store', signal: AbortSignal.timeout(30_000) });
     if (!response.ok) throw new Error('Stato casa non disponibile');
     const home = await response.json();
-    const acceptThermostat = !setpointSaving && requestedThermostatRevision === thermostatRevision;
+    const acceptThermostat = shouldAcceptThermostatStatus({ saving: setpointSaving, requestedRevision: requestedThermostatRevision, currentRevision: thermostatRevision });
     floorplanStore.applyHomeSnapshot(acceptThermostat ? home : { ...home, thermostat: boilerSnapshot });
     if (acceptThermostat) boilerSnapshot = home.thermostat;
     cappaSnapshot = home.hood;
@@ -398,7 +398,7 @@ async function loadHomeSnapshot() {
     dataSource.textContent = Object.values(home.lights).some(light => light.source === 'simulation') ? 'Dati reali · luci simulate' : 'Dati reali';
     document.querySelector('.status-message').textContent = home.indoorSensorCount + ' sensori disponibili';
   } catch {
-    const acceptThermostat = !setpointSaving && requestedThermostatRevision === thermostatRevision;
+    const acceptThermostat = shouldAcceptThermostatStatus({ saving: setpointSaving, requestedRevision: requestedThermostatRevision, currentRevision: thermostatRevision });
     if (acceptThermostat) floorplanStore.applyHomeSnapshot();
     if (acceptThermostat) boilerSnapshot = null;
     cappaSnapshot = cappaSnapshot ? { ...cappaSnapshot, online: false } : null;
