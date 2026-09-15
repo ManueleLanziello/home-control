@@ -1,7 +1,17 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
-import { displayedThermostatSetpoint, shouldAcceptThermostatStatus, shouldDeferScheduleSnapshot } from '../public/js/thermostat.js';
+import {
+  beginModeRequest,
+  beginSetpointInteraction,
+  beginSetpointRequest,
+  createThermostatMutationState,
+  displayedThermostatSetpoint,
+  finishThermostatRequest,
+  isCurrentThermostatRequest,
+  shouldAcceptThermostatStatus,
+  shouldDeferScheduleSnapshot,
+} from '../public/js/thermostat.js';
 import { HomeWt200Runtime } from '../src/wt200-runtime.js';
 
 const htmlPath = new URL('../public/thermostat.html', import.meta.url);
@@ -67,13 +77,13 @@ test('dashboard CALDAIA usa il nuovo set icone e QD1 resta sincronizzata allo st
   assert.match(style, /height: clamp\(252px, 30\.8vw, 294px\)/);
 });
 
-test('setpoint ottimistico applica lo snapshot confermato e scarta status precedenti', async () => {
+test('setpoint usa un solo transaction state e scarta status appartenenti a revisioni precedenti', async () => {
   const dashboard = await readFile(dashboardScriptPath, 'utf8');
-  assert.match(dashboard, /setpointDraft = temperature;\s*setpointSaving = true/);
+  assert.match(dashboard, /thermostatMutation = beginSetpointInteraction\(thermostatMutation, temperature\)/);
+  assert.match(dashboard, /thermostatMutation = beginSetpointRequest\(thermostatMutation\)/);
   assert.match(dashboard, /boilerSnapshot = result\.snapshot/);
-  assert.match(dashboard, /shouldAcceptThermostatStatus\(\{ saving: setpointSaving \|\| modeSaving, requestedRevision: requestedThermostatRevision, currentRevision: thermostatRevision \}\)/);
-  assert.match(dashboard, /acceptThermostat \? home : \{ \.\.\.home, thermostat: boilerSnapshot \}/);
-  assert.match(dashboard, /boilerSnapshot = error\.snapshot \|\| previousSnapshot/);
+  assert.match(dashboard, /isCurrentThermostatRequest\(thermostatMutation, requestId, 'setpoint'\)/);
+  assert.doesNotMatch(dashboard, /setpointDraft|setpointSaving|modeSaving/);
 });
 
 test('DP2 55 dopo write 220 non ripristina la UI e il successivo DP2 220 conferma 22 gradi', async () => {
@@ -99,17 +109,18 @@ test('DP2 55 dopo write 220 non ripristina la UI e il successivo DP2 220 conferm
   });
 
   let uiSnapshot = oldSnapshot;
-  let draft = 22;
+  let transaction = beginSetpointInteraction(createThermostatMutationState(), 22);
+  transaction = beginSetpointRequest(transaction);
   const command = runtime.setSetpointTemperature(22);
   await waiting;
-  assert.equal(displayedThermostatSetpoint(uiSnapshot, draft), 22);
-  assert.equal(shouldAcceptThermostatStatus({ saving: true, requestedRevision: 0, currentRevision: 1 }), false);
+  assert.equal(displayedThermostatSetpoint(uiSnapshot, transaction), 22);
+  assert.equal(shouldAcceptThermostatStatus({ requestedRevision: 0, currentRevision: transaction.revision }), false);
   releaseFirstRetry();
 
   uiSnapshot = await command;
-  draft = null;
+  transaction = finishThermostatRequest(transaction, transaction.requestId, 'setpoint');
   assert.equal(uiSnapshot.rawDps['2'], 220);
-  assert.equal(displayedThermostatSetpoint(uiSnapshot, draft), 22);
+  assert.equal(displayedThermostatSetpoint(uiSnapshot, transaction), 22);
   assert.equal(uiSnapshot.heatingActive, true);
 });
 
@@ -123,11 +134,11 @@ test('transizione UI MANUALE verso AUTO mantiene i dati e applica il DP2 program
     lanAdapter: { async setOperatingMode(value) { assert.equal(value, 'auto'); }, async read() { return snapshots.shift(); } },
     postWriteReadbackAttempts: 4, postWriteReadbackDelayMs: 0, wait: async () => {},
   });
-  assert.equal(shouldAcceptThermostatStatus({ saving: true, requestedRevision: 0, currentRevision: 1 }), false);
-  assert.equal(displayedThermostatSetpoint(manual, null), 20);
+  assert.equal(shouldAcceptThermostatStatus({ requestedRevision: 0, currentRevision: 1 }), false);
+  assert.equal(displayedThermostatSetpoint(manual, createThermostatMutationState()), 20);
   const confirmed = await runtime.setMode('auto');
   assert.equal(confirmed.thermostat.mode, 'auto');
-  assert.equal(displayedThermostatSetpoint(confirmed, null), 22);
+  assert.equal(displayedThermostatSetpoint(confirmed, createThermostatMutationState()), 22);
   assert.equal(confirmed.thermostat.currentTemperature, 20.5);
   assert.equal(confirmed.heatingActive, true);
 });
@@ -142,11 +153,54 @@ test('transizione UI AUTO verso MANUALE mantiene i dati e applica il DP2 manuale
     lanAdapter: { async setOperatingMode(value) { assert.equal(value, 'home'); }, async read() { return snapshots.shift(); } },
     postWriteReadbackAttempts: 4, postWriteReadbackDelayMs: 0, wait: async () => {},
   });
-  assert.equal(shouldAcceptThermostatStatus({ saving: true, requestedRevision: 1, currentRevision: 2 }), false);
-  assert.equal(displayedThermostatSetpoint(automatic, null), 22);
+  assert.equal(shouldAcceptThermostatStatus({ requestedRevision: 1, currentRevision: 2 }), false);
+  assert.equal(displayedThermostatSetpoint(automatic, createThermostatMutationState()), 22);
   const confirmed = await runtime.setMode('manual');
   assert.equal(confirmed.thermostat.mode, 'manual');
-  assert.equal(displayedThermostatSetpoint(confirmed, null), 19);
+  assert.equal(displayedThermostatSetpoint(confirmed, createThermostatMutationState()), 19);
   assert.equal(confirmed.thermostat.currentTemperature, 20);
   assert.equal(confirmed.heatingActive, false);
+});
+
+test('dragging e pending mantengono requestedValue contro snapshot polling con DP2 vecchio', () => {
+  const staleSnapshot = { thermostat: { setpointTemperature: 5.5, currentTemperature: 25.9, mode: 'manual' }, heatingActive: false };
+  let transaction = beginSetpointInteraction(createThermostatMutationState(), 22);
+  assert.equal(transaction.phase, 'dragging');
+  assert.equal(displayedThermostatSetpoint(staleSnapshot, transaction), 22);
+  transaction = beginSetpointRequest(transaction);
+  assert.equal(transaction.phase, 'pending');
+  assert.equal(displayedThermostatSetpoint(staleSnapshot, transaction), 22);
+});
+
+test('una risposta DP2 precedente non puo chiudere o rollbackare la richiesta corrente', () => {
+  let first = beginSetpointRequest(beginSetpointInteraction(createThermostatMutationState(), 21));
+  first = finishThermostatRequest(first, first.requestId, 'setpoint');
+  let current = beginSetpointRequest(beginSetpointInteraction(first, 22));
+  const currentId = current.requestId;
+  assert.equal(isCurrentThermostatRequest(current, currentId - 1, 'setpoint'), false);
+  current = finishThermostatRequest(current, currentId - 1, 'setpoint');
+  assert.equal(current.phase, 'pending');
+  assert.equal(current.requestId, currentId);
+  assert.equal(displayedThermostatSetpoint({ thermostat: { setpointTemperature: 21 } }, current), 22);
+});
+
+test('ownership impedisce in modo simmetrico la sovrapposizione DP2 e DP4', () => {
+  const dragging = beginSetpointInteraction(createThermostatMutationState(), 22);
+  assert.equal(beginModeRequest(dragging), null);
+  const modePending = beginModeRequest(createThermostatMutationState());
+  assert.equal(beginSetpointInteraction(modePending, 22), modePending);
+});
+
+test('molti input conservano l ultimo valore e il dashboard invia un solo write al change', async () => {
+  let transaction = createThermostatMutationState();
+  for (const value of [20, 20.5, 21, 21.5, 22]) transaction = beginSetpointInteraction(transaction, value);
+  transaction = beginSetpointRequest(transaction);
+  assert.equal(transaction.requestedValue, 22);
+  assert.equal(transaction.requestId, 1);
+
+  const dashboard = await readFile(dashboardScriptPath, 'utf8');
+  assert.equal((dashboard.match(/addEventListener\('input', previewSetpoint\)/g) || []).length, 1);
+  assert.equal((dashboard.match(/addEventListener\('change', \(\) => void saveSetpoint\(\)\)/g) || []).length, 1);
+  const previewBody = dashboard.match(/function previewSetpoint\(\) \{[\s\S]*?\n\}/)?.[0] || '';
+  assert.doesNotMatch(previewBody, /fetch\(/);
 });

@@ -5,12 +5,50 @@ export function shouldDeferScheduleSnapshot({ saving, scheduleEditing, hasChange
   return Boolean(saving || scheduleEditing || hasChanges);
 }
 
-export function displayedThermostatSetpoint(snapshot, draft) {
-  return Number.isFinite(draft) ? draft : snapshot?.thermostat?.setpointTemperature;
+export function createThermostatMutationState() {
+  return { type: null, phase: 'idle', requestId: 0, requestedValue: null, revision: 0 };
 }
 
-export function shouldAcceptThermostatStatus({ saving, requestedRevision, currentRevision }) {
-  return !saving && requestedRevision === currentRevision;
+export function beginSetpointInteraction(state, requestedValue) {
+  if (!Number.isFinite(requestedValue) || (state.phase !== 'idle' && state.type !== 'setpoint')) return state;
+  const starting = state.phase === 'idle';
+  return {
+    ...state,
+    type: 'setpoint',
+    phase: 'dragging',
+    requestedValue,
+    revision: state.revision + (starting ? 1 : 0),
+  };
+}
+
+export function beginSetpointRequest(state) {
+  if (state.type !== 'setpoint' || state.phase !== 'dragging' || !Number.isFinite(state.requestedValue)) return null;
+  return { ...state, phase: 'pending', requestId: state.requestId + 1, revision: state.revision + 1 };
+}
+
+export function beginModeRequest(state) {
+  if (state.phase !== 'idle') return null;
+  return { ...state, type: 'mode', phase: 'pending', requestId: state.requestId + 1, revision: state.revision + 1 };
+}
+
+export function isCurrentThermostatRequest(state, requestId, type) {
+  return state.phase === 'pending' && state.type === type && state.requestId === requestId;
+}
+
+export function finishThermostatRequest(state, requestId, type) {
+  if (!isCurrentThermostatRequest(state, requestId, type)) return state;
+  return { ...state, type: null, phase: 'idle', requestedValue: null, revision: state.revision + 1 };
+}
+
+export function displayedThermostatSetpoint(snapshot, mutation) {
+  const owned = mutation?.type === 'setpoint' && (mutation.phase === 'dragging' || mutation.phase === 'pending');
+  return owned && Number.isFinite(mutation.requestedValue)
+    ? mutation.requestedValue
+    : snapshot?.thermostat?.setpointTemperature;
+}
+
+export function shouldAcceptThermostatStatus({ requestedRevision, currentRevision }) {
+  return requestedRevision === currentRevision;
 }
 
 // Shared controller: standalone page or existing Dashboard modal DOM.

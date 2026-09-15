@@ -112,6 +112,73 @@ test('setpoint non confermato espone l ultimo snapshot LAN reale per il rollback
   });
 });
 
+test('setpoint non usa una conferma DP2 precedente se l ultima lettura LAN torna al valore vecchio', async () => {
+  const snapshot = (rawSetpoint) => ({
+    updatedAt: '2026-09-15T10:00:00.000Z',
+    heatingActive: false,
+    thermostat: { currentTemperature: 25.9, setpointTemperature: rawSetpoint / 10, mode: 'manual' },
+  });
+  const snapshots = [snapshot(55), snapshot(220), snapshot(55), snapshot(55), snapshot(55)];
+  const runtime = new HomeWt200Runtime({
+    lanAdapter: { async setSetpointTemperature() {}, async read() { return snapshots.shift(); } },
+    postWriteReadbackAttempts: 5,
+    postWriteReadbackDelayMs: 0,
+    wait: async () => {},
+  });
+
+  await assert.rejects(runtime.setSetpointTemperature(22), error => {
+    assert.equal(error.code, 'SETPOINT_NOT_CONFIRMED');
+    assert.equal(error.snapshot.thermostat.setpointTemperature, 5.5);
+    return true;
+  });
+});
+
+test('setpoint viene confermato sulla stabilita DP2 anche se DP3 oscilla', async () => {
+  const snapshots = [25.9, 26, 25.9].map(currentTemperature => ({
+    updatedAt: '2026-09-15T10:00:00.000Z',
+    heatingActive: false,
+    thermostat: { currentTemperature, setpointTemperature: 22, mode: 'manual' },
+  }));
+  const runtime = new HomeWt200Runtime({
+    lanAdapter: { async setSetpointTemperature() {}, async read() { return snapshots.shift(); } },
+    postWriteReadbackAttempts: 3,
+    postWriteReadbackDelayMs: 0,
+    wait: async () => {},
+  });
+
+  const confirmed = await runtime.setSetpointTemperature(22);
+  assert.equal(confirmed.thermostat.setpointTemperature, 22);
+  assert.equal(confirmed.thermostat.currentTemperature, 25.9);
+});
+
+test('mutazioni DP2 e DP4 sono serializzate per l intera transazione write e conferma', async () => {
+  const calls = [];
+  let releaseSetpointWrite;
+  const setpointWriteBlocked = new Promise(resolve => { releaseSetpointWrite = resolve; });
+  const setpointSnapshot = { heatingActive: false, thermostat: { currentTemperature: 20, setpointTemperature: 22, mode: 'manual' } };
+  const modeSnapshot = { heatingActive: false, thermostat: { currentTemperature: 20, setpointTemperature: 22, mode: 'auto' } };
+  let modeStarted = false;
+  const runtime = new HomeWt200Runtime({
+    lanAdapter: {
+      async setSetpointTemperature() { calls.push('setpoint-write'); await setpointWriteBlocked; },
+      async setOperatingMode() { modeStarted = true; calls.push('mode-write'); },
+      async read() { calls.push('read'); return modeStarted ? modeSnapshot : setpointSnapshot; },
+    },
+    postWriteReadbackAttempts: 3,
+    postWriteReadbackDelayMs: 0,
+    wait: async () => {},
+  });
+
+  const setpointCommand = runtime.setSetpointTemperature(22);
+  const modeCommand = runtime.setMode('auto');
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.deepEqual(calls, ['setpoint-write']);
+  releaseSetpointWrite();
+  await Promise.all([setpointCommand, modeCommand]);
+  assert.deepEqual(calls, ['setpoint-write', 'read', 'read', 'read', 'mode-write', 'read', 'read', 'read']);
+});
+
 test('MANUALE verso AUTO attende DP4 reale e restituisce DP2, DP3 e DP5 completi', async () => {
   const calls = [];
   const updatedAt = '2026-09-15T10:00:00.000Z';

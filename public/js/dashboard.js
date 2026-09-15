@@ -1,4 +1,14 @@
-import { displayedThermostatSetpoint, initThermostat, shouldAcceptThermostatStatus } from './thermostat.js';
+import {
+  beginModeRequest,
+  beginSetpointInteraction,
+  beginSetpointRequest,
+  createThermostatMutationState,
+  displayedThermostatSetpoint,
+  finishThermostatRequest,
+  initThermostat,
+  isCurrentThermostatRequest,
+  shouldAcceptThermostatStatus,
+} from './thermostat.js';
 import { initFloorplan } from './floorplan.js';
 import { createFloorplanState } from './floorplan-state.js';
 import { renderWt200Schedule, selectWt200PeriodsForDate } from './boiler-schedule.js';
@@ -9,10 +19,7 @@ let boilerSnapshot = null;
 let cappaSnapshot = null;
 const floorplanStore = createFloorplanState();
 let boilerEditor = null;
-let modeSaving = false;
-let setpointSaving = false;
-let setpointDraft = null;
-let thermostatRevision = 0;
+let thermostatMutation = createThermostatMutationState();
 let cappaSaving = false;
 const FLOORPLAN_VIEWBOX = { x: 1763.5, y: 1736.5, width: 1656, height: 1723 };
 const REFERENCE_VIEWBOX = { x: 925, y: 1730, width: 3343, height: 1731 };
@@ -209,6 +216,12 @@ function renderFloorplanThermostatTemperature(snapshot) {
   marker.setAttribute('aria-label', available ? `Temperatura Salotto: ${temperatureText(value)}` : 'Temperatura Salotto: non disponibile');
 }
 
+function snapshotForThermostatDisplay(snapshot) {
+  const displayedSetpoint = displayedThermostatSetpoint(snapshot, thermostatMutation);
+  if (!snapshot || displayedSetpoint === snapshot?.thermostat?.setpointTemperature) return snapshot;
+  return { ...snapshot, thermostat: { ...snapshot.thermostat, setpointTemperature: displayedSetpoint } };
+}
+
 function renderBoiler(snapshot = null) {
   const thermostat = snapshot?.thermostat || {};
   const online = snapshot?.online === true;
@@ -228,12 +241,12 @@ function renderBoiler(snapshot = null) {
     onlineElement.classList.toggle('static-status--online', online);
     onlineElement.classList.toggle('static-status--offline', !online);
   }
-  const displayedSetpoint = displayedThermostatSetpoint(snapshot, setpointDraft);
+  const displayedSetpoint = displayedThermostatSetpoint(snapshot, thermostatMutation);
   if (setpoint) setpoint.textContent = temperatureText(displayedSetpoint);
   const setpointControl = document.querySelector('[data-boiler-setpoint-control]');
   if (setpointControl) {
     setpointControl.hidden = thermostat.mode !== 'manual';
-    setpointControl.disabled = thermostat.mode !== 'manual' || setpointSaving || modeSaving;
+    setpointControl.disabled = thermostat.mode !== 'manual' || thermostatMutation.phase === 'pending';
     if (Number.isFinite(displayedSetpoint)) setpointControl.value = displayedSetpoint;
   }
   if (current) current.textContent = temperatureText(thermostat.currentTemperature);
@@ -248,6 +261,7 @@ function renderBoiler(snapshot = null) {
   const mode = thermostat.mode;
   for (const option of document.querySelectorAll('[data-boiler-mode-option]')) {
     option.classList.toggle('is-active', option.dataset.boilerModeOption === mode);
+    if (option.dataset.boilerModeOption !== 'smart') option.classList.toggle('boiler-mode--disabled', thermostatMutation.phase !== 'idle');
   }
   if (rawMode) {
     const isKnown = mode === 'manual' || mode === 'auto';
@@ -333,18 +347,17 @@ async function sendCappaCommand(path, payload) {
 
 async function saveSetpoint() {
   const control = document.querySelector('[data-boiler-setpoint-control]');
-  if (!control || setpointSaving || modeSaving || boilerSnapshot?.thermostat?.mode !== 'manual') return;
+  if (!control || thermostatMutation.type !== 'setpoint' || thermostatMutation.phase !== 'dragging' || boilerSnapshot?.thermostat?.mode !== 'manual') return;
   const previous = boilerSnapshot.thermostat.setpointTemperature;
-  const previousSnapshot = boilerSnapshot;
-  const temperature = Number(control.value);
+  const temperature = thermostatMutation.requestedValue;
   if (temperature === previous) {
-    setpointDraft = null;
+    thermostatMutation = { ...thermostatMutation, type: null, phase: 'idle', requestedValue: null, revision: thermostatMutation.revision + 1 };
     renderBoiler(boilerSnapshot);
     return;
   }
-  thermostatRevision += 1;
-  setpointDraft = temperature;
-  setpointSaving = true; control.disabled = true; renderBoiler(boilerSnapshot);
+  thermostatMutation = beginSetpointRequest(thermostatMutation);
+  const requestId = thermostatMutation.requestId;
+  renderBoiler(boilerSnapshot);
   try {
     const response = await fetch(homeControlPath('/api/thermostat/setpoint'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ temperature }) });
     const result = await response.json();
@@ -353,44 +366,50 @@ async function saveSetpoint() {
       error.snapshot = result.snapshot;
       throw error;
     }
-    thermostatRevision += 1;
+    if (!isCurrentThermostatRequest(thermostatMutation, requestId, 'setpoint')) return;
+    if (result.snapshot?.thermostat?.setpointTemperature !== temperature) {
+      const error = new Error('Il WT200 non ha confermato il setpoint richiesto');
+      error.snapshot = result.snapshot;
+      throw error;
+    }
     boilerSnapshot = result.snapshot;
+    thermostatMutation = finishThermostatRequest(thermostatMutation, requestId, 'setpoint');
     floorplanStore.applyThermostatSnapshot(boilerSnapshot);
     sessionStorage.setItem(THERMOSTAT_CACHE_KEY, JSON.stringify(boilerSnapshot)); renderBoiler(boilerSnapshot);
     boilerEditor?.updateSnapshot(boilerSnapshot);
   } catch (error) {
-    thermostatRevision += 1;
-    boilerSnapshot = error.snapshot || previousSnapshot;
+    if (!isCurrentThermostatRequest(thermostatMutation, requestId, 'setpoint')) return;
+    boilerSnapshot = error.snapshot || boilerSnapshot;
+    thermostatMutation = finishThermostatRequest(thermostatMutation, requestId, 'setpoint');
     floorplanStore.applyThermostatSnapshot(boilerSnapshot);
-    control.value = boilerSnapshot?.thermostat?.setpointTemperature ?? previous;
     boilerEditor?.updateSnapshot(boilerSnapshot);
+    renderBoiler(boilerSnapshot);
     showModeMessage(error.message);
-  } finally { setpointSaving = false; setpointDraft = null; renderBoiler(boilerSnapshot); }
+  }
 }
 
 function previewSetpoint() {
   const control = document.querySelector('[data-boiler-setpoint-control]');
-  if (!control || setpointSaving || boilerSnapshot?.thermostat?.mode !== 'manual') return;
+  if (!control || thermostatMutation.phase === 'pending' || boilerSnapshot?.thermostat?.mode !== 'manual') return;
   const temperature = Number(control.value);
   if (!Number.isFinite(temperature)) return;
-  setpointDraft = temperature;
-  const setpoint = document.querySelector('[data-boiler-setpoint]');
-  if (setpoint) setpoint.textContent = temperatureText(temperature);
+  thermostatMutation = beginSetpointInteraction(thermostatMutation, temperature);
+  renderBoiler(boilerSnapshot);
 }
 
 async function loadHomeSnapshot() {
-  const requestedThermostatRevision = thermostatRevision;
+  const requestedThermostatRevision = thermostatMutation.revision;
   try {
     const response = await fetch(homeControlPath('/api/home/status'), { cache: 'no-store', signal: AbortSignal.timeout(30_000) });
     if (!response.ok) throw new Error('Stato casa non disponibile');
     const home = await response.json();
-    const acceptThermostat = shouldAcceptThermostatStatus({ saving: setpointSaving || modeSaving, requestedRevision: requestedThermostatRevision, currentRevision: thermostatRevision });
+    const acceptThermostat = shouldAcceptThermostatStatus({ requestedRevision: requestedThermostatRevision, currentRevision: thermostatMutation.revision });
     floorplanStore.applyHomeSnapshot(acceptThermostat ? home : { ...home, thermostat: boilerSnapshot });
     if (acceptThermostat) boilerSnapshot = home.thermostat;
     cappaSnapshot = home.hood;
     renderBoiler(boilerSnapshot);
     renderCappa(cappaSnapshot);
-    if (acceptThermostat) boilerEditor?.updateSnapshot(boilerSnapshot);
+    if (acceptThermostat) boilerEditor?.updateSnapshot(snapshotForThermostatDisplay(boilerSnapshot));
     const average = document.querySelector('.boiler-temperature--home');
     average.querySelector('strong').textContent = temperatureText(home.averageTemperature);
     average.querySelector('em').textContent = home.indoorSensorCount ? home.indoorSensorCount + ' sensori interni disponibili' : 'Sensori non disponibili';
@@ -398,13 +417,13 @@ async function loadHomeSnapshot() {
     dataSource.textContent = Object.values(home.lights).some(light => light.source === 'simulation') ? 'Dati reali · luci simulate' : 'Dati reali';
     document.querySelector('.status-message').textContent = home.indoorSensorCount + ' sensori disponibili';
   } catch {
-    const acceptThermostat = shouldAcceptThermostatStatus({ saving: setpointSaving || modeSaving, requestedRevision: requestedThermostatRevision, currentRevision: thermostatRevision });
-    if (acceptThermostat) floorplanStore.applyHomeSnapshot();
-    if (acceptThermostat) boilerSnapshot = null;
+    const acceptThermostat = shouldAcceptThermostatStatus({ requestedRevision: requestedThermostatRevision, currentRevision: thermostatMutation.revision });
+    if (acceptThermostat && thermostatMutation.phase === 'idle') floorplanStore.applyHomeSnapshot();
+    if (acceptThermostat && thermostatMutation.phase === 'idle') boilerSnapshot = null;
     cappaSnapshot = cappaSnapshot ? { ...cappaSnapshot, online: false } : null;
     renderBoiler(boilerSnapshot);
     renderCappa(cappaSnapshot);
-    if (acceptThermostat) boilerEditor?.updateSnapshot(null);
+    if (acceptThermostat && thermostatMutation.phase === 'idle') boilerEditor?.updateSnapshot(null);
     const average = document.querySelector('.boiler-temperature--home');
     average.querySelector('strong').textContent = '— °C';
     average.querySelector('em').textContent = 'Sensori non disponibili';
@@ -423,12 +442,12 @@ function showModeMessage(message) {
 }
 
 async function setBoilerMode(mode) {
-  if (modeSaving) return;
+  if (thermostatMutation.phase !== 'idle') return;
   if (mode === 'smart') return showModeMessage('SMART non disponibile: sensori temperatura non configurati');
   const previousSnapshot = boilerSnapshot;
-  thermostatRevision += 1;
-  modeSaving = true;
-  for (const option of document.querySelectorAll('[data-boiler-mode-option]')) option.classList.add('boiler-mode--disabled');
+  thermostatMutation = beginModeRequest(thermostatMutation);
+  const requestId = thermostatMutation.requestId;
+  renderBoiler(boilerSnapshot);
   try {
     const response = await fetch(homeControlPath('/api/thermostat/mode'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode }) });
     const result = await response.json();
@@ -437,23 +456,21 @@ async function setBoilerMode(mode) {
       error.snapshot = result.snapshot;
       throw error;
     }
-    thermostatRevision += 1;
+    if (!isCurrentThermostatRequest(thermostatMutation, requestId, 'mode')) return;
     boilerSnapshot = result.snapshot;
+    thermostatMutation = finishThermostatRequest(thermostatMutation, requestId, 'mode');
     floorplanStore.applyThermostatSnapshot(boilerSnapshot);
     sessionStorage.setItem(THERMOSTAT_CACHE_KEY, JSON.stringify(boilerSnapshot));
     renderBoiler(boilerSnapshot);
     boilerEditor?.updateSnapshot(boilerSnapshot);
   } catch (error) {
-    thermostatRevision += 1;
-    boilerSnapshot = error.snapshot || previousSnapshot;
+    if (!isCurrentThermostatRequest(thermostatMutation, requestId, 'mode')) return;
+    boilerSnapshot = error.snapshot || boilerSnapshot || previousSnapshot;
+    thermostatMutation = finishThermostatRequest(thermostatMutation, requestId, 'mode');
     floorplanStore.applyThermostatSnapshot(boilerSnapshot);
     boilerEditor?.updateSnapshot(boilerSnapshot);
+    renderBoiler(boilerSnapshot);
     showModeMessage(error.message);
-  } finally {
-    modeSaving = false;
-    for (const option of document.querySelectorAll('[data-boiler-mode-option]')) {
-      if (option.dataset.boilerModeOption !== 'smart') option.classList.remove('boiler-mode--disabled');
-    }
   }
 }
 
