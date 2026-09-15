@@ -47,6 +47,75 @@ export function displayedThermostatSetpoint(snapshot, mutation) {
     : snapshot?.thermostat?.setpointTemperature;
 }
 
+export function mergeThermostatRefreshSnapshot(current, incoming, { mutation, preserveSetpoint = false, preserveMissing = false } = {}) {
+  if (!incoming) return current;
+  const source = preserveMissing && current ? {
+    ...incoming,
+    online: typeof incoming.online === 'boolean' ? incoming.online : current.online,
+    heatingActive: typeof incoming.heatingActive === 'boolean' ? incoming.heatingActive : current.heatingActive,
+    thermostat: {
+      ...incoming.thermostat,
+      currentTemperature: Number.isFinite(incoming.thermostat?.currentTemperature)
+        ? incoming.thermostat.currentTemperature
+        : current.thermostat?.currentTemperature,
+      mode: typeof incoming.thermostat?.mode === 'string' ? incoming.thermostat.mode : current.thermostat?.mode,
+    },
+  } : incoming;
+  const owned = mutation?.type === 'setpoint' && (mutation.phase === 'dragging' || mutation.phase === 'pending');
+  if (!preserveSetpoint && !owned) return source;
+  const currentSetpoint = current?.thermostat?.setpointTemperature;
+  return {
+    ...source,
+    thermostat: {
+      ...source.thermostat,
+      setpointTemperature: currentSetpoint,
+    },
+  };
+}
+
+export function mergeConfirmedThermostatSnapshot(current, confirmed) {
+  if (!current || !confirmed || Date.parse(current.updatedAt) <= Date.parse(confirmed.updatedAt)) return confirmed;
+  return {
+    ...confirmed,
+    online: current.online,
+    updatedAt: current.updatedAt,
+    heatingActive: current.heatingActive,
+    thermostat: {
+      ...confirmed.thermostat,
+      currentTemperature: current.thermostat?.currentTemperature,
+      mode: current.thermostat?.mode,
+    },
+  };
+}
+
+export async function runHeatingFastFollow({
+  previousHeatingActive,
+  readSnapshot,
+  applySnapshot,
+  currentHeatingActive = () => undefined,
+  durationMs = 5_000,
+  intervalMs = 450,
+  now = Date.now,
+  wait = delay => new Promise(resolve => setTimeout(resolve, delay)),
+}) {
+  const deadline = now() + durationMs;
+  while (now() < deadline) {
+    const current = currentHeatingActive();
+    if (typeof previousHeatingActive === 'boolean' && typeof current === 'boolean' && current !== previousHeatingActive) {
+      return { changed: true, snapshot: null };
+    }
+    try {
+      const snapshot = await readSnapshot();
+      applySnapshot(snapshot);
+      if (typeof previousHeatingActive !== 'boolean' || snapshot?.heatingActive !== previousHeatingActive) {
+        return { changed: true, snapshot };
+      }
+    } catch { /* A later read or the ordinary refresh remains available. */ }
+    if (now() < deadline) await wait(intervalMs);
+  }
+  return { changed: false, snapshot: null };
+}
+
 export function shouldAcceptThermostatStatus({ requestedRevision, currentRevision }) {
   return requestedRevision === currentRevision;
 }

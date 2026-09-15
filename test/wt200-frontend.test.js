@@ -9,6 +9,8 @@ import {
   displayedThermostatSetpoint,
   finishThermostatRequest,
   isCurrentThermostatRequest,
+  mergeThermostatRefreshSnapshot,
+  runHeatingFastFollow,
   shouldAcceptThermostatStatus,
   shouldDeferScheduleSnapshot,
 } from '../public/js/thermostat.js';
@@ -81,7 +83,7 @@ test('setpoint usa un solo transaction state e scarta status appartenenti a revi
   const dashboard = await readFile(dashboardScriptPath, 'utf8');
   assert.match(dashboard, /thermostatMutation = beginSetpointInteraction\(thermostatMutation, temperature\)/);
   assert.match(dashboard, /thermostatMutation = beginSetpointRequest\(thermostatMutation\)/);
-  assert.match(dashboard, /boilerSnapshot = result\.snapshot/);
+  assert.match(dashboard, /boilerSnapshot = mergeConfirmedThermostatSnapshot\(boilerSnapshot, result\.snapshot\)/);
   assert.match(dashboard, /isCurrentThermostatRequest\(thermostatMutation, requestId, 'setpoint'\)/);
   assert.doesNotMatch(dashboard, /setpointDraft|setpointSaving|modeSaving/);
 });
@@ -203,4 +205,86 @@ test('molti input conservano l ultimo valore e il dashboard invia un solo write 
   assert.equal((dashboard.match(/addEventListener\('change', \(\) => void saveSetpoint\(\)\)/g) || []).length, 1);
   const previewBody = dashboard.match(/function previewSetpoint\(\) \{[\s\S]*?\n\}/)?.[0] || '';
   assert.doesNotMatch(previewBody, /fetch\(/);
+});
+
+test('fast-follow applica DP5 reale appena cambia e poi termina', async () => {
+  const snapshots = [
+    { heatingActive: false, thermostat: { setpointTemperature: 22, currentTemperature: 25.9, mode: 'manual' } },
+    { heatingActive: true, thermostat: { setpointTemperature: 22, currentTemperature: 26, mode: 'manual' } },
+  ];
+  const applied = [];
+  let clock = 0;
+  const result = await runHeatingFastFollow({
+    previousHeatingActive: false,
+    readSnapshot: async () => snapshots.shift(),
+    applySnapshot: snapshot => applied.push(snapshot),
+    durationMs: 5_000,
+    intervalMs: 450,
+    now: () => clock,
+    wait: async delay => { clock += delay; },
+  });
+  assert.equal(result.changed, true);
+  assert.equal(applied.length, 2);
+  assert.equal(applied.at(-1).heatingActive, true);
+});
+
+test('fast-follow termina normalmente se DP5 reale non cambia nella finestra', async () => {
+  let clock = 0;
+  let reads = 0;
+  const result = await runHeatingFastFollow({
+    previousHeatingActive: false,
+    readSnapshot: async () => (reads += 1, { heatingActive: false, thermostat: { setpointTemperature: 22 } }),
+    applySnapshot() {},
+    durationMs: 1_000,
+    intervalMs: 400,
+    now: () => clock,
+    wait: async delay => { clock += delay; },
+  });
+  assert.equal(result.changed, false);
+  assert.equal(reads, 3);
+});
+
+test('fast-follow e refresh durante dragging o pending non modificano il DP2 visualizzato', () => {
+  const current = { heatingActive: false, thermostat: { setpointTemperature: 20, currentTemperature: 25.9, mode: 'manual' } };
+  const incoming = { heatingActive: true, thermostat: { setpointTemperature: 5.5, currentTemperature: 26, mode: 'manual' } };
+  const dragging = beginSetpointInteraction(createThermostatMutationState(), 22);
+  const pending = beginSetpointRequest(dragging);
+
+  const duringDrag = mergeThermostatRefreshSnapshot(current, incoming, { mutation: dragging });
+  const duringPending = mergeThermostatRefreshSnapshot(current, incoming, { mutation: pending });
+  const fastFollow = mergeThermostatRefreshSnapshot(current, incoming, { mutation: createThermostatMutationState(), preserveSetpoint: true });
+  for (const snapshot of [duringDrag, duringPending, fastFollow]) {
+    assert.equal(snapshot.thermostat.setpointTemperature, 20);
+    assert.equal(snapshot.thermostat.currentTemperature, 26);
+    assert.equal(snapshot.heatingActive, true);
+  }
+  assert.equal(displayedThermostatSetpoint(duringDrag, dragging), 22);
+  assert.equal(displayedThermostatSetpoint(duringPending, pending), 22);
+  assert.equal(fastFollow.thermostat.setpointTemperature, 20);
+});
+
+test('refresh WT200 in idle applica DP2 DP3 DP4 DP5 reali', () => {
+  const current = { heatingActive: false, thermostat: { setpointTemperature: 20, currentTemperature: 25.9, mode: 'manual' } };
+  const incoming = { heatingActive: true, thermostat: { setpointTemperature: 22, currentTemperature: 26, mode: 'auto' } };
+  const refreshed = mergeThermostatRefreshSnapshot(current, incoming, { mutation: createThermostatMutationState() });
+  assert.deepEqual(refreshed, incoming);
+});
+
+test('evento DP5 parziale conserva DP2 DP3 e DP4 gia validi', () => {
+  const current = { online: true, heatingActive: false, thermostat: { setpointTemperature: 22, currentTemperature: 25.9, mode: 'manual' } };
+  const eventSnapshot = { online: true, heatingActive: true, thermostat: { setpointTemperature: null, currentTemperature: null, mode: null } };
+  const merged = mergeThermostatRefreshSnapshot(current, eventSnapshot, {
+    mutation: createThermostatMutationState(), preserveSetpoint: true, preserveMissing: true,
+  });
+  assert.deepEqual(merged.thermostat, current.thermostat);
+  assert.equal(merged.heatingActive, true);
+});
+
+test('refresh WT200 dedicato resta a 5 secondi e polling generale resta a 30 secondi', async () => {
+  const dashboard = await readFile(dashboardScriptPath, 'utf8');
+  assert.match(dashboard, /THERMOSTAT_REFRESH_MS = 5_000/);
+  assert.match(dashboard, /setTimeout\(loadThermostatSnapshot, THERMOSTAT_REFRESH_MS\)/);
+  assert.match(dashboard, /setTimeout\(loadHomeSnapshot, 30_000\)/);
+  assert.match(dashboard, /\/api\/thermostat\/live/);
+  assert.match(dashboard, /\/api\/thermostat\/events/);
 });

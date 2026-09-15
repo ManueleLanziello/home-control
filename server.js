@@ -141,23 +141,61 @@ export function createHomeControlServer({
   cameraRuntime = null,
 } = {}) {
   let activeThermostatRuntime = thermostatRuntime;
+  let observedThermostatRuntime = null;
+  let homeStatus;
+  const thermostatEventClients = new Set();
+  const publishThermostatState = (snapshot) => {
+    homeStatus?.invalidate();
+    const payload = `data: ${JSON.stringify(normalizeThermostat(snapshot))}\n\n`;
+    for (const client of thermostatEventClients) {
+      try { client.write(payload); } catch { thermostatEventClients.delete(client); }
+    }
+  };
+  const getThermostatRuntime = () => {
+    activeThermostatRuntime ||= createHomeWt200Runtime({
+      deviceId: process.env.TUYA_WT200_ID, lanIp: process.env.WT200_LAN_IP, localKey: process.env.WT200_LOCAL_KEY,
+    });
+    if (observedThermostatRuntime !== activeThermostatRuntime) {
+      observedThermostatRuntime = activeThermostatRuntime;
+      activeThermostatRuntime.subscribeState?.(publishThermostatState);
+    }
+    return activeThermostatRuntime;
+  };
   let activeHoodRuntime = hoodRuntime;
   const getHoodRuntime = () => activeHoodRuntime ||= new HomeCiarraRuntime({ adapter: null });
   const cameras = cameraRuntime || new HomeCameraRuntime({ hardwareStore, roleStore, root: ROOT });
-  const homeStatus = new HomeStatusRuntime({ hardwareStore, roleStore, createSensorRuntime,
+  homeStatus = new HomeStatusRuntime({ hardwareStore, roleStore, createSensorRuntime,
     readCameras: () => cameras.snapshot(),
     readHood: () => getHoodRuntime().getState(),
     // Retain the existing WT200 configuration path; never use its env ID for Dewin roles.
-    readThermostat: () => {
-      activeThermostatRuntime ||= createHomeWt200Runtime({
-        deviceId: process.env.TUYA_WT200_ID, lanIp: process.env.WT200_LAN_IP, localKey: process.env.WT200_LOCAL_KEY,
-      });
-      return activeThermostatRuntime.readSnapshot();
-    },
+    readThermostat: () => getThermostatRuntime().readSnapshot(),
   });
 
   const server = http.createServer(async (request, response) => {
     const url = new URL(request.url || '/', 'http://localhost');
+    if (url.pathname === '/api/thermostat/events') {
+      if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
+      getThermostatRuntime();
+      response.writeHead(200, {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-store',
+        Connection: 'keep-alive',
+      });
+      response.write('retry: 2000\n\n');
+      thermostatEventClients.add(response);
+      request.on('close', () => thermostatEventClients.delete(response));
+      return;
+    }
+    if (url.pathname === '/api/thermostat/live') {
+      if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
+      try {
+        const snapshot = await getThermostatRuntime().readSnapshot();
+        homeStatus.invalidate();
+        return sendJson(response, 200, normalizeThermostat(snapshot));
+      } catch {
+        return sendJson(response, 503, { error: 'Termostato non disponibile' });
+      }
+    }
     if (url.pathname === '/api/home/status') {
       if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
       try { return sendJson(response, 200, await homeStatus.readSnapshot()); }
@@ -303,11 +341,8 @@ export function createHomeControlServer({
       const payload = await readJson(request);
       if (!isSchedulePayload(payload)) return sendJson(response, 400, { error: 'Programmazione non valida' });
       try {
-        activeThermostatRuntime ||= createHomeWt200Runtime({
-          deviceId: process.env.TUYA_WT200_ID, lanIp: process.env.WT200_LAN_IP, localKey: process.env.WT200_LOCAL_KEY,
-        });
         homeStatus.invalidate();
-        return sendJson(response, 200, { schedule: await activeThermostatRuntime.updateSchedule(payload) });
+        return sendJson(response, 200, { schedule: await getThermostatRuntime().updateSchedule(payload) });
       } catch (error) {
         if (['SCHEDULE_UNAVAILABLE', 'SCHEDULE_NOT_CONFIRMED'].includes(error?.code)) return sendJson(response, 409, { error: error.message });
         if (error?.code === 'LAN_UNAVAILABLE') return sendJson(response, 503, { error: error.message });
@@ -320,10 +355,7 @@ export function createHomeControlServer({
       const payload = await readJson(request);
       if (!['5+2', '6+1', '7'].includes(payload?.weekPattern)) return sendJson(response, 400, { error: 'Modalita settimanale non valida' });
       try {
-        activeThermostatRuntime ||= createHomeWt200Runtime({
-          deviceId: process.env.TUYA_WT200_ID, lanIp: process.env.WT200_LAN_IP, localKey: process.env.WT200_LOCAL_KEY,
-        });
-        const schedule = await activeThermostatRuntime.setWeekPattern(payload.weekPattern);
+        const schedule = await getThermostatRuntime().setWeekPattern(payload.weekPattern);
         homeStatus.invalidate();
         return sendJson(response, 200, { schedule });
       } catch (error) {
@@ -338,9 +370,8 @@ export function createHomeControlServer({
       const payload = await readJson(request);
       if (!['manual', 'auto'].includes(payload?.mode)) return sendJson(response, 400, { error: 'Modalita non valida' });
       try {
-        activeThermostatRuntime ||= createHomeWt200Runtime({ deviceId: process.env.TUYA_WT200_ID, lanIp: process.env.WT200_LAN_IP, localKey: process.env.WT200_LOCAL_KEY });
         homeStatus.invalidate();
-        const confirmed = await activeThermostatRuntime.setMode(payload.mode);
+        const confirmed = await getThermostatRuntime().setMode(payload.mode);
         homeStatus.invalidate();
         return sendJson(response, 200, { mode: payload.mode, snapshot: normalizeThermostat(confirmed) });
       } catch (error) {
@@ -358,9 +389,8 @@ export function createHomeControlServer({
       const raw = Number(payload?.temperature) * 10;
       if (!Number.isFinite(payload?.temperature) || payload.temperature < 0 || payload.temperature > 30 || !Number.isInteger(raw) || raw % 5 !== 0) return sendJson(response, 400, { error: 'Setpoint non valido' });
       try {
-        activeThermostatRuntime ||= createHomeWt200Runtime({ deviceId: process.env.TUYA_WT200_ID, lanIp: process.env.WT200_LAN_IP, localKey: process.env.WT200_LOCAL_KEY });
         homeStatus.invalidate();
-        const confirmed = await activeThermostatRuntime.setSetpointTemperature(payload.temperature);
+        const confirmed = await getThermostatRuntime().setSetpointTemperature(payload.temperature);
         homeStatus.invalidate();
         return sendJson(response, 200, { temperature: payload.temperature, snapshot: normalizeThermostat(confirmed) });
       } catch (error) {

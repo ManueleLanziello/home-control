@@ -248,6 +248,25 @@ test('runtime persiste DP105 e lo conserva dopo status LAN senza DP105', async (
   assert.equal(saved[1].schedule.raw, UPDATED_SCHEDULE_RAW);
 });
 
+test('runtime rende subito disponibile ai subscriber un evento LAN con DP5 reale', () => {
+  let publishAdapterState;
+  const runtime = new HomeWt200Runtime({
+    deviceId: 'wt200-lan-id',
+    lanAdapter: {
+      subscribeState(listener) { publishAdapterState = listener; },
+    },
+  });
+  let received;
+  runtime.subscribeState(snapshot => { received = snapshot; });
+  publishAdapterState({
+    deviceId: 'wt200-lan-id', updatedAt: '2026-09-15T10:00:00.000Z', heatingActive: true,
+    thermostat: { currentTemperature: 25.9, setpointTemperature: 22, mode: 'manual' },
+  }, { changedDps: { 5: '1' } });
+  assert.equal(received.heatingActive, true);
+  assert.equal(received.thermostat.currentTemperature, 25.9);
+  assert.equal(received.thermostat.setpointTemperature, 22);
+});
+
 test('GET /api/thermostat restituisce il runtime WT200 iniettato', async () => {
   const snapshot = { ...cloudSnapshot, heatingActive: null, rawDps: null, schedule: null };
   const server = createHomeControlServer({
@@ -269,6 +288,34 @@ test('GET /api/thermostat restituisce il runtime WT200 iniettato', async () => {
     assert.equal(payload.deviceId, 'thermostat');
     assert.equal(Object.hasOwn(payload, 'rawDatapoints'), false);
     assert.equal(Object.hasOwn(payload, 'rawDps'), false);
+  } finally {
+    server.close();
+    await once(server, 'close');
+  }
+});
+
+test('GET /api/thermostat/live esegue ogni volta una lettura runtime LAN non cached', async () => {
+  let reads = 0;
+  const server = createHomeControlServer({
+    thermostatRuntime: {
+      subscribeState() {},
+      async readSnapshot() {
+        reads += 1;
+        const updatedAt = new Date().toISOString();
+        return { online: true, lanUpdatedAt: updatedAt, updatedAt, heatingActive: reads === 2,
+          thermostat: { currentTemperature: 25.9, setpointTemperature: 22, mode: 'manual' } };
+      },
+    },
+  });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  try {
+    const { port } = server.address();
+    const first = await (await fetch(`http://127.0.0.1:${port}/api/thermostat/live`)).json();
+    const second = await (await fetch(`http://127.0.0.1:${port}/api/thermostat/live`)).json();
+    assert.equal(reads, 2);
+    assert.equal(first.heatingActive, false);
+    assert.equal(second.heatingActive, true);
   } finally {
     server.close();
     await once(server, 'close');

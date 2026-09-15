@@ -62,8 +62,11 @@ export class HomeWt200Runtime {
     this.setpointOverride = null;
     this.restorePromise = null;
     this.lanEventDevice = null;
+    this.stateListeners = new Set();
+    this.latestLanSnapshot = null;
     this.persistenceQueue = Promise.resolve();
     this.mutationQueue = Promise.resolve();
+    this.lanAdapter?.subscribeState?.((snapshot, metadata) => this.publishLanState(snapshot, metadata));
   }
 
   async restoreSchedule() {
@@ -104,9 +107,27 @@ export class HomeWt200Runtime {
   async readLanSnapshot(options) {
     if (!this.lanAdapter) return null;
     const snapshot = await this.lanAdapter.read(options);
+    this.latestLanSnapshot = snapshot;
     this.bindLanSchedulePersistence();
     if (snapshot.schedule) await this.persistLanSchedule();
     return snapshot;
+  }
+
+  subscribeState(listener) {
+    this.stateListeners.add(listener);
+    return () => this.stateListeners.delete(listener);
+  }
+
+  publishLanState(lanSnapshot, metadata = {}) {
+    this.latestLanSnapshot = lanSnapshot;
+    const snapshot = mergeWt200Snapshots({
+      lanSnapshot,
+      persistedSchedule: this.persistedSchedule,
+      deviceId: this.deviceId,
+    });
+    for (const listener of this.stateListeners) {
+      try { listener(snapshot, metadata); } catch { /* A UI subscriber must not break LAN state capture. */ }
+    }
   }
 
   async readSnapshot() {

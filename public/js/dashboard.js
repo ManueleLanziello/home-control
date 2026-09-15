@@ -7,6 +7,9 @@ import {
   finishThermostatRequest,
   initThermostat,
   isCurrentThermostatRequest,
+  mergeConfirmedThermostatSnapshot,
+  mergeThermostatRefreshSnapshot,
+  runHeatingFastFollow,
   shouldAcceptThermostatStatus,
 } from './thermostat.js';
 import { initFloorplan } from './floorplan.js';
@@ -15,11 +18,15 @@ import { renderWt200Schedule, selectWt200PeriodsForDate } from './boiler-schedul
 import { homeControlPath } from '../base-path.js';
 
 const THERMOSTAT_CACHE_KEY = 'home-control:thermostat-snapshot';
+const THERMOSTAT_REFRESH_MS = 5_000;
+const THERMOSTAT_FAST_FOLLOW_MS = 5_000;
+const THERMOSTAT_FAST_FOLLOW_INTERVAL_MS = 450;
 let boilerSnapshot = null;
 let cappaSnapshot = null;
 const floorplanStore = createFloorplanState();
 let boilerEditor = null;
 let thermostatMutation = createThermostatMutationState();
+let thermostatRefreshPromise = null;
 let cappaSaving = false;
 const FLOORPLAN_VIEWBOX = { x: 1763.5, y: 1736.5, width: 1656, height: 1723 };
 const REFERENCE_VIEWBOX = { x: 925, y: 1730, width: 3343, height: 1731 };
@@ -222,6 +229,52 @@ function snapshotForThermostatDisplay(snapshot) {
   return { ...snapshot, thermostat: { ...snapshot.thermostat, setpointTemperature: displayedSetpoint } };
 }
 
+function applyThermostatSnapshot(snapshot, { preserveSetpoint = false, preserveMissing = false } = {}) {
+  boilerSnapshot = mergeThermostatRefreshSnapshot(boilerSnapshot, snapshot, { mutation: thermostatMutation, preserveSetpoint, preserveMissing });
+  floorplanStore.applyThermostatSnapshot(boilerSnapshot);
+  renderBoiler(boilerSnapshot);
+  boilerEditor?.updateSnapshot(snapshotForThermostatDisplay(boilerSnapshot));
+}
+
+function requestLiveThermostatSnapshot() {
+  thermostatRefreshPromise ||= fetch(homeControlPath('/api/thermostat/live'), { cache: 'no-store', signal: AbortSignal.timeout(3_000) })
+    .then(async response => {
+      if (!response.ok) throw new Error('Termostato non disponibile');
+      return response.json();
+    })
+    .finally(() => { thermostatRefreshPromise = null; });
+  return thermostatRefreshPromise;
+}
+
+async function fastFollowHeatingState(previousHeatingActive) {
+  await runHeatingFastFollow({
+    previousHeatingActive,
+    readSnapshot: requestLiveThermostatSnapshot,
+    applySnapshot: snapshot => applyThermostatSnapshot(snapshot, { preserveSetpoint: true }),
+    currentHeatingActive: () => boilerSnapshot?.heatingActive,
+    durationMs: THERMOSTAT_FAST_FOLLOW_MS,
+    intervalMs: THERMOSTAT_FAST_FOLLOW_INTERVAL_MS,
+  });
+}
+
+async function loadThermostatSnapshot() {
+  const requestedRevision = thermostatMutation.revision;
+  try {
+    const snapshot = await requestLiveThermostatSnapshot();
+    const preserveSetpoint = thermostatMutation.phase !== 'idle' || requestedRevision !== thermostatMutation.revision;
+    applyThermostatSnapshot(snapshot, { preserveSetpoint });
+  } catch { /* /api/home/status mantiene la gestione offline generale. */ }
+  finally { setTimeout(loadThermostatSnapshot, THERMOSTAT_REFRESH_MS); }
+}
+
+function connectThermostatEvents() {
+  if (typeof EventSource === 'undefined') return;
+  const events = new EventSource(homeControlPath('/api/thermostat/events'));
+  events.addEventListener('message', (event) => {
+    try { applyThermostatSnapshot(JSON.parse(event.data), { preserveSetpoint: true, preserveMissing: true }); } catch { /* Evento incompleto: attende il prossimo refresh LAN. */ }
+  });
+}
+
 function renderBoiler(snapshot = null) {
   const thermostat = snapshot?.thermostat || {};
   const online = snapshot?.online === true;
@@ -349,6 +402,7 @@ async function saveSetpoint() {
   const control = document.querySelector('[data-boiler-setpoint-control]');
   if (!control || thermostatMutation.type !== 'setpoint' || thermostatMutation.phase !== 'dragging' || boilerSnapshot?.thermostat?.mode !== 'manual') return;
   const previous = boilerSnapshot.thermostat.setpointTemperature;
+  const previousHeatingActive = boilerSnapshot.heatingActive;
   const temperature = thermostatMutation.requestedValue;
   if (temperature === previous) {
     thermostatMutation = { ...thermostatMutation, type: null, phase: 'idle', requestedValue: null, revision: thermostatMutation.revision + 1 };
@@ -372,11 +426,12 @@ async function saveSetpoint() {
       error.snapshot = result.snapshot;
       throw error;
     }
-    boilerSnapshot = result.snapshot;
+    boilerSnapshot = mergeConfirmedThermostatSnapshot(boilerSnapshot, result.snapshot);
     thermostatMutation = finishThermostatRequest(thermostatMutation, requestId, 'setpoint');
     floorplanStore.applyThermostatSnapshot(boilerSnapshot);
     sessionStorage.setItem(THERMOSTAT_CACHE_KEY, JSON.stringify(boilerSnapshot)); renderBoiler(boilerSnapshot);
     boilerEditor?.updateSnapshot(boilerSnapshot);
+    void fastFollowHeatingState(previousHeatingActive);
   } catch (error) {
     if (!isCurrentThermostatRequest(thermostatMutation, requestId, 'setpoint')) return;
     boilerSnapshot = error.snapshot || boilerSnapshot;
@@ -445,6 +500,7 @@ async function setBoilerMode(mode) {
   if (thermostatMutation.phase !== 'idle') return;
   if (mode === 'smart') return showModeMessage('SMART non disponibile: sensori temperatura non configurati');
   const previousSnapshot = boilerSnapshot;
+  const previousHeatingActive = boilerSnapshot?.heatingActive;
   thermostatMutation = beginModeRequest(thermostatMutation);
   const requestId = thermostatMutation.requestId;
   renderBoiler(boilerSnapshot);
@@ -457,12 +513,13 @@ async function setBoilerMode(mode) {
       throw error;
     }
     if (!isCurrentThermostatRequest(thermostatMutation, requestId, 'mode')) return;
-    boilerSnapshot = result.snapshot;
+    boilerSnapshot = mergeConfirmedThermostatSnapshot(boilerSnapshot, result.snapshot);
     thermostatMutation = finishThermostatRequest(thermostatMutation, requestId, 'mode');
     floorplanStore.applyThermostatSnapshot(boilerSnapshot);
     sessionStorage.setItem(THERMOSTAT_CACHE_KEY, JSON.stringify(boilerSnapshot));
     renderBoiler(boilerSnapshot);
     boilerEditor?.updateSnapshot(boilerSnapshot);
+    void fastFollowHeatingState(previousHeatingActive);
   } catch (error) {
     if (!isCurrentThermostatRequest(thermostatMutation, requestId, 'mode')) return;
     boilerSnapshot = error.snapshot || boilerSnapshot || previousSnapshot;
@@ -599,6 +656,8 @@ function renderDashboard() {
   document.querySelector('[data-boiler-setpoint-control]')?.addEventListener('input', previewSetpoint);
   document.querySelector('[data-boiler-setpoint-control]')?.addEventListener('change', () => void saveSetpoint());
   void loadHomeSnapshot();
+  setTimeout(loadThermostatSnapshot, THERMOSTAT_REFRESH_MS);
+  connectThermostatEvents();
 }
 
 window.homeControlFloorplan = {
