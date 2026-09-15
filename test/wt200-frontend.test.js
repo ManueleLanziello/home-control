@@ -71,7 +71,7 @@ test('setpoint ottimistico applica lo snapshot confermato e scarta status preced
   const dashboard = await readFile(dashboardScriptPath, 'utf8');
   assert.match(dashboard, /setpointDraft = temperature;\s*setpointSaving = true/);
   assert.match(dashboard, /boilerSnapshot = result\.snapshot/);
-  assert.match(dashboard, /shouldAcceptThermostatStatus\(\{ saving: setpointSaving, requestedRevision: requestedThermostatRevision, currentRevision: thermostatRevision \}\)/);
+  assert.match(dashboard, /shouldAcceptThermostatStatus\(\{ saving: setpointSaving \|\| modeSaving, requestedRevision: requestedThermostatRevision, currentRevision: thermostatRevision \}\)/);
   assert.match(dashboard, /acceptThermostat \? home : \{ \.\.\.home, thermostat: boilerSnapshot \}/);
   assert.match(dashboard, /boilerSnapshot = error\.snapshot \|\| previousSnapshot/);
 });
@@ -89,8 +89,8 @@ test('DP2 55 dopo write 220 non ripristina la UI e il successivo DP2 220 conferm
       async setSetpointTemperature(value) { assert.equal(value, 22); },
       async read() { return this.firstRead ? confirmedSnapshot : (this.firstRead = true, oldSnapshot); },
     },
-    setpointReadbackAttempts: 4,
-    setpointReadbackDelayMs: 0,
+    postWriteReadbackAttempts: 4,
+    postWriteReadbackDelayMs: 0,
     wait: async () => {
       if (!releaseFirstRetry) {
         await new Promise(resolve => { releaseFirstRetry = resolve; signalFirstRetry(); });
@@ -111,4 +111,42 @@ test('DP2 55 dopo write 220 non ripristina la UI e il successivo DP2 220 conferm
   assert.equal(uiSnapshot.rawDps['2'], 220);
   assert.equal(displayedThermostatSetpoint(uiSnapshot, draft), 22);
   assert.equal(uiSnapshot.heatingActive, true);
+});
+
+test('transizione UI MANUALE verso AUTO mantiene i dati e applica il DP2 programmato dopo DP4 auto', async () => {
+  const manual = { updatedAt: '2026-09-15T10:00:00.000Z', heatingActive: false,
+    thermostat: { currentTemperature: 20, setpointTemperature: 20, mode: 'manual' } };
+  const automatic = { updatedAt: '2026-09-15T10:00:01.000Z', heatingActive: true,
+    thermostat: { currentTemperature: 20.5, setpointTemperature: 22, mode: 'auto' } };
+  const snapshots = [manual, automatic, automatic, automatic];
+  const runtime = new HomeWt200Runtime({
+    lanAdapter: { async setOperatingMode(value) { assert.equal(value, 'auto'); }, async read() { return snapshots.shift(); } },
+    postWriteReadbackAttempts: 4, postWriteReadbackDelayMs: 0, wait: async () => {},
+  });
+  assert.equal(shouldAcceptThermostatStatus({ saving: true, requestedRevision: 0, currentRevision: 1 }), false);
+  assert.equal(displayedThermostatSetpoint(manual, null), 20);
+  const confirmed = await runtime.setMode('auto');
+  assert.equal(confirmed.thermostat.mode, 'auto');
+  assert.equal(displayedThermostatSetpoint(confirmed, null), 22);
+  assert.equal(confirmed.thermostat.currentTemperature, 20.5);
+  assert.equal(confirmed.heatingActive, true);
+});
+
+test('transizione UI AUTO verso MANUALE mantiene i dati e applica il DP2 manuale dopo DP4 home', async () => {
+  const automatic = { updatedAt: '2026-09-15T10:00:00.000Z', heatingActive: true,
+    thermostat: { currentTemperature: 20.5, setpointTemperature: 22, mode: 'auto' } };
+  const manual = { updatedAt: '2026-09-15T10:00:01.000Z', heatingActive: false,
+    thermostat: { currentTemperature: 20, setpointTemperature: 19, mode: 'manual' } };
+  const snapshots = [automatic, manual, manual, manual];
+  const runtime = new HomeWt200Runtime({
+    lanAdapter: { async setOperatingMode(value) { assert.equal(value, 'home'); }, async read() { return snapshots.shift(); } },
+    postWriteReadbackAttempts: 4, postWriteReadbackDelayMs: 0, wait: async () => {},
+  });
+  assert.equal(shouldAcceptThermostatStatus({ saving: true, requestedRevision: 1, currentRevision: 2 }), false);
+  assert.equal(displayedThermostatSetpoint(automatic, null), 22);
+  const confirmed = await runtime.setMode('manual');
+  assert.equal(confirmed.thermostat.mode, 'manual');
+  assert.equal(displayedThermostatSetpoint(confirmed, null), 19);
+  assert.equal(confirmed.thermostat.currentTemperature, 20);
+  assert.equal(confirmed.heatingActive, false);
 });

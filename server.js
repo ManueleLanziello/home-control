@@ -340,11 +340,16 @@ export function createHomeControlServer({
       try {
         activeThermostatRuntime ||= createHomeWt200Runtime({ deviceId: process.env.TUYA_WT200_ID, lanIp: process.env.WT200_LAN_IP, localKey: process.env.WT200_LOCAL_KEY });
         homeStatus.invalidate();
-        return sendJson(response, 200, { mode: await activeThermostatRuntime.setMode(payload.mode) });
+        const confirmed = await activeThermostatRuntime.setMode(payload.mode);
+        homeStatus.invalidate();
+        return sendJson(response, 200, { mode: payload.mode, snapshot: normalizeThermostat(confirmed) });
       } catch (error) {
+        homeStatus.invalidate();
         if (error?.code === 'MODE_INVALID') return sendJson(response, 400, { error: error.message });
         if (error?.code === 'LAN_UNAVAILABLE') return sendJson(response, 503, { error: error.message });
-        return sendJson(response, 503, { error: 'Modalita WT200 non disponibile' });
+        const notConfirmed = error?.code === 'MODE_NOT_CONFIRMED';
+        const snapshot = error?.snapshot ? normalizeThermostat(error.snapshot) : null;
+        return sendJson(response, notConfirmed ? 409 : 503, { error: notConfirmed ? error.message : 'Modalita WT200 non disponibile', snapshot });
       }
     }
     if (url.pathname === '/api/thermostat/setpoint') {

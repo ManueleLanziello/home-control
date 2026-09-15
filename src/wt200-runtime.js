@@ -46,16 +46,16 @@ export class HomeWt200Runtime {
     scheduleStore = null,
     deviceId = null,
     now = () => new Date().toISOString(),
-    setpointReadbackAttempts = 7,
-    setpointReadbackDelayMs = 500,
+    postWriteReadbackAttempts = 7,
+    postWriteReadbackDelayMs = 500,
     wait = delay => new Promise(resolve => setTimeout(resolve, delay)),
   }) {
     this.lanAdapter = lanAdapter;
     this.scheduleStore = scheduleStore;
     this.deviceId = deviceId;
     this.now = now;
-    this.setpointReadbackAttempts = setpointReadbackAttempts;
-    this.setpointReadbackDelayMs = setpointReadbackDelayMs;
+    this.postWriteReadbackAttempts = postWriteReadbackAttempts;
+    this.postWriteReadbackDelayMs = postWriteReadbackDelayMs;
     this.wait = wait;
     this.persistedSchedule = null;
     this.modeOverride = null;
@@ -100,9 +100,9 @@ export class HomeWt200Runtime {
     this.lanAdapter.device.on('dp-refresh', persistAfterEvent);
   }
 
-  async readLanSnapshot() {
+  async readLanSnapshot(options) {
     if (!this.lanAdapter) return null;
-    const snapshot = await this.lanAdapter.read();
+    const snapshot = await this.lanAdapter.read(options);
     this.bindLanSchedulePersistence();
     if (snapshot.schedule) await this.persistLanSchedule();
     return snapshot;
@@ -201,23 +201,24 @@ export class HomeWt200Runtime {
       if (error instanceof TypeError) error.code = 'MODE_INVALID';
       throw error;
     }
-    this.modeOverride = mode;
     this.bindLanSchedulePersistence();
-    return mode;
+    return this.confirmPostWriteState({
+      matches: state => state.mode === mode,
+      code: 'MODE_NOT_CONFIRMED',
+      message: 'Il WT200 non ha confermato la modalita richiesta.',
+    });
   }
 
-  async setSetpointTemperature(temperature) {
-    if (!this.lanAdapter) { const error = new Error('Connessione LAN WT200 non disponibile.'); error.code = 'LAN_UNAVAILABLE'; throw error; }
-    try { await this.lanAdapter.setSetpointTemperature(temperature); } catch (error) { if (error instanceof TypeError) error.code = 'SETPOINT_INVALID'; throw error; }
+  async confirmPostWriteState({ matches, code, message }) {
     let lastSnapshot = null;
     let lastCompleteSnapshot = null;
     let previousState = null;
     let stableReadCount = 0;
     let lastError = null;
-    for (let attempt = 0; attempt < this.setpointReadbackAttempts; attempt += 1) {
-      if (attempt > 0) await this.wait(this.setpointReadbackDelayMs);
+    for (let attempt = 0; attempt < this.postWriteReadbackAttempts; attempt += 1) {
+      if (attempt > 0) await this.wait(this.postWriteReadbackDelayMs);
       try {
-        const lanSnapshot = await this.readLanSnapshot();
+        const lanSnapshot = await this.readLanSnapshot({ requiredDps: [2, 3, 4, 5] });
         const state = {
           setpointTemperature: lanSnapshot?.thermostat?.setpointTemperature,
           currentTemperature: lanSnapshot?.thermostat?.currentTemperature,
@@ -225,7 +226,7 @@ export class HomeWt200Runtime {
           heatingActive: lanSnapshot?.heatingActive,
         };
         lastSnapshot = mergeWt200Snapshots({ lanSnapshot, persistedSchedule: await this.restoreSchedule(), deviceId: this.deviceId });
-        const complete = state.setpointTemperature === temperature
+        const complete = matches(state)
           && Number.isFinite(state.currentTemperature)
           && typeof state.mode === 'string'
           && typeof state.heatingActive === 'boolean';
@@ -244,10 +245,20 @@ export class HomeWt200Runtime {
     }
     if (lastCompleteSnapshot) return lastCompleteSnapshot;
     if (!lastSnapshot && lastError) throw lastError;
-    const error = new Error('Il WT200 non ha confermato il setpoint richiesto.');
-    error.code = 'SETPOINT_NOT_CONFIRMED';
+    const error = new Error(message);
+    error.code = code;
     error.snapshot = lastSnapshot;
     throw error;
+  }
+
+  async setSetpointTemperature(temperature) {
+    if (!this.lanAdapter) { const error = new Error('Connessione LAN WT200 non disponibile.'); error.code = 'LAN_UNAVAILABLE'; throw error; }
+    try { await this.lanAdapter.setSetpointTemperature(temperature); } catch (error) { if (error instanceof TypeError) error.code = 'SETPOINT_INVALID'; throw error; }
+    return this.confirmPostWriteState({
+      matches: state => state.setpointTemperature === temperature,
+      code: 'SETPOINT_NOT_CONFIRMED',
+      message: 'Il WT200 non ha confermato il setpoint richiesto.',
+    });
   }
 }
 

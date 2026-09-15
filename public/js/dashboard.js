@@ -233,7 +233,7 @@ function renderBoiler(snapshot = null) {
   const setpointControl = document.querySelector('[data-boiler-setpoint-control]');
   if (setpointControl) {
     setpointControl.hidden = thermostat.mode !== 'manual';
-    setpointControl.disabled = thermostat.mode !== 'manual' || setpointSaving;
+    setpointControl.disabled = thermostat.mode !== 'manual' || setpointSaving || modeSaving;
     if (Number.isFinite(displayedSetpoint)) setpointControl.value = displayedSetpoint;
   }
   if (current) current.textContent = temperatureText(thermostat.currentTemperature);
@@ -333,7 +333,7 @@ async function sendCappaCommand(path, payload) {
 
 async function saveSetpoint() {
   const control = document.querySelector('[data-boiler-setpoint-control]');
-  if (!control || setpointSaving || boilerSnapshot?.thermostat?.mode !== 'manual') return;
+  if (!control || setpointSaving || modeSaving || boilerSnapshot?.thermostat?.mode !== 'manual') return;
   const previous = boilerSnapshot.thermostat.setpointTemperature;
   const previousSnapshot = boilerSnapshot;
   const temperature = Number(control.value);
@@ -384,7 +384,7 @@ async function loadHomeSnapshot() {
     const response = await fetch(homeControlPath('/api/home/status'), { cache: 'no-store', signal: AbortSignal.timeout(30_000) });
     if (!response.ok) throw new Error('Stato casa non disponibile');
     const home = await response.json();
-    const acceptThermostat = shouldAcceptThermostatStatus({ saving: setpointSaving, requestedRevision: requestedThermostatRevision, currentRevision: thermostatRevision });
+    const acceptThermostat = shouldAcceptThermostatStatus({ saving: setpointSaving || modeSaving, requestedRevision: requestedThermostatRevision, currentRevision: thermostatRevision });
     floorplanStore.applyHomeSnapshot(acceptThermostat ? home : { ...home, thermostat: boilerSnapshot });
     if (acceptThermostat) boilerSnapshot = home.thermostat;
     cappaSnapshot = home.hood;
@@ -398,7 +398,7 @@ async function loadHomeSnapshot() {
     dataSource.textContent = Object.values(home.lights).some(light => light.source === 'simulation') ? 'Dati reali · luci simulate' : 'Dati reali';
     document.querySelector('.status-message').textContent = home.indoorSensorCount + ' sensori disponibili';
   } catch {
-    const acceptThermostat = shouldAcceptThermostatStatus({ saving: setpointSaving, requestedRevision: requestedThermostatRevision, currentRevision: thermostatRevision });
+    const acceptThermostat = shouldAcceptThermostatStatus({ saving: setpointSaving || modeSaving, requestedRevision: requestedThermostatRevision, currentRevision: thermostatRevision });
     if (acceptThermostat) floorplanStore.applyHomeSnapshot();
     if (acceptThermostat) boilerSnapshot = null;
     cappaSnapshot = cappaSnapshot ? { ...cappaSnapshot, online: false } : null;
@@ -425,16 +425,29 @@ function showModeMessage(message) {
 async function setBoilerMode(mode) {
   if (modeSaving) return;
   if (mode === 'smart') return showModeMessage('SMART non disponibile: sensori temperatura non configurati');
+  const previousSnapshot = boilerSnapshot;
+  thermostatRevision += 1;
   modeSaving = true;
   for (const option of document.querySelectorAll('[data-boiler-mode-option]')) option.classList.add('boiler-mode--disabled');
   try {
     const response = await fetch(homeControlPath('/api/thermostat/mode'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode }) });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || 'Cambio modalita non riuscito');
-    boilerSnapshot = { ...boilerSnapshot, thermostat: { ...boilerSnapshot?.thermostat, mode: result.mode } };
+    if (!response.ok) {
+      const error = new Error(result.error || 'Cambio modalita non riuscito');
+      error.snapshot = result.snapshot;
+      throw error;
+    }
+    thermostatRevision += 1;
+    boilerSnapshot = result.snapshot;
+    floorplanStore.applyThermostatSnapshot(boilerSnapshot);
     sessionStorage.setItem(THERMOSTAT_CACHE_KEY, JSON.stringify(boilerSnapshot));
     renderBoiler(boilerSnapshot);
+    boilerEditor?.updateSnapshot(boilerSnapshot);
   } catch (error) {
+    thermostatRevision += 1;
+    boilerSnapshot = error.snapshot || previousSnapshot;
+    floorplanStore.applyThermostatSnapshot(boilerSnapshot);
+    boilerEditor?.updateSnapshot(boilerSnapshot);
     showModeMessage(error.message);
   } finally {
     modeSaving = false;

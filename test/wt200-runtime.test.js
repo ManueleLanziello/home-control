@@ -82,7 +82,7 @@ test('setpoint usa read-back LAN reali e restituisce soltanto lo stato WT200 sta
       async setSetpointTemperature(value) { calls.push(['write', value]); },
       async read() { calls.push(['read']); return snapshots.shift(); },
     },
-    setpointReadbackDelayMs: 0,
+    postWriteReadbackDelayMs: 0,
     wait: async () => {},
   });
 
@@ -99,8 +99,8 @@ test('setpoint non confermato espone l ultimo snapshot LAN reale per il rollback
   const actual = { updatedAt: '2026-09-07T10:00:00.000Z', heatingActive: false, thermostat: { currentTemperature: 20, setpointTemperature: 19, mode: 'manual' } };
   const runtime = new HomeWt200Runtime({
     lanAdapter: { async setSetpointTemperature() {}, async read() { return actual; } },
-    setpointReadbackAttempts: 2,
-    setpointReadbackDelayMs: 0,
+    postWriteReadbackAttempts: 2,
+    postWriteReadbackDelayMs: 0,
     wait: async () => {},
   });
 
@@ -110,6 +110,38 @@ test('setpoint non confermato espone l ultimo snapshot LAN reale per il rollback
     assert.equal(error.snapshot.heatingActive, false);
     return true;
   });
+});
+
+test('MANUALE verso AUTO attende DP4 reale e restituisce DP2, DP3 e DP5 completi', async () => {
+  const calls = [];
+  const updatedAt = '2026-09-15T10:00:00.000Z';
+  const manual = { updatedAt, heatingActive: false, thermostat: { currentTemperature: 20, setpointTemperature: 20, mode: 'manual' } };
+  const automatic = { updatedAt, heatingActive: true, thermostat: { currentTemperature: 20.5, setpointTemperature: 22, mode: 'auto' } };
+  const snapshots = [manual, automatic, automatic, automatic];
+  const runtime = new HomeWt200Runtime({
+    lanAdapter: { async setOperatingMode(value) { calls.push(['write', value]); }, async read() { calls.push(['read']); return snapshots.shift(); } },
+    postWriteReadbackAttempts: 4, postWriteReadbackDelayMs: 0, wait: async () => {},
+  });
+  const confirmed = await runtime.setMode('auto');
+  assert.deepEqual(calls, [['write', 'auto'], ['read'], ['read'], ['read'], ['read']]);
+  assert.deepEqual(confirmed.thermostat, automatic.thermostat);
+  assert.equal(confirmed.heatingActive, true);
+});
+
+test('AUTO verso MANUALE attende DP4 reale e conserva DP2, DP3 e DP5 completi', async () => {
+  const calls = [];
+  const updatedAt = '2026-09-15T10:00:00.000Z';
+  const automatic = { updatedAt, heatingActive: true, thermostat: { currentTemperature: 20.5, setpointTemperature: 22, mode: 'auto' } };
+  const manual = { updatedAt, heatingActive: false, thermostat: { currentTemperature: 20, setpointTemperature: 19, mode: 'manual' } };
+  const snapshots = [automatic, manual, manual, manual];
+  const runtime = new HomeWt200Runtime({
+    lanAdapter: { async setOperatingMode(value) { calls.push(['write', value]); }, async read() { calls.push(['read']); return snapshots.shift(); } },
+    postWriteReadbackAttempts: 4, postWriteReadbackDelayMs: 0, wait: async () => {},
+  });
+  const confirmed = await runtime.setMode('manual');
+  assert.deepEqual(calls, [['write', 'home'], ['read'], ['read'], ['read'], ['read']]);
+  assert.deepEqual(confirmed.thermostat, manual.thermostat);
+  assert.equal(confirmed.heatingActive, false);
 });
 
 test('runtime persiste DP105 e lo conserva dopo status LAN senza DP105', async () => {
