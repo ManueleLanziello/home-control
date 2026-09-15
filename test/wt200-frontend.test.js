@@ -65,3 +65,12 @@ test('dashboard CALDAIA usa il nuovo set icone e QD1 resta sincronizzata allo st
   assert.match(floorplan, /event\.stopPropagation\(\)/);
   assert.match(style, /height: clamp\(252px, 30\.8vw, 294px\)/);
 });
+
+test('setpoint ottimistico applica lo snapshot confermato e scarta status precedenti', async () => {
+  const dashboard = await readFile(dashboardScriptPath, 'utf8');
+  assert.match(dashboard, /setpointDraft = temperature;\s*setpointSaving = true/);
+  assert.match(dashboard, /boilerSnapshot = result\.snapshot/);
+  assert.match(dashboard, /requestedThermostatRevision === thermostatRevision/);
+  assert.match(dashboard, /acceptThermostat \? home : \{ \.\.\.home, thermostat: boilerSnapshot \}/);
+  assert.match(dashboard, /boilerSnapshot = error\.snapshot \|\| previousSnapshot/);
+});

@@ -52,6 +52,23 @@ test('cache cannot extend an already old sensor past freshness limit',async()=>{
  assert.equal((await runtime.readSnapshot()).sensors.S1.value,20);
  now+=6000;assert.equal((await runtime.readSnapshot()).sensors.S1.value,null);
 });
+test('invalidate impedisce a una lettura precedente di ripopolare la cache',async()=>{
+ let thermostatVersion=1;let releaseOldCamera;let signalOldCamera;
+ const oldCamera=new Promise(resolve=>{releaseOldCamera=resolve;});
+ const oldCameraStarted=new Promise(resolve=>{signalOldCamera=resolve;});
+ const options=fixture({
+  readThermostat:async()=>({...wt(),heatingActive:thermostatVersion===2}),
+  readCameras:async()=>{if(thermostatVersion===1){signalOldCamera();await oldCamera;}return {};},
+ });
+ const runtime=new HomeStatusRuntime(options);
+ const oldRead=runtime.readSnapshot();
+ await oldCameraStarted;
+ thermostatVersion=2;runtime.invalidate();
+ const current=await runtime.readSnapshot();
+ assert.equal(current.thermostat.heatingActive,true);
+ releaseOldCamera();await oldRead;
+ assert.equal((await runtime.readSnapshot()).thermostat.heatingActive,true);
+});
 test('hanging adapter isolated and never duplicated after timeout',async()=>{
  let reads=0;
  const runtime=new HomeStatusRuntime(fixture({cacheMs:0,timeoutMs:5,createSensorRuntime:d=>({readSnapshot(){if(d.id==='S1'){reads++;return new Promise(()=>{});}return Promise.resolve({online:false});}})}));
@@ -76,6 +93,7 @@ test('UI store synchronizes sensors, boiler, all seven simulated lights, and fai
  const h=await new HomeStatusRuntime(fixture()).readSnapshot();const store=createFloorplanState();store.applyHomeSnapshot(h);
  for(let i=1;i<=7;i++){const id='L'+i;store.setLight(id,true);assert.equal(store.snapshot().lights[id],true);store.applyHomeSnapshot(h);assert.equal(store.snapshot().lights[id],true);store.setLight(id,false);assert.equal(store.snapshot().lights[id],false);}
  assert.equal(store.snapshot().sensors.S3,22);assert.equal(store.snapshot().boiler.on,true);assert.equal(store.snapshot().boiler.mode,'manual');
+ store.applyThermostatSnapshot({heatingActive:false,thermostat:{currentTemperature:21.5,mode:'auto'}});assert.equal(store.snapshot().sensors.S3,21.5);assert.equal(store.snapshot().boiler.on,false);assert.equal(store.snapshot().boiler.mode,'auto');
  store.setLight('L1',true);store.applyHomeSnapshot();assert.equal(store.snapshot().lights.L1,true);assert.equal(store.snapshot().sensors.S3,null);
  h.lights.L1={source:'hardware',available:true,state:true};store.applyHomeSnapshot(h);store.setLight('L1',false);assert.equal(store.snapshot().lights.L1,true);
 });

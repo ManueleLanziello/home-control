@@ -59,8 +59,9 @@ export class HomeStatusRuntime {
     this.pendingReads = new Map();
     this.cached = null;
     this.pending = null;
+    this.generation = 0;
   }
-  invalidate() { this.cached = null; }
+  invalidate() { this.cached = null; this.generation += 1; }
   async readDevice(key, read) {
     // A timed-out adapter stays coalesced until it settles; no accumulating cloud requests.
     if (!this.pendingReads.has(key)) {
@@ -74,12 +75,15 @@ export class HomeStatusRuntime {
     } finally { clearTimeout(timer); }
   }
   async readSnapshot() {
-    if (this.pending) return this.pending;
+    const generation = this.generation;
+    if (this.pending?.generation === generation) return this.pending.promise;
     // Re-read the small local configuration before returning a cached hardware snapshot.
-    this.pending = this.refresh().finally(() => { this.pending = null; });
-    return this.pending;
+    const entry = { generation, promise: null };
+    entry.promise = this.refresh(generation).finally(() => { if (this.pending === entry) this.pending = null; });
+    this.pending = entry;
+    return entry.promise;
   }
-  async refresh() {
+  async refresh(generation = this.generation) {
     const registry = await this.hardwareStore.read();
     const assignments = await this.roleStore.read(registry.devices.map(device => device.id));
     const signature = JSON.stringify([registry.devices, assignments]);
@@ -133,7 +137,7 @@ export class HomeStatusRuntime {
     };
     const timestamps = [...Object.values(sensors).filter(sensor => sensor.available).map(sensor => sensor.updatedAt), thermostat.online ? thermostat.updatedAt : null, hood.online ? hood.updatedAt : null].filter(Boolean);
     const expiresAt = Math.min(this.now() + this.cacheMs, ...timestamps.map(time => Date.parse(time) + MAX_AGE_MS));
-    this.cached = { signature, expiresAt, snapshot };
+    if (generation === this.generation) this.cached = { signature, expiresAt, snapshot };
     return structuredClone(snapshot);
   }
 }

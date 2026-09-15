@@ -11,7 +11,7 @@ import { verifyDewinSensor } from './src/dewin-verifier.js';
 import { HardwareRegistryStore, defaultHardwareRegistry } from './src/hardware-registry.js';
 import { createHomeWt200Runtime } from './src/wt200-runtime.js';
 import { HomeCiarraRuntime, createHomeCiarraRuntime } from './src/ciarra-runtime.js';
-import { HomeStatusRuntime, HOME_ROLES } from './src/home-status.js';
+import { HomeStatusRuntime, HOME_ROLES, normalizeThermostat } from './src/home-status.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_ROOT = path.join(ROOT, 'public');
@@ -355,10 +355,15 @@ export function createHomeControlServer({
       try {
         activeThermostatRuntime ||= createHomeWt200Runtime({ deviceId: process.env.TUYA_WT200_ID, lanIp: process.env.WT200_LAN_IP, localKey: process.env.WT200_LOCAL_KEY });
         homeStatus.invalidate();
-        return sendJson(response, 200, { temperature: await activeThermostatRuntime.setSetpointTemperature(payload.temperature) });
+        const confirmed = await activeThermostatRuntime.setSetpointTemperature(payload.temperature);
+        homeStatus.invalidate();
+        return sendJson(response, 200, { temperature: payload.temperature, snapshot: normalizeThermostat(confirmed) });
       } catch (error) {
+        homeStatus.invalidate();
         if (error?.code === 'SETPOINT_INVALID') return sendJson(response, 400, { error: error.message });
-        return sendJson(response, 503, { error: 'Setpoint WT200 non disponibile' });
+        const snapshot = error?.snapshot ? normalizeThermostat(error.snapshot) : null;
+        const notConfirmed = error?.code === 'SETPOINT_NOT_CONFIRMED';
+        return sendJson(response, notConfirmed ? 409 : 503, { error: notConfirmed ? error.message : 'Setpoint WT200 non disponibile', snapshot });
       }
     }
     if (url.pathname === '/api/hardware') {

@@ -68,6 +68,50 @@ test('letture LAN precedenti non tornano online se la LAN fallisce', async () =>
   assert.equal(recovered.schedule.raw, schedule.raw);
 });
 
+test('setpoint usa read-back LAN reali e restituisce soltanto lo stato WT200 stabilizzato', async () => {
+  const calls = [];
+  const updatedAt = '2026-09-07T10:00:00.000Z';
+  const snapshots = [
+    { updatedAt, heatingActive: false, thermostat: { currentTemperature: 20, setpointTemperature: 19, mode: 'manual' } },
+    { updatedAt, heatingActive: true, thermostat: { currentTemperature: 20, setpointTemperature: 21, mode: 'manual' } },
+    { updatedAt, heatingActive: true, thermostat: { currentTemperature: 20, setpointTemperature: 21, mode: 'manual' } },
+    { updatedAt, heatingActive: true, thermostat: { currentTemperature: 20, setpointTemperature: 21, mode: 'manual' } },
+  ];
+  const runtime = new HomeWt200Runtime({
+    lanAdapter: {
+      async setSetpointTemperature(value) { calls.push(['write', value]); return snapshots.shift(); },
+      async read() { calls.push(['read']); return snapshots.shift(); },
+    },
+    setpointReadbackDelayMs: 0,
+    wait: async () => {},
+  });
+
+  const confirmed = await runtime.setSetpointTemperature(21);
+  assert.deepEqual(calls, [['write', 21], ['read'], ['read'], ['read']]);
+  assert.equal(confirmed.thermostat.setpointTemperature, 21);
+  assert.equal(confirmed.thermostat.currentTemperature, 20);
+  assert.equal(confirmed.thermostat.mode, 'manual');
+  assert.equal(confirmed.heatingActive, true);
+  assert.equal(confirmed.cloudUpdatedAt, null);
+});
+
+test('setpoint non confermato espone l ultimo snapshot LAN reale per il rollback UI', async () => {
+  const actual = { updatedAt: '2026-09-07T10:00:00.000Z', heatingActive: false, thermostat: { currentTemperature: 20, setpointTemperature: 19, mode: 'manual' } };
+  const runtime = new HomeWt200Runtime({
+    lanAdapter: { async setSetpointTemperature() {}, async read() { return actual; } },
+    setpointReadbackAttempts: 2,
+    setpointReadbackDelayMs: 0,
+    wait: async () => {},
+  });
+
+  await assert.rejects(runtime.setSetpointTemperature(21), error => {
+    assert.equal(error.code, 'SETPOINT_NOT_CONFIRMED');
+    assert.equal(error.snapshot.thermostat.setpointTemperature, 19);
+    assert.equal(error.snapshot.heatingActive, false);
+    return true;
+  });
+});
+
 test('runtime persiste DP105 e lo conserva dopo status LAN senza DP105', async () => {
   const listeners = new Map();
   const saved = [];
@@ -195,6 +239,31 @@ test('PUT mode accetta manual e rifiuta valori arbitrari', async () => {
     const valid = await fetch(`http://127.0.0.1:${port}/api/thermostat/mode`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'manual' }) });
     assert.equal(valid.status, 200);
     assert.equal(mode, 'manual');
+  } finally {
+    server.close();
+    await once(server, 'close');
+  }
+});
+
+test('PUT setpoint restituisce lo snapshot LAN completo confermato', async () => {
+  const confirmed = { online: true, lanUpdatedAt: new Date().toISOString(), updatedAt: new Date().toISOString(), heatingActive: true,
+    thermostat: { currentTemperature: 20, setpointTemperature: 21, mode: 'manual' } };
+  const server = createHomeControlServer({ thermostatRuntime: {
+    async setSetpointTemperature(value) { assert.equal(value, 21); return confirmed; },
+  } });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  try {
+    const { port } = server.address();
+    const response = await fetch(`http://127.0.0.1:${port}/api/thermostat/setpoint`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ temperature: 21 }),
+    });
+    const payload = await response.json();
+    assert.equal(response.status, 200);
+    assert.equal(payload.snapshot.thermostat.setpointTemperature, 21);
+    assert.equal(payload.snapshot.thermostat.currentTemperature, 20);
+    assert.equal(payload.snapshot.thermostat.mode, 'manual');
+    assert.equal(payload.snapshot.heatingActive, true);
   } finally {
     server.close();
     await once(server, 'close');

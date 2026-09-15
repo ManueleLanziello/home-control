@@ -28,6 +28,11 @@ export function createFloorplanState() {
       updatedAt: hood.updatedAt ?? state.hood.updatedAt,
     };
   };
+  const applyThermostat = thermostat => {
+    const currentTemperature = thermostat?.thermostat?.currentTemperature;
+    state.sensors.S3 = Number.isFinite(currentTemperature) ? currentTemperature : null;
+    state.boiler = { on: thermostat?.heatingActive ?? null, mode: thermostat?.thermostat?.mode ?? null };
+  };
   return {
     snapshot: () => structuredClone(state),
     setLight(id, on) {
@@ -37,6 +42,10 @@ export function createFloorplanState() {
     },
     applyHoodSnapshot(hood) {
       applyHood(hood);
+      for (const listener of listeners) listener(this.snapshot());
+    },
+    applyThermostatSnapshot(thermostat) {
+      applyThermostat(thermostat);
       for (const listener of listeners) listener(this.snapshot());
     },
     applyHomeSnapshot(home = {}) {
@@ -49,7 +58,7 @@ export function createFloorplanState() {
         if (state.lightSources[id] !== 'simulation') state.lights[id] = light?.available === true && typeof light.state === 'boolean' ? light.state : null;
       }
       state.cameras = home.cameras || {};
-      state.boiler = { on: home.thermostat?.heatingActive ?? null, mode: home.thermostat?.thermostat?.mode ?? null };
+      applyThermostat(home.thermostat);
       applyHood(home.hood);
       for (const listener of listeners) listener(this.snapshot());
     },

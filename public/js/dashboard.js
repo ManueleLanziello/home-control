@@ -12,6 +12,7 @@ let boilerEditor = null;
 let modeSaving = false;
 let setpointSaving = false;
 let setpointDraft = null;
+let thermostatRevision = 0;
 let cappaSaving = false;
 const FLOORPLAN_VIEWBOX = { x: 1763.5, y: 1736.5, width: 1656, height: 1723 };
 const REFERENCE_VIEWBOX = { x: 925, y: 1730, width: 3343, height: 1731 };
@@ -334,20 +335,37 @@ async function saveSetpoint() {
   const control = document.querySelector('[data-boiler-setpoint-control]');
   if (!control || setpointSaving || boilerSnapshot?.thermostat?.mode !== 'manual') return;
   const previous = boilerSnapshot.thermostat.setpointTemperature;
+  const previousSnapshot = boilerSnapshot;
   const temperature = Number(control.value);
   if (temperature === previous) {
     setpointDraft = null;
     renderBoiler(boilerSnapshot);
     return;
   }
-  setpointSaving = true; control.disabled = true;
+  thermostatRevision += 1;
+  setpointDraft = temperature;
+  setpointSaving = true; control.disabled = true; renderBoiler(boilerSnapshot);
   try {
     const response = await fetch(homeControlPath('/api/thermostat/setpoint'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ temperature }) });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || 'Setpoint non aggiornato');
-    boilerSnapshot = { ...boilerSnapshot, thermostat: { ...boilerSnapshot.thermostat, setpointTemperature: result.temperature } };
+    if (!response.ok) {
+      const error = new Error(result.error || 'Setpoint non aggiornato');
+      error.snapshot = result.snapshot;
+      throw error;
+    }
+    thermostatRevision += 1;
+    boilerSnapshot = result.snapshot;
+    floorplanStore.applyThermostatSnapshot(boilerSnapshot);
     sessionStorage.setItem(THERMOSTAT_CACHE_KEY, JSON.stringify(boilerSnapshot)); renderBoiler(boilerSnapshot);
-  } catch (error) { control.value = previous; showModeMessage(error.message); } finally { setpointSaving = false; setpointDraft = null; renderBoiler(boilerSnapshot); }
+    boilerEditor?.updateSnapshot(boilerSnapshot);
+  } catch (error) {
+    thermostatRevision += 1;
+    boilerSnapshot = error.snapshot || previousSnapshot;
+    floorplanStore.applyThermostatSnapshot(boilerSnapshot);
+    control.value = boilerSnapshot?.thermostat?.setpointTemperature ?? previous;
+    boilerEditor?.updateSnapshot(boilerSnapshot);
+    showModeMessage(error.message);
+  } finally { setpointSaving = false; setpointDraft = null; renderBoiler(boilerSnapshot); }
 }
 
 function previewSetpoint() {
@@ -361,16 +379,18 @@ function previewSetpoint() {
 }
 
 async function loadHomeSnapshot() {
+  const requestedThermostatRevision = thermostatRevision;
   try {
     const response = await fetch(homeControlPath('/api/home/status'), { cache: 'no-store', signal: AbortSignal.timeout(30_000) });
     if (!response.ok) throw new Error('Stato casa non disponibile');
     const home = await response.json();
-    floorplanStore.applyHomeSnapshot(home);
-    boilerSnapshot = home.thermostat;
+    const acceptThermostat = !setpointSaving && requestedThermostatRevision === thermostatRevision;
+    floorplanStore.applyHomeSnapshot(acceptThermostat ? home : { ...home, thermostat: boilerSnapshot });
+    if (acceptThermostat) boilerSnapshot = home.thermostat;
     cappaSnapshot = home.hood;
     renderBoiler(boilerSnapshot);
     renderCappa(cappaSnapshot);
-    boilerEditor?.updateSnapshot(boilerSnapshot);
+    if (acceptThermostat) boilerEditor?.updateSnapshot(boilerSnapshot);
     const average = document.querySelector('.boiler-temperature--home');
     average.querySelector('strong').textContent = temperatureText(home.averageTemperature);
     average.querySelector('em').textContent = home.indoorSensorCount ? home.indoorSensorCount + ' sensori interni disponibili' : 'Sensori non disponibili';
@@ -378,12 +398,13 @@ async function loadHomeSnapshot() {
     dataSource.textContent = Object.values(home.lights).some(light => light.source === 'simulation') ? 'Dati reali · luci simulate' : 'Dati reali';
     document.querySelector('.status-message').textContent = home.indoorSensorCount + ' sensori disponibili';
   } catch {
-    floorplanStore.applyHomeSnapshot();
-    boilerSnapshot = null;
+    const acceptThermostat = !setpointSaving && requestedThermostatRevision === thermostatRevision;
+    if (acceptThermostat) floorplanStore.applyHomeSnapshot();
+    if (acceptThermostat) boilerSnapshot = null;
     cappaSnapshot = cappaSnapshot ? { ...cappaSnapshot, online: false } : null;
-    renderBoiler();
+    renderBoiler(boilerSnapshot);
     renderCappa(cappaSnapshot);
-    boilerEditor?.updateSnapshot(null);
+    if (acceptThermostat) boilerEditor?.updateSnapshot(null);
     const average = document.querySelector('.boiler-temperature--home');
     average.querySelector('strong').textContent = '— °C';
     average.querySelector('em').textContent = 'Sensori non disponibili';
