@@ -1,14 +1,14 @@
 /* Only the layout around the existing cards changes; boiler styles stay in style.css. */
-body.layered-dashboard { height: auto; overflow: auto; }
-.layered-dashboard .dashboard-shell { display: block; height: auto; min-height: calc(100svh - 20px); overflow: visible; }
-.layered-dashboard .floorplan-dashboard { overflow: visible; }
+body.dashboard-body.layered-dashboard { height: 100svh; min-height: 100svh; padding: 0; overflow: auto; }
+.layered-dashboard .dashboard-shell { display: block; width: 100%; height: 100svh; min-height: 100svh; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; overflow: visible; }
+.layered-dashboard .floorplan-dashboard { padding: clamp(2px, .5vw, 8px); overflow: visible; }
 .layered-dashboard .dashboard-map-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); height: auto; align-items: start; }
 .layered-dashboard .dashboard-side { height: auto; }
 .layered-floorplan { min-width: 0; }
 .layered-floorplan-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .layered-floorplan-heading h2 { margin: 0; font-size: 1rem; }
 .layered-floorplan-heading > span { color: #a7bdca; font-size: .78rem; }
-.layered-floorplan-stage { --floorplan-ratio: 4932 / 3091; --floorplan-width-ratio: 1.5956; position: relative; width: min(100%, calc(var(--floorplan-available-height, 65svh) * var(--floorplan-width-ratio))); aspect-ratio: var(--floorplan-ratio); margin: 12px auto; isolation: isolate; }
+.layered-floorplan-stage { --floorplan-ratio: 4932 / 3091; --floorplan-width-ratio: 1.5956; position: relative; width: min(100%, calc(var(--floorplan-available-height, 65svh) * var(--floorplan-width-ratio))); aspect-ratio: var(--floorplan-ratio); margin: 0 auto; isolation: isolate; }
 .floorplan-stack-layer, .floorplan-mapping-source { position: absolute; inset: 0; width: 100%; height: 100%; display: block; object-fit: contain; pointer-events: none; }
 .floorplan-stack-layer[hidden] { display: none; }
 .floorplan-mapping-source { visibility: hidden; }
@@ -70,6 +70,13 @@ button.floorplan-marker { pointer-events: auto; cursor: pointer; }
 .weather-popup-daily div { grid-template-columns: 100px 40px minmax(0, 1fr); justify-items: start; align-items: center; text-align: left; }
 .weather-popup-daily small { grid-column: 3; }
 .floorplan-reading { fill: #fff; font-family: system-ui, sans-serif; font-weight: 700; paint-order: stroke; stroke: #06131f; stroke-width: 8; stroke-linejoin: round; }
+.floorplan-integration-title, .floorplan-integration-options { box-sizing: border-box; width: calc(100% - 10px); height: calc(100% - 10px); margin: 5px; border: 0; outline: 0; background: transparent; box-shadow: none; }
+.floorplan-integration-title { display: flex; align-items: center; justify-content: center; gap: .18em; padding: 0 32px; font-size: 62px; font-weight: 800; letter-spacing: .035em; line-height: 1; white-space: nowrap; }
+.floorplan-integration-home { color: #fff; }
+.floorplan-integration-control { color: #17c8f4; text-shadow: 0 0 9px rgb(23 200 244 / 55%); }
+.floorplan-integration-options { display: grid; place-items: center; cursor: pointer; pointer-events: auto; }
+.floorplan-integration-options:focus-visible { outline: none; }
+.floorplan-integration-options img { display: block; width: 80%; height: 80%; object-fit: contain; }
 .floorplan-boiler-mini { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); width: 100%; height: 100%; background: #071d2ef0; border: 5px solid #5194ae; border-radius: 28px; overflow: hidden; }
 .floorplan-boiler-open { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: center; justify-items: center; gap: 0; border: 0; background: transparent; color: #def1fb; cursor: pointer; pointer-events: auto; padding: 0; }
 .floorplan-boiler-status, .floorplan-boiler-mode { width: 72%; height: 72%; object-fit: contain; }

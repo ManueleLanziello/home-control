@@ -17,6 +17,15 @@ async function request(path, options = {}) {
   return body;
 }
 function message(value = '') { statusElement.textContent = value; }
+function diagnosticItem(label, value) { const item = document.createElement('article'); item.className = 'diagnostic-item'; const heading = document.createElement('span'); heading.textContent = label; const content = document.createElement('strong'); content.textContent = value; item.append(heading, content); return item; }
+function renderDiagnostics(home) {
+  const target = document.querySelector('#home-diagnostics');
+  const lights = Object.values(home?.lights || {});
+  const source = lights.some(light => light.source === 'simulation') ? 'Dati reali · luci simulate' : 'Dati reali';
+  const count = Number.isFinite(home?.indoorSensorCount) ? home.indoorSensorCount : null;
+  target.replaceChildren(diagnosticItem('Stato', home ? 'Dati disponibili' : 'Dati non disponibili'), diagnosticItem('Sensori', count === null ? 'Non disponibili' : `${count} sensori disponibili`), diagnosticItem('Origine dati', home ? source : 'Non disponibile'));
+}
+async function loadDiagnostics() { try { renderDiagnostics(await request('/api/home/status')); } catch { renderDiagnostics(null); } }
 function button(label, action, id) { const item = document.createElement('button'); item.type = 'button'; item.textContent = label; item.dataset.action = action; item.dataset.id = id; return item; }
 function roleSelect(sensor) {
   const select = document.createElement('select'); select.dataset.action = 'role'; select.dataset.id = sensor.id;
@@ -67,6 +76,7 @@ list.addEventListener('click', async event => {
 });
 list.addEventListener('change', async event => { const target = event.target; if (target.dataset.action !== 'role') return; try { await request('/api/device-roles', { method: 'PUT', body: JSON.stringify({ deviceId: target.dataset.id, role: target.value }) }); message('Ruolo aggiornato.'); await load(); } catch (error) { message(error.message); await load(); } });
 void load();
+void loadDiagnostics();
 cameraForm.addEventListener('submit', async event => {
   event.preventDefault(); const data = Object.fromEntries(new FormData(cameraForm));
   try { await request(data.id ? `/api/hardware/cameras/${encodeURIComponent(data.id)}` : '/api/hardware/cameras', { method: data.id ? 'PUT' : 'POST', body: JSON.stringify(data) }); cameraForm.reset(); cameraCancel.hidden = true; message('Camera salvata. Verificala prima dell’uso.'); await loadCameras(); } catch (error) { message(error.message); }

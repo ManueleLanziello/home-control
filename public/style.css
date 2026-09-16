@@ -258,6 +258,9 @@ body { min-height: 100vh; margin: 0; background: radial-gradient(circle at 50% 2
 .sensor-form .primary-link { min-height: 34px; padding: 0 12px; cursor: pointer; }
 .settings-note { color: #82958f; font-size: .78rem; }
 .sensor-devices { display: grid; gap: 10px; margin-top: 16px; }
+.diagnostics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.diagnostic-item { display: grid; gap: 6px; padding: 14px; border: 1px solid rgba(97,213,164,.22); border-radius: 12px; background: rgba(18,29,34,.55); }
+.diagnostic-item span { color: #82958f; font-size: .82rem; }
 .sensor-device { display: grid; gap: 5px; padding: 14px; border: 1px solid rgba(97,213,164,.22); border-radius: 12px; background: rgba(18,29,34,.55); }
 .sensor-device > span, .sensor-device > small { color: #82958f; font-size: .78rem; }
 

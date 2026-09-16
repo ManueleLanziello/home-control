@@ -301,7 +301,8 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     const missing = required.filter(name => !assets.has(name));
     if (missing.length) throw new Error('Asset planimetria mancanti: ' + missing.join(', '));
     const imageLayers = new Map();
-    await Promise.all([...Object.values(config.backgrounds), ...config.rooms.flatMap(room => [room.off, room.on].filter(name => !room.optional || assets.has(name)))].map(name => new Promise((resolve, reject) => {
+    const staticLayerNames = [...Object.values(config.backgrounds), ...config.rooms.flatMap(room => [room.off, room.on].filter(name => !room.optional || assets.has(name))), config.mappings.integration];
+    await Promise.all(staticLayerNames.map(name => new Promise((resolve, reject) => {
       const image = document.createElement('img');
       image.className = 'floorplan-stack-layer';
       image.alt = '';
@@ -322,12 +323,14 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
       for (const [key, name] of Object.entries(config.backgrounds)) imageLayers.get(name).hidden = key !== period;
     };
     updateBackground();
+    imageLayers.get(config.mappings.integration).hidden = false;
     const lightMapping = await loadMapping(config.mappings.lights, stage); mappings.push(lightMapping);
     const sensorMapping = await loadMapping(config.mappings.sensors, stage); mappings.push(sensorMapping);
     const cameraMapping = await loadMapping(config.mappings.cameras, stage); mappings.push(cameraMapping);
     const boilerMapping = await loadMapping(config.mappings.boiler, stage); mappings.push(boilerMapping);
     const cappaMapping = await loadMapping(config.mappings.cappa, stage); mappings.push(cappaMapping);
     const weatherMapping = await loadMapping(config.mappings.weather, stage); mappings.push(weatherMapping);
+    const integrationMapping = await loadMapping(config.mappings.integration, stage); mappings.push(integrationMapping);
     const lightMarkers = new Map();
     for (const light of config.lights) {
       const element = markerElement('Luce ' + light.room, true);
@@ -411,6 +414,21 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     const weatherTemperatureReading = svgElement('text', { x: weatherTemperatureBox.x + weatherTemperatureBox.width / 2, y: weatherTemperatureBox.y + weatherTemperatureBox.height / 2, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': weatherTemperatureBox.height * .34, class: 'floorplan-reading' });
     weatherTemperatureReading.dataset.weatherTemperature = '';
     weatherMapping.overlay.append(weatherTemperatureReading);
+    const integrationTitle = document.createElement('div');
+    integrationTitle.className = 'floorplan-integration-title';
+    integrationTitle.setAttribute('aria-label', 'Home Control');
+    integrationTitle.innerHTML = '<span class="floorplan-integration-home">HOME</span><span class="floorplan-integration-control">CONTROL</span>';
+    placeHtml(integrationMapping, config.integration.title, integrationTitle);
+    const integrationOptions = document.createElement('a');
+    integrationOptions.className = 'floorplan-integration-options';
+    integrationOptions.href = homeControlPath('/settings');
+    integrationOptions.setAttribute('aria-label', 'Apri Impostazioni');
+    integrationOptions.title = 'Impostazioni';
+    const integrationOptionsIcon = document.createElement('img');
+    integrationOptionsIcon.src = assetUrl('option.svg');
+    integrationOptionsIcon.alt = '';
+    integrationOptions.append(integrationOptionsIcon);
+    placeHtml(integrationMapping, config.integration.options, integrationOptions);
     const renderWeather = snapshot => {
       const current = snapshot?.current;
       weatherMarker.replaceChildren(weatherImage(assets, current?.icon || 'weather.svg'));
