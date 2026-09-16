@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
-import { once } from 'node:events';
+import { EventEmitter, once } from 'node:events';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { CiarraTuyaLanAdapter } from '@smarthome/core';
 import { createHomeControlServer } from '../server.js';
 import { HomeCiarraRuntime } from '../src/ciarra-runtime.js';
 import { HomeStatusRuntime } from '../src/home-status.js';
@@ -15,6 +16,28 @@ test('runtime CIARRA conserva l ultimo stato quando una lettura LAN fallisce', a
   assert.deepEqual(await runtime.getState(), initialState());
   fail = true;
   assert.deepEqual(await runtime.getState(), { ...initialState(), online: false });
+});
+
+test('ECONNRESET TuyAPI degrada la cappa a offline e il runtime continua', async () => {
+  const device = new EventEmitter();
+  device.connect = async () => {
+    const error = new Error('read ECONNRESET');
+    error.code = 'ECONNRESET';
+    device.emit('error', error);
+    throw error;
+  };
+  device.disconnect = async () => {};
+  const adapter = new CiarraTuyaLanAdapter({
+    deviceId: 'hood-test', ip: '127.0.0.1', localKey: 'fixture-key', createDevice: () => device,
+  });
+  const runtime = new HomeCiarraRuntime({ adapter });
+
+  assert.deepEqual(await runtime.getState(), {
+    online: false, power: null, fanSpeed: null, light: null, operatingStatus: null, updatedAt: null,
+  });
+  assert.deepEqual(await runtime.getState(), {
+    online: false, power: null, fanSpeed: null, light: null, operatingStatus: null, updatedAt: null,
+  });
 });
 
 test('snapshot Home include lo stato CIARRA LAN normalizzato', async () => {
