@@ -22,6 +22,17 @@ button.floorplan-marker { pointer-events: auto; cursor: pointer; }
 .floorplan-marker[data-on="false"] .floorplan-fallback { filter: grayscale(1); opacity: .55; }
 .floorplan-marker[data-on="true"] { color: #ffe56a; }
 .floorplan-marker-sensor { color: #ffd2af; }
+.floorplan-sensor-trigger { pointer-events: auto; cursor: pointer; }
+.floorplan-sensor-trigger:focus-visible { outline: 2px solid #8adeff; }
+.sensor-dialog { width: min(390px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); box-sizing: border-box; padding: 16px; margin: auto; border: 1px solid #3c718c; border-radius: 20px; background: #081522; color: #e5f3fc; overflow: auto; }
+.sensor-dialog::backdrop { background: #0009; }
+.sensor-dialog header { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
+.sensor-dialog h2 { margin: 0; font-size: 1.1rem; }
+.sensor-dialog p { margin: 4px 0 0; color: #8eacbd; font-size: .8rem; }
+.sensor-dialog button { width: 34px; height: 34px; border: 1px solid #476b83; border-radius: 9px; background: #132d40; color: inherit; cursor: pointer; }
+.sensor-dialog section { display: grid; gap: 8px; }
+.sensor-dialog section div { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 9px; border-radius: 9px; background: #071826; font-size: .85rem; }
+.sensor-dialog section span { color: #8eacbd; }
 .floorplan-marker-camera { color: #8adeff; }
 .floorplan-marker-cappa[data-online="false"] { opacity: .58; }
 .floorplan-marker-weather { border: 0; background: transparent; }

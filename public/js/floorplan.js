@@ -2,6 +2,7 @@ import { switchSound } from './light-sound.js';
 import { homeControlPath } from '../base-path.js';
 import { floorplanConfig as config } from './floorplan-config.js';
 import { backgroundPeriod, createFloorplanState } from './floorplan-state.js';
+import { bindSensorPopupTrigger, sensorReadingLines, showSensorPopup, updateSensorPopup } from './sensor-popup.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const assetUrl = name => homeControlPath('/design/' + name);
@@ -343,13 +344,21 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     }
     const sensorReadings = new Map();
     for (const sensor of config.sensors) {
-      const element = markerElement('Temperatura ' + sensor.room);
+      const zigbee = ['S1', 'S2', 'S4'].includes(sensor.id);
+      const element = markerElement('Temperatura ' + sensor.room, zigbee);
       element.classList.add('floorplan-marker-sensor');
       element.append(createIcon(assets, config.icons.sensor, '🌡'));
       placeHtml(sensorMapping, sensor.marker, element);
       const box = sensorMapping.box(sensor.reading);
       const text = svgElement('text', { x: box.x + box.width / 2, y: box.y + box.height / 2, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': box.height * .34, class: 'floorplan-reading' });
       text.dataset.sensorReading = sensor.id;
+      if (zigbee) {
+        text.setAttribute('font-size', box.height * .30);
+        text.setAttribute('aria-label', 'Apri sensore ' + sensor.room);
+        const opener = () => showSensorPopup(sensor.id, store.snapshot().sensorDetails[sensor.id]);
+        bindSensorPopupTrigger(element, opener);
+        bindSensorPopupTrigger(text, opener);
+      }
       sensorMapping.overlay.append(text);
       sensorReadings.set(sensor.id, text);
     }
@@ -440,8 +449,19 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
       }
       for (const sensor of config.sensors) {
         const value = state.sensors[sensor.id];
-        sensorReadings.get(sensor.id).textContent = Number.isFinite(value) ? value.toFixed(1) + ' °C' : '— °C';
+        const reading = sensorReadings.get(sensor.id);
+        if (['S1', 'S2', 'S4'].includes(sensor.id)) {
+          const lines = sensorReadingLines(state.sensorDetails[sensor.id]);
+          reading.replaceChildren(...lines.map((line, index) => {
+            const span = svgElement('tspan', { x: reading.getAttribute('x'), dy: index === 0 ? '-.55em' : '1.15em' });
+            span.textContent = line;
+            return span;
+          }));
+        } else {
+          reading.textContent = Number.isFinite(value) ? value.toFixed(1) + ' °C' : '— °C';
+        }
       }
+      updateSensorPopup(state.sensorDetails);
       open.setAttribute('aria-label', 'Apri CALDAIA completa · ' + (state.boiler.on === null ? 'stato non disponibile' : state.boiler.on ? 'riscaldamento ON' : 'riscaldamento OFF') + ' · ' + (state.boiler.mode || 'modalità non disponibile'));
       renderBoilerMini(open, state.boiler);
       const cappaPower = typeof state.hood.power === 'boolean' ? state.hood.power : previousCappaPower ?? false;

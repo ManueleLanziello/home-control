@@ -1,5 +1,6 @@
 import { TuyaCloudClient } from '@smarthome/core';
 import { HomeDewinRuntime, isDewinTuyaDevice } from './dewin-runtime.js';
+import { ZIGBEE_SENSOR_CONFIG } from '../config/zigbee-sensors.js';
 
 // Explicit logical assignments; never infer rooms from aliases or physical IDs.
 export const HOME_ROLES = Object.freeze({
@@ -49,8 +50,8 @@ export function normalizeCiarraState(snapshot, now = Date.now()) {
 }
 
 export class HomeStatusRuntime {
-  constructor({ hardwareStore, roleStore, readThermostat, readHood = null, createSensorRuntime, readCameras = null, now = Date.now, cacheMs = 30_000, timeoutMs = 12_000 }) {
-    Object.assign(this, { hardwareStore, roleStore, readThermostat, readHood, readCameras, now, cacheMs, timeoutMs });
+  constructor({ hardwareStore, roleStore, readThermostat, readHood = null, readZigbeeSensors = null, createSensorRuntime, readCameras = null, now = Date.now, cacheMs = 30_000, timeoutMs = 12_000 }) {
+    Object.assign(this, { hardwareStore, roleStore, readThermostat, readHood, readZigbeeSensors, readCameras, now, cacheMs, timeoutMs });
     this.createSensorRuntime = createSensorRuntime || (device => new HomeDewinRuntime({ device, client: new TuyaCloudClient({
       clientId: process.env.TUYA_CLIENT_ID_HOME, clientSecret: process.env.TUYA_CLIENT_SECRET_HOME,
       deviceId: process.env.TUYA_DEWIN_ID?.trim() || device.identity?.tuyaDeviceId || device.tuyaDeviceId,
@@ -95,7 +96,21 @@ export class HomeStatusRuntime {
     const hoodRead = this.readHood
       ? this.readDevice('hood', this.readHood).then(value => value, () => null)
       : Promise.resolve(null);
+    let zigbeeSensors;
+    try { zigbeeSensors = this.readZigbeeSensors?.(); } catch { /* MQTT must not block the Home snapshot. */ }
     const entries = await Promise.all(Object.entries(HOME_ROLES).map(async ([id, role]) => {
+      if (this.readZigbeeSensors && ['S1', 'S2', 'S4'].includes(id)) {
+        const sensor = zigbeeSensors?.[id];
+        const age = this.now() - Date.parse(sensor?.updatedAt);
+        const online = sensor?.online === true && age >= 0 && age <= ZIGBEE_SENSOR_CONFIG.freshnessMs;
+        const temperature = finite(sensor?.temperature);
+        const available = online && temperature !== null && sensor?.available !== false;
+        return [id, { temperature, humidity: finite(sensor?.humidity), battery: finite(sensor?.battery),
+          linkQuality: finite(sensor?.linkQuality), name: sensor?.name ?? `SmartHome${id}`,
+          model: 'SONOFF SNZB-02P', protocol: 'Zigbee', source: 'zigbee', configured: true,
+          online, available, value: available ? temperature : null,
+          updatedAt: sensor?.updatedAt ?? null, reason: available ? null : sensor?.updatedAt ? 'offline' : 'no_data' }];
+      }
       const devices = registry.devices.filter(device => assignments[device.id] === role);
       const device = devices.length === 1 ? devices[0] : null;
       const entry = { configured: devices.length > 0, available: false, online: false, value: null, state: null, alias: device?.alias ?? null, updatedAt: null,
@@ -121,7 +136,10 @@ export class HomeStatusRuntime {
     const hood = normalizeCiarraState(await hoodRead, this.now());
     // Another device may have taken time: check freshness again at snapshot publication.
     for (const entry of Object.values(values)) {
-      if (entry.available && !fresh(entry.updatedAt, this.now())) Object.assign(entry, { available: false, online: false, value: null, reason: 'stale' });
+      if (entry.source === 'zigbee') {
+        const age = this.now() - Date.parse(entry.updatedAt);
+        if (entry.online && !(age >= 0 && age <= ZIGBEE_SENSOR_CONFIG.freshnessMs)) Object.assign(entry, { available: false, online: false, value: null, reason: 'stale' });
+      } else if (entry.available && !fresh(entry.updatedAt, this.now())) Object.assign(entry, { available: false, online: false, value: null, reason: 'stale' });
     }
     const sensors = Object.fromEntries(['S1','S2','S4','S5'].map(id => [id, values[id]]));
     const room = thermostat.thermostat.currentTemperature;
@@ -135,8 +153,9 @@ export class HomeStatusRuntime {
       averageTemperature: indoors.length > 1 ? indoors.reduce((a,b)=>a+b,0)/indoors.length : null,
       indoorSensorCount: indoors.length,
     };
-    const timestamps = [...Object.values(sensors).filter(sensor => sensor.available).map(sensor => sensor.updatedAt), thermostat.online ? thermostat.updatedAt : null, hood.online ? hood.updatedAt : null].filter(Boolean);
-    const expiresAt = Math.min(this.now() + this.cacheMs, ...timestamps.map(time => Date.parse(time) + MAX_AGE_MS));
+    const timestamps = [...Object.values(sensors).filter(sensor => sensor.available && sensor.source !== 'zigbee').map(sensor => sensor.updatedAt), thermostat.online ? thermostat.updatedAt : null, hood.online ? hood.updatedAt : null].filter(Boolean);
+    const zigbeeExpirations = Object.values(sensors).filter(sensor => sensor.source === 'zigbee' && sensor.online).map(sensor => Date.parse(sensor.updatedAt) + ZIGBEE_SENSOR_CONFIG.freshnessMs);
+    const expiresAt = Math.min(this.now() + this.cacheMs, ...timestamps.map(time => Date.parse(time) + MAX_AGE_MS), ...zigbeeExpirations);
     if (generation === this.generation) this.cached = { signature, expiresAt, snapshot };
     return structuredClone(snapshot);
   }

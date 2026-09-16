@@ -12,6 +12,8 @@ import { HardwareRegistryStore, defaultHardwareRegistry } from './src/hardware-r
 import { createHomeWt200Runtime } from './src/wt200-runtime.js';
 import { HomeCiarraRuntime, createHomeCiarraRuntime } from './src/ciarra-runtime.js';
 import { HomeStatusRuntime, HOME_ROLES, normalizeThermostat } from './src/home-status.js';
+import { connect as connectMqtt } from 'mqtt';
+import { HomeZigbeeSensorRuntime } from './src/zigbee-sensor-runtime.js';
 import { WEATHER_CONFIG } from './config/weather.js';
 import { WeatherService } from './src/weather-service.js';
 
@@ -40,6 +42,7 @@ const STATIC_FILES = new Map([
   ['/js/floorplan.js', ['js/floorplan.js', 'text/javascript; charset=utf-8']],
   ['/js/floorplan-config.js', ['js/floorplan-config.js', 'text/javascript; charset=utf-8']],
   ['/js/floorplan-state.js', ['js/floorplan-state.js', 'text/javascript; charset=utf-8']],
+  ['/js/sensor-popup.js', ['js/sensor-popup.js', 'text/javascript; charset=utf-8']],
   ['/js/dashboard.js', ['js/dashboard.js', 'text/javascript; charset=utf-8']],
   ['/js/boiler-schedule.js', ['js/boiler-schedule.js', 'text/javascript; charset=utf-8']],
   ['/js/thermostat.js', ['js/thermostat.js', 'text/javascript; charset=utf-8']],
@@ -138,6 +141,7 @@ export function createHomeControlServer({
   roleStore = new DeviceRoleStore({ filePath: ROLE_FILE }),
   thermostatRuntime = null,
   hoodRuntime = null,
+  zigbeeRuntime = null,
   createSensorRuntime,
   verifySensor = verifyDewinSensor,
   cameraRuntime = null,
@@ -169,12 +173,14 @@ export function createHomeControlServer({
   const cameras = cameraRuntime || new HomeCameraRuntime({ hardwareStore, roleStore, root: ROOT });
   const activeWeatherService = weatherService || new WeatherService({ config: WEATHER_CONFIG, logError: message => console.error(message) });
   homeStatus = new HomeStatusRuntime({ hardwareStore, roleStore, createSensorRuntime,
+    readZigbeeSensors: zigbeeRuntime ? () => zigbeeRuntime.readSnapshot() : null,
     readCameras: () => cameras.snapshot(),
     readHood: () => getHoodRuntime().getState(),
     // Retain the existing WT200 configuration path; never use its env ID for Dewin roles.
     readThermostat: () => getThermostatRuntime().readSnapshot(),
   });
 
+  const unsubscribeZigbee = zigbeeRuntime?.subscribeState(() => homeStatus.invalidate());
   const server = http.createServer(async (request, response) => {
     const url = new URL(request.url || '/', 'http://localhost');
     if (url.pathname === '/api/thermostat/events') {
@@ -450,13 +456,20 @@ export function createHomeControlServer({
     response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
     response.end('Pagina non trovata');
   });
-  server.on('close', () => { void cameras.close().catch(() => {}); });
+  server.on('close', () => {
+    unsubscribeZigbee?.();
+    zigbeeRuntime?.close();
+    void cameras.close().catch(() => {});
+  });
   return server;
 }
 
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
+  const zigbeeRuntime = new HomeZigbeeSensorRuntime({ connect: connectMqtt });
+  zigbeeRuntime.start();
   const server = createHomeControlServer({
+    zigbeeRuntime,
     hoodRuntime: createHomeCiarraRuntime({
       deviceId: process.env.TUYA_CAPPA_ID,
       lanIp: process.env.TUYA_CAPPA_IP,
@@ -466,4 +479,10 @@ if (isMain) {
   server.listen(PORT, HOST, () => {
     console.log(`Home Control disponibile su http://${HOST}:${PORT}`);
   });
+  const shutdown = () => {
+    zigbeeRuntime.close();
+    server.close(() => process.exit(0));
+  };
+  process.once('SIGINT', shutdown);
+  process.once('SIGTERM', shutdown);
 }

@@ -8,6 +8,7 @@ export function createFloorplanState() {
   const state = {
     lights: Object.fromEntries(floorplanConfig.lights.map(light => [light.id, false])),
     sensors: { S1: null, S2: null, S3: null, S4: null, S5: null },
+    sensorDetails: {},
     lightSources: Object.fromEntries(floorplanConfig.lights.map(light => [light.id, 'unavailable'])),
     cameras: {},
     boiler: { on: null, mode: null },
@@ -49,6 +50,7 @@ export function createFloorplanState() {
       for (const listener of listeners) listener(this.snapshot());
     },
     applyHomeSnapshot(home = {}) {
+      state.sensorDetails = Object.fromEntries(['S1', 'S2', 'S4'].map(id => [id, structuredClone(home.sensors?.[id] ?? {})]));
       for (const id of Object.keys(state.sensors)) state.sensors[id] = home.sensors?.[id]?.available === true && Number.isFinite(home.sensors[id].value) ? home.sensors[id].value : null;
       for (const id of Object.keys(state.lights)) {
         const light = home.lights?.[id];
