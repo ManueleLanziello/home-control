@@ -1,0 +1,183 @@
+{
+  "source_root": {
+    "width": "4939",
+    "height": "3100",
+    "{http://www.w3.org/XML/1998/namespace}space": "preserve",
+    "overflow": "hidden"
+  },
+  "frame": {
+    "x": "132.5",
+    "y": "909.5",
+    "width": "4932",
+    "height": "3091",
+    "stroke": "#042433",
+    "stroke-width": "6.875",
+    "stroke-miterlimit": "8",
+    "fill": "none"
+  },
+  "source_group_transform": "translate(-129 -906)",
+  "frame_in_source_viewport": [
+    3.5,
+    3.5
+  ],
+  "base_clip": {
+    "x": "133",
+    "y": "909",
+    "width": "4932",
+    "height": "3091"
+  },
+  "base_clip_in_source_viewport": [
+    4.0,
+    3.0
+  ],
+  "normalization_translation": [
+    -4.0,
+    -3.0
+  ],
+  "technical_frame_half_pixel_correction": [
+    -0.5,
+    0.5
+  ],
+  "scale": [
+    1,
+    1
+  ],
+  "target_viewport": [
+    0,
+    0,
+    4932,
+    3091
+  ],
+  "author_coordinate_translation": [
+    -133.0,
+    -909.0
+  ],
+  "classes": {
+    "cotto": 2,
+    "legno": 1,
+    "beige": 3,
+    "giardino": 2,
+    "pond": 1,
+    "excluded": 2
+  },
+  "shapes": [
+    {
+      "tag": "rect",
+      "material": "cotto",
+      "fill": "#FF0000",
+      "geometry": {
+        "x": "219.5",
+        "y": "1522.5",
+        "width": "962",
+        "height": "2478"
+      }
+    },
+    {
+      "tag": "rect",
+      "material": "excluded",
+      "fill": "#000000",
+      "geometry": {
+        "x": "1609.5",
+        "y": "966.5",
+        "width": "889",
+        "height": "556"
+      }
+    },
+    {
+      "tag": "rect",
+      "material": "beige",
+      "fill": "#E97132",
+      "geometry": {
+        "x": "1181.5",
+        "y": "1522.5",
+        "width": "2670",
+        "height": "2478"
+      }
+    },
+    {
+      "tag": "rect",
+      "material": "cotto",
+      "fill": "#FF0000",
+      "geometry": {
+        "x": "219.5",
+        "y": "966.5",
+        "width": "1273",
+        "height": "556"
+      }
+    },
+    {
+      "tag": "rect",
+      "material": "excluded",
+      "fill": "#000000",
+      "geometry": {
+        "x": "1365.5",
+        "y": "1707.5",
+        "width": "2289",
+        "height": "2295"
+      }
+    },
+    {
+      "tag": "rect",
+      "material": "beige",
+      "fill": "#E97132",
+      "geometry": {
+        "x": "1492.5",
+        "y": "966.5",
+        "width": "117",
+        "height": "556"
+      }
+    },
+    {
+      "tag": "rect",
+      "material": "beige",
+      "fill": "#E97132",
+      "geometry": {
+        "x": "2498.5",
+        "y": "966.5",
+        "width": "100",
+        "height": "556"
+      }
+    },
+    {
+      "tag": "rect",
+      "material": "giardino",
+      "fill": "#4EA72E",
+      "geometry": {
+        "x": "2603.5",
+        "y": "966.5",
+        "width": "2221",
+        "height": "556"
+      }
+    },
+    {
+      "tag": "rect",
+      "material": "giardino",
+      "fill": "#4EA72E",
+      "geometry": {
+        "x": "3851.5",
+        "y": "1522.5",
+        "width": "973",
+        "height": "2478"
+      }
+    },
+    {
+      "tag": "path",
+      "material": "pond",
+      "fill": "#00B0F0",
+      "geometry": {
+        "d": "M4224.5 1694C4224.5 1593.76 4308.89 1512.5 4413 1512.5 4517.11 1512.5 4601.5 1593.76 4601.5 1694 4601.5 1794.24 4517.11 1875.5 4413 1875.5 4308.89 1875.5 4224.5 1794.24 4224.5 1694Z"
+      }
+    },
+    {
+      "tag": "rect",
+      "material": "legno",
+      "fill": "#FFFF00",
+      "geometry": {
+        "x": "454.5",
+        "y": "2192.5",
+        "width": "429",
+        "height": "643"
+      }
+    }
+  ]
+}

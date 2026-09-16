@@ -1,0 +1,45 @@
+{
+  "day": {
+    "src": "/design/LAYER-METEO-PIOGGIA.svg",
+    "natural": [
+      4932,
+      3091
+    ],
+    "pointer": "none",
+    "period": "day",
+    "count": 1,
+    "canvas": 0,
+    "weatherRafCalls": 0,
+    "animation": "none",
+    "bounds": {
+      "x": 110.703125,
+      "y": 90,
+      "width": 1378.59375,
+      "height": 863.984375
+    },
+    "alignmentDeltaPx": 0
+  },
+  "night": {
+    "src": "/design/LAYER-METEO-PIOGGIA.svg",
+    "natural": [
+      4932,
+      3091
+    ],
+    "pointer": "none",
+    "period": "night",
+    "count": 1,
+    "canvas": 0,
+    "weatherRafCalls": 0,
+    "animation": "none",
+    "bounds": {
+      "x": 110.703125,
+      "y": 90,
+      "width": 1378.59375,
+      "height": 863.984375
+    },
+    "alignmentDeltaPx": 0
+  },
+  "offLayerCount": 0,
+  "offBoundingBoxDeltaPx": 0,
+  "materialMaskRuntimeRequests": 0
+}

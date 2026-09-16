@@ -1,0 +1,24 @@
+{
+  "dashboard": true,
+  "layout": {
+    "before": { "x": 110.703125, "y": 90, "width": 1378.59375, "height": 863.984375 },
+    "after": { "x": 110.703125, "y": 90, "width": 1378.59375, "height": 863.984375 },
+    "deltaPx": 0
+  },
+  "day": true,
+  "night": true,
+  "simulatorCount": 0,
+  "weatherCanvasCount": 0,
+  "weatherAnimations": false,
+  "weatherExperimentRequests": 0,
+  "weatherExperiment404": 0,
+  "M1": true,
+  "QM1": true,
+  "LM1": true,
+  "weatherPopup": true,
+  "apiWeather": true,
+  "wmoIcon": "rain.svg",
+  "unrelatedExisting404": ["/icons/home-control.svg"],
+  "networkPolicy": "same-origin fixture server only; all external requests blocked",
+  "hardwareContact": false
+}

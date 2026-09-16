@@ -1,0 +1,88 @@
+{
+  "version": 3,
+  "iteration": 4,
+  "compositing": "soft-light",
+  "variant": 2,
+  "seed": 20260916,
+  "viewport": [
+    4932,
+    3091
+  ],
+  "shading_resolution": [
+    2466,
+    1546
+  ],
+  "material_texture_bytes": 3415315,
+  "atmosphere_texture_bytes": 3747290,
+  "svg_bytes": 9550863,
+  "excluded_material_effect_pixels": 0,
+  "interior_atmosphere_effect_pixels": 0,
+  "material_pixels": {
+    "cotto": 2814702,
+    "legno": 274776,
+    "beige": 1479468,
+    "giardino": 3531701,
+    "pond": 106798,
+    "excluded": 5737824
+  },
+  "cotto_clusters": [
+    {
+      "cluster": 1,
+      "coarse_pixels": 10283,
+      "angle_radians": 2.462439153877872,
+      "reflection_offset": -0.00813486235696742,
+      "strength": 1.0
+    },
+    {
+      "cluster": 2,
+      "coarse_pixels": 2780,
+      "angle_radians": 2.779242695143666,
+      "reflection_offset": -0.22487206416837546,
+      "strength": 0.6
+    },
+    {
+      "cluster": 3,
+      "coarse_pixels": 2618,
+      "angle_radians": 1.0287213752496598,
+      "reflection_offset": 0.06170372930268059,
+      "strength": 0.6
+    },
+    {
+      "cluster": 4,
+      "coarse_pixels": 779,
+      "angle_radians": 2.458481711299048,
+      "reflection_offset": 0.038216790257360855,
+      "strength": 0.6
+    }
+  ],
+  "giardino_clusters": [
+    {
+      "cluster": 1,
+      "coarse_pixels": 4238,
+      "angle_radians": 0.9002770215703544,
+      "reflection_offset": -0.007736207629011449,
+      "strength": 0.5
+    },
+    {
+      "cluster": 2,
+      "coarse_pixels": 1796,
+      "angle_radians": 2.2038205573931533,
+      "reflection_offset": -0.1504655098354566,
+      "strength": 0.5
+    }
+  ],
+  "coverage": {
+    "cotto_wetness_percent": 100.0,
+    "cotto_film_only_percent": 24.00040825699778,
+    "cotto_medium_percent": 12.587073562807788,
+    "cotto_major_percent": 2.0935929167410885,
+    "giardino_pooling_percent": 3.73163994414262
+  },
+  "source_hashes": {
+    "LAYER-00-GIORNO.svg": "491f54befe0337c5566585f1d5165d0554ea1f49a94d516efb0ea6e624417d8a",
+    "LAYER-00-NOTTE.svg": "2a2d86564a5feb6b12955c7559a6d7f8addeef0acd9d95418de5f23f46a26f27",
+    "LAYER-15-MAPPATURA.svg": "fc36c75eddadccd32c1a8b855b3ee34a4793c55eff431e1a57cee32f40b46910",
+    "LAYER-14-OVERLAY.svg": "765103a4c8e72570caef542fce70121a41ac33176b49e27b5c9ec15320f23e9e",
+    "weather-reference/REF-METEO-PIOGGIA.png": "0ca55d9e6461d60f74cf118f28475bde90d34769e5c41c2510cbaa0cc7ec4206"
+  }
+}

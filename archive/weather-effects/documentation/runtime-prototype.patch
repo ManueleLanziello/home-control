@@ -1,0 +1,414 @@
+diff --git a/public/floorplan.css b/public/floorplan.css
+index 1a6d1c0..8ae1489 100644
+--- a/public/floorplan.css
++++ b/public/floorplan.css
+@@ -13,6 +13,26 @@ body.layered-dashboard { height: auto; overflow: auto; }
+ .floorplan-stack-layer[hidden] { display: none; }
+ .floorplan-mapping-source { visibility: hidden; }
+ .floorplan-overlay { overflow: visible; }
++.floorplan-weather-overlay { pointer-events: none; --weather-snow-opacity: .64; --weather-snow-density: .82; --weather-snow-far-speed: 12.4s; --weather-snow-mid-speed: 8.6s; --weather-snow-front-speed: 6.1s; --weather-fog-opacity: .72; --weather-fog-back-speed: 21.5s; --weather-fog-mid-speed: 16s; --weather-fog-front-speed: 12s; }
++.weather-rain-canvas { pointer-events: none; }
++.weather-snow-flake { fill: #e8f8ff; }
++.weather-overlay-snow-far { opacity: calc(var(--weather-snow-opacity) * var(--weather-snow-density) * .45); animation: weather-snow-far var(--weather-snow-far-speed) linear infinite; }
++.weather-overlay-snow-mid { opacity: calc(var(--weather-snow-opacity) * var(--weather-snow-density) * .7); animation: weather-snow-mid var(--weather-snow-mid-speed) linear infinite; }
++.weather-overlay-snow-front { opacity: calc(var(--weather-snow-opacity) * var(--weather-snow-density)); animation: weather-snow-front var(--weather-snow-front-speed) linear infinite; }
++.weather-overlay-fog-layer { opacity: var(--weather-fog-opacity); }
++.weather-overlay-fog-back { animation: weather-fog-back var(--weather-fog-back-speed) ease-in-out infinite alternate; }
++.weather-overlay-fog-mid { animation: weather-fog-mid var(--weather-fog-mid-speed) ease-in-out infinite alternate-reverse; }
++.weather-overlay-fog-front { animation: weather-fog-front var(--weather-fog-front-speed) ease-in-out infinite alternate; }
++@keyframes weather-snow-far { 0% { transform: translate(0, 0); } 25% { transform: translate(10px, 45.25px); } 50% { transform: translate(0, 90.5px); } 75% { transform: translate(-10px, 135.75px); } 100% { transform: translate(0, 181px); } }
++@keyframes weather-snow-mid { 0% { transform: translate(0, 0); } 25% { transform: translate(-17px, 56.75px); } 50% { transform: translate(0, 113.5px); } 75% { transform: translate(17px, 170.25px); } 100% { transform: translate(0, 227px); } }
++@keyframes weather-snow-front { 0% { transform: translate(0, 0); } 25% { transform: translate(24px, 70.75px); } 50% { transform: translate(0, 141.5px); } 75% { transform: translate(-24px, 212.25px); } 100% { transform: translate(0, 283px); } }
++@keyframes weather-fog-back { to { transform: translateX(340px); } }
++@keyframes weather-fog-mid { to { transform: translateX(-430px); } }
++@keyframes weather-fog-front { to { transform: translateX(520px); } }
++.weather-overlay-simulator { position: fixed; top: 3px; left: 50%; z-index: 20; display: flex; flex-wrap: nowrap; justify-content: center; gap: 2px; width: max-content; max-width: calc(100vw - 8px); padding: 3px; border: 1px solid #315b72; border-radius: 7px; background: #071826e8; box-shadow: 0 3px 12px #0008; transform: translateX(-50%); }
++.weather-overlay-simulator button { min-height: 22px; padding: 2px 4px; border: 1px solid #315b72; border-radius: 5px; color: #bfe8f8; background: #102d3f; font: 700 8px/1 system-ui, sans-serif; white-space: nowrap; cursor: pointer; }
++.weather-overlay-simulator button.is-active { color: #031018; border-color: #67e4ff; background: #67e4ff; }
++@media (prefers-reduced-motion: reduce) { .weather-overlay-snow-far, .weather-overlay-snow-mid, .weather-overlay-snow-front, .weather-overlay-fog-layer { animation: none; } }
+ .floorplan-marker { display: grid; place-items: center; width: 100%; height: 100%; padding: 0; margin: 0; border: 5px solid transparent; border-radius: 50%; background: rgba(10, 30, 50, 0.25); color: #b7ceda; font: inherit; }
+ button.floorplan-marker { pointer-events: auto; cursor: pointer; }
+ .floorplan-symbol { position: relative; display: grid; place-items: center; width: 96%; height: 96%; }
+diff --git a/public/js/floorplan-config.js b/public/js/floorplan-config.js
+index 606bbf3..87398a6 100644
+--- a/public/js/floorplan-config.js
++++ b/public/js/floorplan-config.js
+@@ -8,7 +8,7 @@ export const floorplanConfig = {
+     const number = String(index + 1).padStart(2, '0');
+     return { lightId: 'L' + (index + 1), on: 'LAYER-' + number + '-ON.svg', off: 'LAYER-' + number + '-OFF.svg' };
+   }).concat({ lightId: 'L7', on: 'LAYER-11-ON.svg', off: 'LAYER-11-OFF.svg', optional: true }),
+-  mappings: { lights: 'LAYER-07-LUCI.svg', sensors: 'LAYER-08-SENSORI.svg', cameras: 'LAYER-09-CAM.svg', boiler: 'LAYER-10-CALDAIA.svg', cappa: 'LAYER-12-CAPPA.svg', weather: 'LAYER-13-METEO.svg' },
++  mappings: { lights: 'LAYER-07-LUCI.svg', sensors: 'LAYER-08-SENSORI.svg', cameras: 'LAYER-09-CAM.svg', boiler: 'LAYER-10-CALDAIA.svg', cappa: 'LAYER-12-CAPPA.svg', weather: 'LAYER-13-METEO.svg', weatherOverlay: 'LAYER-14-OVERLAY.svg' },
+   icons: { lightOn: 'lampon.svg', lightOff: 'lampoff.svg', sensor: 'temp.svg', camera: 'cam.svg', boiler: 'boiler.svg', cappaOn: 'CAPPAON.svg', cappaOff: 'CAPPAOFF.svg' },
+   // Paths are in document order; camera C2 is the third path, C3 the second.
+   lights: ['CUCINA', 'CAMERA', 'SALOTTO', 'DISIMPEGNO', 'BAGNO', 'CAMERETTA', 'GAZEBO'].map((room, index) => ({ id: 'L' + (index + 1), room, marker: marker(index) })),
+@@ -26,4 +26,11 @@ export const floorplanConfig = {
+     card: exactShape('rect[x="356.5"][y="3470.5"][width="649"][height="388"][stroke="#000000"]'),
+     temperatureLabel: exactShape('rect[x="851.5"][y="3190.5"][width="325"][height="167"][stroke="#000000"]'),
+   },
++  weatherOverlay: {
++    allowed: exactShape('rect[x="132.5"][y="909.5"][width="4932"][height="3091"][stroke="#042433"]'),
++    excluded: [
++      exactShape('rect[x="1609.5"][y="968.5"][width="889"][height="575"][stroke="#042433"]'),
++      exactShape('rect[x="1365.5"][y="1707.5"][width="2289"][height="2293"][stroke="#042433"]'),
++    ],
++  },
+ };
+diff --git a/public/js/floorplan.js b/public/js/floorplan.js
+index 22f9b85..6e27f88 100644
+--- a/public/js/floorplan.js
++++ b/public/js/floorplan.js
+@@ -2,15 +2,41 @@ import { switchSound } from './light-sound.js';
+ import { homeControlPath } from '../base-path.js';
+ import { floorplanConfig as config } from './floorplan-config.js';
+ import { backgroundPeriod, createFloorplanState } from './floorplan-state.js';
++import { createStaticWeatherRenderer, staticWeatherCondition, STATIC_WEATHER_FILES } from './weather-static-renderer.js';
++import { createWeatherCanvasRenderer } from './weather-canvas-renderer.js';
+ 
+ const SVG_NS = 'http://www.w3.org/2000/svg';
+ const assetUrl = name => homeControlPath('/design/' + name);
+ let weatherSnapshot = null;
+ let renderWeatherSnapshot = () => {};
++let renderWeatherOverlay = () => {};
++let weatherOverlayOverride = 'real';
++const WEATHER_OVERLAY_OPTIONS = new Set(['real', 'rain', 'storm', 'snow', 'fog', 'none']);
+ 
+ export function updateFloorplanWeather(snapshot) {
+   weatherSnapshot = snapshot;
+   renderWeatherSnapshot(snapshot);
++  renderWeatherOverlay(staticWeatherCondition(snapshot?.current?.weatherCode));
++}
++
++export function effectiveWeatherOverlayCondition(realCondition, override = weatherOverlayOverride) {
++  return override === 'real' ? (WEATHER_OVERLAY_OPTIONS.has(realCondition) ? realCondition : 'none') : override;
++}
++
++export function setWeatherOverlayOverride(override) {
++  if (override !== 'real' && !Object.hasOwn(STATIC_WEATHER_FILES, override)) return;
++  weatherOverlayOverride = override;
++  renderWeatherOverlay(staticWeatherCondition(weatherSnapshot?.current?.weatherCode));
++}
++
++export function setWeatherOverlayVisibility(effects, condition) {
++  const activeEffect = Object.hasOwn(effects, condition) ? condition : 'none';
++  for (const [name, element] of Object.entries(effects)) {
++    const active = name === activeEffect;
++    element.style.display = active ? 'inline' : 'none';
++    element.setAttribute('data-active', String(active));
++  }
++  return activeEffect;
+ }
+ const svgElement = (tag, attributes = {}) => {
+   const element = document.createElementNS(SVG_NS, tag);
+@@ -209,6 +235,91 @@ function openCappa() {
+   document.dispatchEvent(new CustomEvent('home-control:open-cappa'));
+ }
+ 
++function overlayElement(tag, attributes = {}) { return svgElement(tag, attributes); }
++
++function createWeatherOverlay(mapping, stage) {
++  const allowed = mapping.box(config.weatherOverlay.allowed);
++  const excluded = config.weatherOverlay.excluded.map(shape => mapping.box(shape));
++  const defs = overlayElement('defs');
++  const mask = overlayElement('mask', { id: 'floorplan-weather-mask', maskUnits: 'userSpaceOnUse' });
++  mask.append(overlayElement('rect', { ...allowed, fill: '#fff' }));
++  for (const box of excluded) mask.append(overlayElement('rect', { ...box, fill: '#000' }));
++  const snowPattern = (id, width, height, flakes) => {
++    const pattern = overlayElement('pattern', { id, width, height, patternUnits: 'userSpaceOnUse' });
++    for (const [cx, cy, radius, opacity] of flakes) pattern.append(overlayElement('circle', { cx, cy, r: radius, opacity, class: 'weather-snow-flake' }));
++    return pattern;
++  };
++  const snowFarPattern = snowPattern('floorplan-weather-snow-far', 173, 181, [[17, 24, 2.2, .44], [61, 143, 1.35, .25], [108, 72, 1.8, .34], [157, 112, 2.45, .4]]);
++  const snowMidPattern = snowPattern('floorplan-weather-snow-mid', 239, 227, [[23, 51, 3.5, .58], [81, 197, 2.35, .39], [143, 106, 4, .64], [218, 31, 2.8, .45]]);
++  const snowFrontPattern = snowPattern('floorplan-weather-snow-front', 331, 283, [[39, 79, 5.6, .72], [158, 247, 4.1, .54], [276, 126, 6.2, .78]]);
++  const fogGradient = (id, opacity) => {
++    const gradient = overlayElement('radialGradient', { id, cx: '46%', cy: '50%', rx: '50%', ry: '50%' });
++    gradient.append(overlayElement('stop', { offset: '0%', 'stop-color': '#e5f4fb', 'stop-opacity': opacity }), overlayElement('stop', { offset: '58%', 'stop-color': '#d8edf7', 'stop-opacity': opacity * .58 }), overlayElement('stop', { offset: '100%', 'stop-color': '#d8edf7', 'stop-opacity': '0' }));
++    return gradient;
++  };
++  const fogBackGradient = fogGradient('floorplan-weather-fog-back', .2);
++  const fogMidGradient = fogGradient('floorplan-weather-fog-mid', .26);
++  const fogFrontGradient = fogGradient('floorplan-weather-fog-front', .3);
++  defs.append(mask, snowFarPattern, snowMidPattern, snowFrontPattern, fogBackGradient, fogMidGradient, fogFrontGradient);
++  mapping.overlay.append(defs);
++  mapping.overlay.classList.add('floorplan-weather-overlay');
++  mapping.overlay.setAttribute('aria-hidden', 'true');
++  const canvas = document.createElement('canvas');
++  canvas.className = 'floorplan-stack-layer weather-rain-canvas';
++  canvas.setAttribute('aria-hidden', 'true');
++  stage.append(canvas);
++  const svgViewBox = mapping.overlay.viewBox.baseVal;
++  const rainRenderer = createWeatherCanvasRenderer({ canvas, observedElement: stage, viewBox: { x: svgViewBox.x, y: svgViewBox.y, width: svgViewBox.width, height: svgViewBox.height }, allowed, excluded });
++  const overscan = 320;
++  const effectGroup = (name, nodes) => {
++    const group = overlayElement('g', { class: `weather-overlay-effect weather-overlay-effect--${name}`, mask: 'url(#floorplan-weather-mask)', 'data-weather-effect': name, 'data-active': 'false' });
++    group.style.display = 'none'; group.append(...nodes); mapping.overlay.append(group); return group;
++  };
++  const filled = (fill, className) => overlayElement('rect', { x: allowed.x - overscan, y: allowed.y - overscan, width: allowed.width + overscan * 2, height: allowed.height + overscan * 2, fill, class: className });
++  const fogLayer = (className, fill, ellipses) => {
++    const layer = overlayElement('g', { class: className });
++    for (const [cx, cy, rx, ry] of ellipses) layer.append(overlayElement('ellipse', { cx, cy, rx, ry, fill }));
++    return layer;
++  };
++  const effects = {
++    rain: effectGroup('rain', []),
++    storm: effectGroup('storm', []),
++    snow: effectGroup('snow', [filled('url(#floorplan-weather-snow-far)', 'weather-overlay-snow-far'), filled('url(#floorplan-weather-snow-mid)', 'weather-overlay-snow-mid'), filled('url(#floorplan-weather-snow-front)', 'weather-overlay-snow-front')]),
++    fog: effectGroup('fog', [
++      fogLayer('weather-overlay-fog-layer weather-overlay-fog-back', 'url(#floorplan-weather-fog-back)', [[allowed.x + allowed.width * .12, allowed.y + allowed.height * .27, allowed.width * .34, allowed.height * .15], [allowed.x + allowed.width * .69, allowed.y + allowed.height * .73, allowed.width * .4, allowed.height * .18]]),
++      fogLayer('weather-overlay-fog-layer weather-overlay-fog-mid', 'url(#floorplan-weather-fog-mid)', [[allowed.x + allowed.width * .4, allowed.y + allowed.height * .45, allowed.width * .38, allowed.height * .16], [allowed.x + allowed.width * .9, allowed.y + allowed.height * .18, allowed.width * .3, allowed.height * .13]]),
++      fogLayer('weather-overlay-fog-layer weather-overlay-fog-front', 'url(#floorplan-weather-fog-front)', [[allowed.x + allowed.width * .08, allowed.y + allowed.height * .78, allowed.width * .3, allowed.height * .12], [allowed.x + allowed.width * .7, allowed.y + allowed.height * .52, allowed.width * .43, allowed.height * .2]]),
++    ]),
++  };
++  return {
++    allowed,
++    excluded,
++    render(realCondition) {
++      const condition = effectiveWeatherOverlayCondition(realCondition);
++      setWeatherOverlayVisibility(effects, condition);
++      rainRenderer.setMode(condition);
++      mapping.overlay.dataset.condition = condition;
++    },
++    destroy() { rainRenderer.destroy(); canvas.remove(); },
++  };
++}
++
++function createWeatherOverlaySimulator() {
++  const simulator = document.createElement('aside');
++  simulator.className = 'weather-overlay-simulator';
++  simulator.setAttribute('aria-label', 'Simulatore overlay meteo');
++  const options = [['real', 'REALE'], ['sereno', 'SERENO'], ['nuvoloso', 'NUVOLOSO'], ['pioggia', 'PIOGGIA'], ['temporale', 'TEMPORALE'], ['neve', 'NEVE'], ['none', 'OFF']];
++  const render = () => {
++    for (const button of simulator.querySelectorAll('button')) button.classList.toggle('is-active', button.dataset.weatherOverlay === weatherOverlayOverride);
++  };
++  for (const [value, label] of options) {
++    const button = document.createElement('button'); button.type = 'button'; button.dataset.weatherOverlay = value; button.textContent = label;
++    button.addEventListener('click', () => { setWeatherOverlayOverride(value); render(); }); simulator.append(button);
++  }
++  render(); document.body.append(simulator);
++  return { element: simulator, render };
++}
++
+ const weatherNumber = value => Number.isFinite(value) ? new Intl.NumberFormat('it-IT', { maximumFractionDigits: 1 }).format(value) : '—';
+ const weatherTemperature = value => Number.isFinite(value) ? `${weatherNumber(value)} °C` : '— °C';
+ const weatherPercent = value => Number.isFinite(value) ? `${Math.round(value)}%` : '—';
+@@ -296,7 +407,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
+     const response = await fetch(homeControlPath('/api/floorplan/assets'), { cache: 'no-store' });
+     if (!response.ok) throw new Error('Elenco asset non disponibile');
+     const assets = new Set((await response.json()).assets);
+-    const required = [...Object.values(config.backgrounds), ...config.rooms.filter(room => !room.optional).flatMap(room => [room.on, room.off]), ...Object.values(config.mappings), config.icons.cappaOn, config.icons.cappaOff];
++    const required = [...Object.values(config.backgrounds), ...config.rooms.filter(room => !room.optional).flatMap(room => [room.on, room.off]), ...Object.entries(config.mappings).filter(([key]) => key !== 'weatherOverlay').map(([, name]) => name), config.icons.cappaOn, config.icons.cappaOff];
+     const missing = required.filter(name => !assets.has(name));
+     if (missing.length) throw new Error('Asset planimetria mancanti: ' + missing.join(', '));
+     const imageLayers = new Map();
+@@ -321,6 +432,11 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
+       for (const [key, name] of Object.entries(config.backgrounds)) imageLayers.get(name).hidden = key !== period;
+     };
+     updateBackground();
++    // Frozen animated prototype: no Layer 14, Canvas, RAF or particles are started.
++    const weatherOverlay = createStaticWeatherRenderer({ stage, assets, assetUrl, before: imageLayers.get(config.rooms[0].off) });
++    renderWeatherOverlay = condition => weatherOverlay.render(weatherOverlayOverride === 'real' ? condition : weatherOverlayOverride);
++    renderWeatherOverlay(staticWeatherCondition(weatherSnapshot?.current?.weatherCode));
++    const weatherOverlaySimulator = createWeatherOverlaySimulator();
+     const lightMapping = await loadMapping(config.mappings.lights, stage); mappings.push(lightMapping);
+     const sensorMapping = await loadMapping(config.mappings.sensors, stage); mappings.push(sensorMapping);
+     const cameraMapping = await loadMapping(config.mappings.cameras, stage); mappings.push(cameraMapping);
+@@ -471,7 +587,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
+     window.addEventListener('pageshow', tick);
+     status.hidden = true;
+     stage.dataset.ready = 'true';
+-    return { store, destroy() { clearTimeout(timer); unsubscribe(); document.removeEventListener('visibilitychange', tick); window.removeEventListener('pageshow', tick); if (renderWeatherSnapshot === renderWeather) renderWeatherSnapshot = () => {}; stage.replaceChildren(); } };
++    return { store, destroy() { clearTimeout(timer); unsubscribe(); document.removeEventListener('visibilitychange', tick); window.removeEventListener('pageshow', tick); if (renderWeatherSnapshot === renderWeather) renderWeatherSnapshot = () => {}; renderWeatherOverlay = () => {}; weatherOverlay.destroy(); weatherOverlaySimulator.element.remove(); stage.replaceChildren(); } };
+   } catch (error) {
+     status.textContent = error.message;
+   } finally {
+diff --git a/server.js b/server.js
+index d4bb6a3..7340771 100644
+--- a/server.js
++++ b/server.js
+@@ -38,6 +38,8 @@ const STATIC_FILES = new Map([
+   ['/js/light-sound.js', ['js/light-sound.js', 'text/javascript; charset=utf-8']],
+   ['/sounds/switch.ogg', ['sounds/switch.ogg', 'audio/ogg']],
+   ['/js/floorplan.js', ['js/floorplan.js', 'text/javascript; charset=utf-8']],
++  ['/js/weather-canvas-renderer.js', ['js/weather-canvas-renderer.js', 'text/javascript; charset=utf-8']],
++  ['/js/weather-static-renderer.js', ['js/weather-static-renderer.js', 'text/javascript; charset=utf-8']],
+   ['/js/floorplan-config.js', ['js/floorplan-config.js', 'text/javascript; charset=utf-8']],
+   ['/js/floorplan-state.js', ['js/floorplan-state.js', 'text/javascript; charset=utf-8']],
+   ['/js/dashboard.js', ['js/dashboard.js', 'text/javascript; charset=utf-8']],
+diff --git a/src/weather-service.js b/src/weather-service.js
+index c2a9e96..fd46121 100644
+--- a/src/weather-service.js
++++ b/src/weather-service.js
+@@ -22,6 +22,14 @@ export function weatherCategory(code) {
+ 
+ export const weatherIcon = code => `${weatherCategory(code)}.svg`;
+ export const weatherCondition = code => CONDITIONS.get(Number(code)) || 'Condizioni non disponibili';
++export function weatherOverlayCondition(code) {
++  const value = Number(code);
++  if ([95, 96, 99].includes(value)) return 'storm';
++  if ([71, 73, 75, 77, 85, 86].includes(value)) return 'snow';
++  if ([45, 48].includes(value)) return 'fog';
++  if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(value)) return 'rain';
++  return 'none';
++}
+ 
+ function requiredNumber(value, field) {
+   if (!Number.isFinite(value)) throw new Error(`Dato meteo non valido: ${field}`);
+@@ -34,6 +42,7 @@ const weatherValue = (code, extra = {}) => ({
+   weatherCode: requiredNumber(code, 'weather_code'),
+   condition: weatherCondition(code),
+   icon: weatherIcon(code),
++  overlayCondition: weatherOverlayCondition(code),
+   ...extra,
+ });
+ 
+diff --git a/test/home-status.test.js b/test/home-status.test.js
+index f3f3d2d..ec9cbc8 100644
+--- a/test/home-status.test.js
++++ b/test/home-status.test.js
+@@ -108,6 +108,7 @@ test('HTTP aggregate and thermostat share normalized read; static Dashboard/audi
+   const t=await (await fetch(base+'/api/thermostat')).json();
+   assert.equal(h.sensors.S3.value,22);assert.deepEqual(t,h.thermostat);assert.deepEqual(h.thermostat.schedule,schedule);assert.equal(reads,1);
+   assert.equal((await fetch(base+'/')).status,200);
++  const weatherCanvas=await fetch(base+'/js/weather-canvas-renderer.js');assert.equal(weatherCanvas.status,200);assert.equal(weatherCanvas.headers.get('content-type'),'text/javascript; charset=utf-8');
+   const audio=await fetch(base+'/sounds/switch.ogg');assert.equal(audio.status,200);assert.equal(audio.headers.get('content-type'),'audio/ogg');
+  }finally{server.close();await once(server,'close');}
+ });
+diff --git a/test/weather-service.test.js b/test/weather-service.test.js
+index bb0b74d..76acd99 100644
+--- a/test/weather-service.test.js
++++ b/test/weather-service.test.js
+@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
+ import { once } from 'node:events';
+ import { readFile } from 'node:fs/promises';
+ import { WEATHER_CONFIG } from '../config/weather.js';
+-import { parseOpenMeteo, weatherCategory, weatherIcon, WeatherService } from '../src/weather-service.js';
++import { parseOpenMeteo, weatherCategory, weatherIcon, weatherOverlayCondition, WeatherService } from '../src/weather-service.js';
+ import { createHomeControlServer } from '../server.js';
+ import { floorplanConfig } from '../public/js/floorplan-config.js';
+ 
+@@ -21,12 +21,21 @@ test('mappa centralizzata WMO verso tutte le icone METEO previste', () => {
+   }
+ });
+ 
++test('mappa WMO centralizzata verso gli overlay atmosferici', () => {
++  for (const code of [51, 67, 80, 82]) assert.equal(weatherOverlayCondition(code), 'rain');
++  for (const code of [95, 96, 99]) assert.equal(weatherOverlayCondition(code), 'storm');
++  for (const code of [71, 77, 85, 86]) assert.equal(weatherOverlayCondition(code), 'snow');
++  for (const code of [45, 48]) assert.equal(weatherOverlayCondition(code), 'fog');
++  for (const code of [0, 1, 2, 3]) assert.equal(weatherOverlayCondition(code), 'none');
++});
++
+ test('normalizza current, resto della giornata e previsione giornaliera Open-Meteo', () => {
+   const weather = parseOpenMeteo(payload(), config, '2026-09-15T09:00:00.000Z');
+   assert.equal(weather.current.temperature, 21.4);
+   assert.equal(weather.current.apparentTemperature, 20.9);
+   assert.equal(weather.current.humidity, 58);
+   assert.equal(weather.current.rainProbability, 10);
++  assert.equal(weather.current.overlayCondition, 'none');
+   assert.equal(weather.today.rainProbability, 60);
+   assert.equal(weather.today.maxTemperature, 23);
+   assert.equal(weather.hourly.length, 2);
+@@ -75,6 +84,8 @@ test('M1/QM1 usano le geometrie esplicite del layer, restano separati e non espo
+   assert.deepEqual(floorplanConfig.weather.marker, { selector: 'path[d^="M518.5 3281C518.5 3191.25"]' });
+   assert.deepEqual(floorplanConfig.weather.card, { selector: 'rect[x="356.5"][y="3470.5"][width="649"][height="388"][stroke="#000000"]' });
+   assert.deepEqual(floorplanConfig.weather.temperatureLabel, { selector: 'rect[x="851.5"][y="3190.5"][width="325"][height="167"][stroke="#000000"]' });
++  assert.deepEqual(floorplanConfig.weatherOverlay.allowed, { selector: 'rect[x="132.5"][y="909.5"][width="4932"][height="3091"][stroke="#042433"]' });
++  assert.equal(floorplanConfig.weatherOverlay.excluded.length, 2);
+   const floorplan = await readFile(new URL('../public/js/floorplan.js', import.meta.url), 'utf8');
+   const css = await readFile(new URL('../public/floorplan.css', import.meta.url), 'utf8');
+   assert.match(floorplan, /loadMapping\(config\.mappings\.weather/);
+@@ -104,6 +115,23 @@ test('M1/QM1 usano le geometrie esplicite del layer, restano separati e non espo
+   assert.deepEqual({ x: 851.5, y: 3190.5, width: 325, height: 167 }, { x: 851.5, y: 3190.5, width: 325, height: 167 });
+ });
+ 
++test('mask overlay usa SI meno entrambe le aree NO senza renderizzare label', async () => {
++  const floorplan = await readFile(new URL('../public/js/floorplan.js', import.meta.url), 'utf8');
++  const css = await readFile(new URL('../public/floorplan.css', import.meta.url), 'utf8');
++  assert.doesNotMatch(floorplan, /const weatherOverlayMapping = await loadMapping/);
++  assert.match(floorplan, /const mask = overlayElement\('mask'/);
++  assert.match(floorplan, /for \(const box of excluded\) mask\.append/);
++  assert.match(floorplan, /mask: 'url\(#floorplan-weather-mask\)'/);
++  assert.match(css, /\.floorplan-weather-overlay \{ pointer-events: none/);
++  assert.match(floorplan, /group\.style\.display = 'none'/);
++  const allowed = { x: 3.5, y: 3.5, width: 4932, height: 3091 };
++  const noOne = { x: 1480.5, y: 62.5, width: 889, height: 575 };
++  const noTwo = { x: 1236.5, y: 801.5, width: 2289, height: 2293 };
++  assert.ok(noOne.x >= allowed.x && noOne.y >= allowed.y);
++  assert.ok(noTwo.x >= allowed.x && noTwo.y >= allowed.y);
++  assert.ok(noOne.y + noOne.height < noTwo.y);
++});
++
+ test('probabilità giornaliera 0 resta un dato valido e il dato assente resta non disponibile', () => {
+   const source = payload();
+   source.daily.precipitation_probability_max[0] = 0;
+@@ -114,7 +142,7 @@ test('probabilità giornaliera 0 resta un dato valido e il dato assente resta no
+ 
+ test('M1 e QM1 usano lo stesso trigger popup senza listener duplicati', async () => {
+   globalThis.window = globalThis.window || { addEventListener() {} };
+-  const { bindWeatherPopupTrigger } = await import('../public/js/floorplan.js');
++  const { bindWeatherPopupTrigger, effectiveWeatherOverlayCondition, setWeatherOverlayVisibility } = await import('../public/js/floorplan.js');
+   const createTarget = () => ({ listeners: new Map(), addEventListener(type, listener) { this.listeners.set(type, [...(this.listeners.get(type) || []), listener]); } });
+   const m1 = createTarget(); const qm1 = createTarget(); let opened = 0;
+   const openSamePopup = () => { opened += 1; };
+@@ -127,4 +155,60 @@ test('M1 e QM1 usano lo stesso trigger popup senza listener duplicati', async ()
+   const floorplan = await readFile(new URL('../public/js/floorplan.js', import.meta.url), 'utf8');
+   assert.match(floorplan, /let dialog = document\.querySelector\('\[data-weather-dialog\]'\)/);
+   assert.match(floorplan, /if \(!dialog\) \{/);
++  const snapshot = { current: { overlayCondition: 'rain', temperature: 20 } };
++  assert.equal(effectiveWeatherOverlayCondition(snapshot.current.overlayCondition, 'real'), 'rain');
++  assert.equal(effectiveWeatherOverlayCondition(snapshot.current.overlayCondition, 'storm'), 'storm');
++  assert.equal(effectiveWeatherOverlayCondition(snapshot.current.overlayCondition, 'snow'), 'snow');
++  assert.equal(effectiveWeatherOverlayCondition(snapshot.current.overlayCondition, 'fog'), 'fog');
++  assert.equal(effectiveWeatherOverlayCondition(snapshot.current.overlayCondition, 'none'), 'none');
++  assert.deepEqual(snapshot, { current: { overlayCondition: 'rain', temperature: 20 } });
++  const effect = () => ({ style: {}, attributes: {}, setAttribute(name, value) { this.attributes[name] = value; } });
++  const effects = { rain: effect(), storm: effect(), snow: effect(), fog: effect() };
++  const visible = () => Object.entries(effects).filter(([, element]) => element.style.display !== 'none').map(([name]) => name);
++  for (const [condition, expected] of [['none', []], ['rain', ['rain']], ['storm', ['storm']], ['snow', ['snow']], ['fog', ['fog']], ['none', []], ['rain', ['rain']], ['snow', ['snow']], ['storm', ['storm']], ['none', []]]) {
++    assert.equal(setWeatherOverlayVisibility(effects, condition), condition);
++    assert.deepEqual(visible(), expected);
++    assert.equal(Object.values(effects).filter(element => element.attributes['data-active'] === 'true').length, expected.length);
++  }
++});
++
++test('simulatore è fixed fuori dalla planimetria e non può modificarne il layout', async () => {
++  const css = await readFile(new URL('../public/floorplan.css', import.meta.url), 'utf8');
++  const floorplan = await readFile(new URL('../public/js/floorplan.js', import.meta.url), 'utf8');
++  assert.match(css, /\.weather-overlay-simulator \{ position: fixed;/);
++  assert.match(css, /flex-wrap: nowrap/);
++  assert.match(css, /font: 700 8px\/1/);
++  assert.match(css, /white-space: nowrap/);
++  assert.match(floorplan, /document\.body\.append\(simulator\)/);
++  assert.doesNotMatch(floorplan, /stage\.append\(simulator\)/);
++});
++
++test('effetti atmosferici usano livelli di profondità leggeri e parametri centralizzati', async () => {
++  const css = await readFile(new URL('../public/floorplan.css', import.meta.url), 'utf8');
++  const floorplan = await readFile(new URL('../public/js/floorplan.js', import.meta.url), 'utf8');
++  for (const layer of ['snow-far', 'snow-mid', 'snow-front', 'fog-back', 'fog-mid', 'fog-front']) assert.match(css, new RegExp(`weather-overlay-${layer}`));
++  for (const parameter of ['--weather-snow-density', '--weather-snow-front-speed', '--weather-fog-opacity', '--weather-fog-front-speed']) assert.match(css, new RegExp(parameter));
++  assert.match(css, /\.weather-rain-canvas \{ pointer-events: none/);
++  assert.match(floorplan, /createWeatherCanvasRenderer/);
++  assert.match(floorplan, /canvas\.className = 'floorplan-stack-layer weather-rain-canvas'/);
++  assert.match(floorplan, /rainRenderer\.setMode\(condition\)/);
++  assert.match(floorplan, /floorplan-weather-snow-far/);
++  assert.match(floorplan, /floorplan-weather-snow-mid/);
++  assert.match(floorplan, /floorplan-weather-snow-front/);
++  assert.match(floorplan, /fogLayer\('weather-overlay-fog-layer weather-overlay-fog-back'/);
++});
++
++test('rain e storm non usano più pattern SVG mentre snow conserva il loop periodico approvato', async () => {
++  const css = await readFile(new URL('../public/floorplan.css', import.meta.url), 'utf8');
++  const floorplan = await readFile(new URL('../public/js/floorplan.js', import.meta.url), 'utf8');
++  assert.doesNotMatch(floorplan, /floorplan-weather-rain-back|floorplan-weather-storm-back/);
++  assert.doesNotMatch(css, /@keyframes weather-rain|@keyframes weather-storm/);
++  for (const [animation, tileHeight] of [['snow-far', 181], ['snow-mid', 227], ['snow-front', 283]]) {
++    assert.match(css, new RegExp(`@keyframes weather-${animation} \\{[^}]*0% \\{ transform: translate\\(0, 0\\); \\}`));
++    assert.match(css, new RegExp(`100% \\{ transform: translate\\(0, ${tileHeight}px\\); \\} \\}`));
++  }
++  assert.match(floorplan, /const overscan = 320/);
++  const snowDefinitions = [...floorplan.matchAll(/const snow(?:Far|Mid|Front)Pattern = snowPattern\([^\n]+\[\[(.*?)\]\]\);/g)];
++  assert.equal(snowDefinitions.length, 3);
++  assert.equal(snowDefinitions.reduce((count, definition) => count + definition[1].split('], [').length, 0), 11);
+ });
