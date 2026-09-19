@@ -9,6 +9,14 @@ const assetUrl = name => homeControlPath('/design/' + name);
 let weatherSnapshot = null;
 let renderWeatherSnapshot = () => {};
 
+// Keep the physical 0..254 Zigbee brightness domain at the UI boundary.
+export function ledbarLayerFor({ state, brightness } = {}) {
+  if (state !== 'ON' || !Number.isInteger(brightness) || brightness === 0) return 'off';
+  if (brightness <= 127) return 'low';
+  if (brightness <= 222) return 'medium';
+  return 'high';
+}
+
 export function updateFloorplanWeather(snapshot) {
   weatherSnapshot = snapshot;
   renderWeatherSnapshot(snapshot);
@@ -52,9 +60,10 @@ async function loadMapping(name, stage) {
   };
 }
 
-function placeHtml(mapping, marker, element) {
+function placeHtml(mapping, marker, element, interactive = false) {
   const box = mapping.box(marker);
   const foreign = svgElement('foreignObject', box);
+  if (interactive) foreign.classList.add('floorplan-interaction-host');
   foreign.append(element);
   mapping.overlay.append(foreign);
   return box;
@@ -287,7 +296,7 @@ export function bindWeatherPopupTrigger(element, opener = openWeather) {
   });
 }
 
-export async function initFloorplan({ store = createFloorplanState(), onCameraSelect = showCamera, onLightToggle = id => store.setLight(id, !store.snapshot().lights[id]) } = {}) {
+export async function initFloorplan({ store = createFloorplanState(), onCameraSelect = showCamera, onLightToggle = id => store.setLight(id, !store.snapshot().lights[id]), onLedbarPower = on => fetch(homeControlPath('/api/ledbar/power'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on }) }), onLedbarBrightness = brightness => fetch(homeControlPath('/api/ledbar/brightness'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ brightness }) }) } = {}) {
   const stage = document.querySelector('[data-layered-floorplan]');
   const status = document.querySelector('[data-floorplan-status]');
   if (!stage) return;
@@ -297,11 +306,11 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     const response = await fetch(homeControlPath('/api/floorplan/assets'), { cache: 'no-store' });
     if (!response.ok) throw new Error('Elenco asset non disponibile');
     const assets = new Set((await response.json()).assets);
-    const required = [...Object.values(config.backgrounds), ...config.rooms.filter(room => !room.optional).flatMap(room => [room.on, room.off]), ...Object.values(config.mappings), config.icons.cappaOn, config.icons.cappaOff];
+    const required = [...Object.values(config.backgrounds), ...config.rooms.filter(room => !room.optional).flatMap(room => [room.on, room.off]), ...Object.values(config.mappings), ...Object.values(config.ledbar.layers), config.icons.ledbarOn, config.icons.ledbarOff, config.icons.cappaOn, config.icons.cappaOff];
     const missing = required.filter(name => !assets.has(name));
     if (missing.length) throw new Error('Asset planimetria mancanti: ' + missing.join(', '));
     const imageLayers = new Map();
-    const staticLayerNames = [...Object.values(config.backgrounds), ...config.rooms.flatMap(room => [room.off, room.on].filter(name => !room.optional || assets.has(name))), config.mappings.integration];
+    const staticLayerNames = [...Object.values(config.backgrounds), ...config.rooms.flatMap(room => [room.off, room.on].filter(name => !room.optional || assets.has(name))), ...Object.values(config.ledbar.layers), config.mappings.integration];
     await Promise.all(staticLayerNames.map(name => new Promise((resolve, reject) => {
       const image = document.createElement('img');
       image.className = 'floorplan-stack-layer';
@@ -331,6 +340,8 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     const cappaMapping = await loadMapping(config.mappings.cappa, stage); mappings.push(cappaMapping);
     const weatherMapping = await loadMapping(config.mappings.weather, stage); mappings.push(weatherMapping);
     const integrationMapping = await loadMapping(config.mappings.integration, stage); mappings.push(integrationMapping);
+    // LAYER-17 is a hidden geometric source only; it is never a painted stack layer.
+    const ledbarMapping = await loadMapping(config.mappings.ledbar, stage); mappings.push(ledbarMapping);
     const lightMarkers = new Map();
     for (const light of config.lights) {
       const element = markerElement('Luce ' + light.room, true);
@@ -345,6 +356,29 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
       placeHtml(lightMapping, light.marker, element);
       lightMarkers.set(light.id, element);
     }
+    const ledbarMarker = markerElement('Barre LED cucina', true);
+    ledbarMarker.classList.add('floorplan-marker-ledbar');
+    ledbarMarker.removeAttribute('title');
+    ledbarMarker.addEventListener('click', () => {
+      const ledbar = store.snapshot().ledbar;
+      if (!ledbar.available) return;
+      void onLedbarPower(ledbar.state !== 'ON');
+      switchSound.play();
+    });
+    placeHtml(ledbarMapping, config.ledbar.marker, ledbarMarker, true);
+    const ledbarSlider = document.createElement('input');
+    ledbarSlider.type = 'range'; ledbarSlider.min = '0'; ledbarSlider.max = '254'; ledbarSlider.step = '1';
+    ledbarSlider.className = 'floorplan-ledbar-slider';
+    ledbarSlider.setAttribute('aria-label', 'Luminosità barre LED cucina');
+    let ledbarThrottle;
+    const sendLedbarBrightness = () => {
+      clearTimeout(ledbarThrottle);
+      const brightness = Number(ledbarSlider.value);
+      if (Number.isInteger(brightness)) void onLedbarBrightness(brightness);
+    };
+    ledbarSlider.addEventListener('input', () => { clearTimeout(ledbarThrottle); ledbarThrottle = setTimeout(sendLedbarBrightness, 150); });
+    ledbarSlider.addEventListener('change', sendLedbarBrightness);
+    placeHtml(ledbarMapping, config.ledbar.slider, ledbarSlider, true);
     const sensorReadings = new Map();
     for (const sensor of config.sensors) {
       const zigbee = ['S1', 'S2', 'S4'].includes(sensor.id);
@@ -447,6 +481,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     renderWeather(weatherSnapshot);
     let previousLights = {};
     let previousCappaPower;
+    let previousLedbarOn;
     const render = state => {
       for (const room of config.rooms) {
         const on = state.lights[room.lightId] === true;
@@ -479,6 +514,19 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
           reading.textContent = Number.isFinite(value) ? value.toFixed(1) + ' °C' : '— °C';
         }
       }
+      const ledbar = state.ledbar;
+      const ledbarLayer = ledbarLayerFor(ledbar);
+      for (const [key, name] of Object.entries(config.ledbar.layers)) imageLayers.get(name).hidden = key !== ledbarLayer;
+      const ledbarOn = ledbar.state === 'ON';
+      ledbarMarker.dataset.on = String(ledbarOn);
+      // Keep the controls usable while the retained MQTT state is arriving; the API remains authoritative.
+      ledbarMarker.disabled = ledbar.online === false && ledbar.state === null;
+      ledbarMarker.setAttribute('aria-pressed', String(ledbarOn));
+      ledbarMarker.setAttribute('aria-label', 'Barre LED cucina: ' + (ledbar.available ? ledbarOn ? 'ON' : 'OFF' : 'non disponibili'));
+      if (previousLedbarOn !== ledbarOn) ledbarMarker.replaceChildren(createIcon(assets, ledbarOn ? config.icons.ledbarOn : config.icons.ledbarOff, '━'));
+      previousLedbarOn = ledbarOn;
+      if (Number.isInteger(ledbar.brightness)) ledbarSlider.value = String(ledbar.brightness);
+      ledbarSlider.disabled = ledbar.online === false && ledbar.state === null;
       updateSensorPopup(state.sensorDetails);
       open.setAttribute('aria-label', 'Apri CALDAIA completa · ' + (state.boiler.on === null ? 'stato non disponibile' : state.boiler.on ? 'riscaldamento ON' : 'riscaldamento OFF') + ' · ' + (state.boiler.mode || 'modalità non disponibile'));
       renderBoilerMini(open, state.boiler);
@@ -491,6 +539,10 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     };
     render(store.snapshot());
     const unsubscribe = store.subscribe(render);
+    const ledbarEvents = typeof EventSource === 'function' ? new EventSource(homeControlPath('/api/ledbar/events')) : null;
+    if (ledbarEvents) ledbarEvents.onmessage = event => {
+      try { store.applyLedbarSnapshot(JSON.parse(event.data)); } catch { /* A malformed event must not break the floorplan. */ }
+    };
 
     // Runs at the boundary, also after tab suspension or browser clock changes.
     let timer;
@@ -509,7 +561,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     window.addEventListener('pageshow', tick);
     status.hidden = true;
     stage.dataset.ready = 'true';
-    return { store, destroy() { clearTimeout(timer); unsubscribe(); document.removeEventListener('visibilitychange', tick); window.removeEventListener('pageshow', tick); if (renderWeatherSnapshot === renderWeather) renderWeatherSnapshot = () => {}; stage.replaceChildren(); } };
+    return { store, destroy() { clearTimeout(timer); clearTimeout(ledbarThrottle); ledbarEvents?.close(); unsubscribe(); document.removeEventListener('visibilitychange', tick); window.removeEventListener('pageshow', tick); if (renderWeatherSnapshot === renderWeather) renderWeatherSnapshot = () => {}; stage.replaceChildren(); } };
   } catch (error) {
     status.textContent = error.message;
   } finally {

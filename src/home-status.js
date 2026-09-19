@@ -50,8 +50,8 @@ export function normalizeCiarraState(snapshot, now = Date.now()) {
 }
 
 export class HomeStatusRuntime {
-  constructor({ hardwareStore, roleStore, readThermostat, readHood = null, readZigbeeSensors = null, createSensorRuntime, readCameras = null, now = Date.now, cacheMs = 30_000, timeoutMs = 12_000 }) {
-    Object.assign(this, { hardwareStore, roleStore, readThermostat, readHood, readZigbeeSensors, readCameras, now, cacheMs, timeoutMs });
+  constructor({ hardwareStore, roleStore, readThermostat, readHood = null, readZigbeeSensors = null, readZigbeeLedbar = null, createSensorRuntime, readCameras = null, now = Date.now, cacheMs = 30_000, timeoutMs = 12_000 }) {
+    Object.assign(this, { hardwareStore, roleStore, readThermostat, readHood, readZigbeeSensors, readZigbeeLedbar, readCameras, now, cacheMs, timeoutMs });
     this.createSensorRuntime = createSensorRuntime || (device => new HomeDewinRuntime({ device, client: new TuyaCloudClient({
       clientId: process.env.TUYA_CLIENT_ID_HOME, clientSecret: process.env.TUYA_CLIENT_SECRET_HOME,
       deviceId: process.env.TUYA_DEWIN_ID?.trim() || device.identity?.tuyaDeviceId || device.tuyaDeviceId,
@@ -146,7 +146,10 @@ export class HomeStatusRuntime {
     sensors.S3 = { source: 'thermostat', value: room, available: Number.isFinite(room), online: thermostat.online, updatedAt: thermostat.updatedAt };
     const indoors = ['S1','S2','S3','S4'].map(id => sensors[id].value).filter(Number.isFinite);
     const cameras = this.readCameras ? await this.readCameras() : Object.fromEntries(Object.entries(values).filter(([id]) => id.startsWith('C')));
+    let ledbar = null;
+    try { ledbar = this.readZigbeeLedbar?.(); } catch { /* MQTT must not block the Home snapshot. */ }
     const snapshot = { updatedAt: new Date(this.now()).toISOString(), sensors, thermostat, hood,
+      ledbar: ledbar || { id: 'LB1', name: 'SmartHomeLB1', state: null, brightness: null, online: false, available: false, updatedAt: null },
       lights: Object.fromEntries(Object.entries(values).filter(([id]) => id.startsWith('L'))),
       cameras,
       // S3 alone is the WT200 room reading, not a whole-house average.

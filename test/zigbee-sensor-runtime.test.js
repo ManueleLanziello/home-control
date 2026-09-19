@@ -25,9 +25,9 @@ function fixture() {
     ends: () => ends, connects: () => connects };
 }
 
-test('MQTT sottoscrive e mappa esclusivamente i tre topic e assegna updatedAt', () => {
+test('MQTT sottoscrive i tre sensori e LB1 senza alterare il parsing dei sensori', () => {
   const f = fixture(); f.runtime.start(); f.client.emit('connect');
-  assert.deepEqual(f.subscriptions[0], ['zigbee2mqtt/SmartHomeS1', 'zigbee2mqtt/SmartHomeS2', 'zigbee2mqtt/SmartHomeS4']);
+  assert.deepEqual(f.subscriptions[0], ['zigbee2mqtt/SmartHomeS1', 'zigbee2mqtt/SmartHomeS2', 'zigbee2mqtt/SmartHomeS4', 'zigbee2mqtt/SmartHomeLB1']);
   for (const [id, temperature] of [['S1', 20], ['S2', 21], ['S4', 23]]) {
     f.message(`zigbee2mqtt/SmartHome${id}`, { temperature, humidity: 49.9, battery: 100, linkquality: 192 });
     const snapshot = f.runtime.readSnapshot()[id];

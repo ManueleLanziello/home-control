@@ -21,6 +21,14 @@ button.floorplan-marker { pointer-events: auto; cursor: pointer; }
 .floorplan-fallback { font: 140px/1 "Segoe UI Symbol", sans-serif; }
 .floorplan-marker[data-on="false"] .floorplan-fallback { filter: grayscale(1); opacity: .55; }
 .floorplan-marker[data-on="true"] { color: #ffe56a; }
+.floorplan-marker-ledbar { border-radius: 18%; }
+.floorplan-interaction-host { pointer-events: auto; }
+.floorplan-ledbar-slider { display: block; box-sizing: border-box; width: 100%; height: 100%; margin: 0; padding: 0 14px; appearance: none; -webkit-appearance: none; background: transparent; cursor: pointer; pointer-events: auto; touch-action: none; }
+.floorplan-ledbar-slider::-webkit-slider-runnable-track { height: 28px; border: 4px solid #5194ae; border-radius: 999px; background: #071d2ef0; }
+.floorplan-ledbar-slider::-webkit-slider-thumb { width: 58px; height: 58px; margin-top: -19px; border: 5px solid #e5f7ff; border-radius: 50%; appearance: none; -webkit-appearance: none; background: #ffe56a; box-shadow: 0 0 16px rgb(255 229 106 / 80%); }
+.floorplan-ledbar-slider::-moz-range-track { height: 20px; border: 4px solid #5194ae; border-radius: 999px; background: #071d2ef0; }
+.floorplan-ledbar-slider::-moz-range-thumb { width: 48px; height: 48px; border: 5px solid #e5f7ff; border-radius: 50%; background: #ffe56a; box-shadow: 0 0 16px rgb(255 229 106 / 80%); }
+.floorplan-ledbar-slider:disabled { cursor: default; opacity: .5; }
 .floorplan-marker-sensor { color: #ffd2af; }
 .floorplan-sensor-trigger { pointer-events: auto; cursor: pointer; }
 .floorplan-sensor-trigger:focus-visible { outline: 2px solid #8adeff; }

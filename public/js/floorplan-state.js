@@ -13,6 +13,7 @@ export function createFloorplanState() {
     cameras: {},
     boiler: { on: null, mode: null },
     hood: { online: false, power: null, fanSpeed: null, light: null, operatingStatus: null, updatedAt: null },
+    ledbar: { state: null, brightness: null, online: false, available: false, updatedAt: null },
   };
   const listeners = new Set();
   const applyHood = hood => {
@@ -45,6 +46,10 @@ export function createFloorplanState() {
       applyHood(hood);
       for (const listener of listeners) listener(this.snapshot());
     },
+    applyLedbarSnapshot(ledbar) {
+      if (ledbar && typeof ledbar === 'object') state.ledbar = { ...state.ledbar, state: ['ON', 'OFF'].includes(ledbar.state) ? ledbar.state : state.ledbar.state, brightness: Number.isInteger(ledbar.brightness) ? ledbar.brightness : state.ledbar.brightness, online: ledbar.online === true, available: ledbar.available === true, updatedAt: ledbar.updatedAt ?? state.ledbar.updatedAt };
+      for (const listener of listeners) listener(this.snapshot());
+    },
     applyThermostatSnapshot(thermostat) {
       applyThermostat(thermostat);
       for (const listener of listeners) listener(this.snapshot());
@@ -62,6 +67,7 @@ export function createFloorplanState() {
       state.cameras = home.cameras || {};
       applyThermostat(home.thermostat);
       applyHood(home.hood);
+      if (home.ledbar) state.ledbar = { ...state.ledbar, ...home.ledbar };
       for (const listener of listeners) listener(this.snapshot());
     },
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
