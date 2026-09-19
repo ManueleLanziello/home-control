@@ -30,10 +30,10 @@ export const floorplanConfig = {
   ],
   boiler: { marker: marker(0), card: reading(0), target: '.boiler-card', settings: '.boiler-settings-link' },
   cappa: { id: 'K1', marker: marker(0) },
-  // Exact geometries enclosing the M1/QM1 labels in LAYER-13; never rely on document order.
+  // Semantic SVG IDs remain stable when a weather reference is moved in the design.
   weather: {
-    marker: exactShape('path[d^="M518.5 3281C518.5 3191.25"]'),
-    card: exactShape('rect[x="356.5"][y="3470.5"][width="649"][height="388"][stroke="#000000"]'),
-    temperatureLabel: exactShape('rect[x="851.5"][y="3190.5"][width="325"][height="167"][stroke="#000000"]'),
+    marker: exactShape('#M1'),
+    card: exactShape('#QM1'),
+    temperatureLabel: exactShape('#LM1'),
   },
 };

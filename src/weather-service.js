@@ -9,18 +9,38 @@ const CONDITIONS = new Map([
   [95, 'Temporale'], [96, 'Temporale con grandine'], [99, 'Temporale intenso con grandine'],
 ]);
 
+const WMO_CATEGORIES = new Map([
+  [0, 'clear'], [1, 'mostly-clear'], [2, 'partly-cloudy'], [3, 'cloudy'],
+  [45, 'fog'], [48, 'fog'], [51, 'drizzle'], [53, 'drizzle'],
+  [55, 'extreme-drizzle'], [56, 'extreme-drizzle'], [57, 'extreme-drizzle'],
+  [61, 'rain'], [63, 'rain'], [66, 'rain'],
+  [65, 'extreme-rain'], [67, 'extreme-rain'], [80, 'extreme-rain'], [81, 'extreme-rain'], [82, 'extreme-rain'],
+  [71, 'snow'], [73, 'snow'], [75, 'snow'], [77, 'snow'],
+  [85, 'extreme-snow'], [86, 'extreme-snow'],
+  [95, 'thunderstorms'], [96, 'thunderstorms-rain'], [99, 'thunderstorms-rain'],
+]);
+
+const WEATHER_ICONS = Object.freeze({
+  clear: { day: 'clear-day.svg', night: 'clear-night.svg' },
+  'mostly-clear': { day: 'mostly-clear-day.svg', night: 'mostly-clear-night.svg' },
+  'partly-cloudy': { day: 'partly-cloudy-day.svg', night: 'partly-cloudy-night.svg' },
+  cloudy: { day: 'cloudy.svg', night: 'cloudy.svg' },
+  fog: { day: 'fog.svg', night: 'fog-night.svg' },
+  drizzle: { day: 'drizzle.svg', night: 'drizzle.svg' },
+  'extreme-drizzle': { day: 'extreme-drizzle.svg', night: 'extreme-night-drizzle.svg' },
+  rain: { day: 'rain.svg', night: 'rain.svg' },
+  'extreme-rain': { day: 'extreme-rain.svg', night: 'extreme-night-rain.svg' },
+  snow: { day: 'snow.svg', night: 'snow.svg' },
+  'extreme-snow': { day: 'extreme-snow.svg', night: 'extreme-night-snow.svg' },
+  thunderstorms: { day: 'thunderstorms.svg', night: 'thunderstorms-night.svg' },
+  'thunderstorms-rain': { day: 'thunderstorms-rain.svg', night: 'thunderstorms-night-rain.svg' },
+});
+
 export function weatherCategory(code) {
-  const value = Number(code);
-  if (value === 0) return 'sun';
-  if ([1, 2].includes(value)) return 'weather';
-  if ([3, 45, 48].includes(value)) return 'cloud';
-  if ([71, 73, 75, 77, 85, 86].includes(value)) return 'snow';
-  if ([95, 96, 99].includes(value)) return 'storm';
-  if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(value)) return 'rain';
-  return 'weather';
+  return WMO_CATEGORIES.get(Number(code)) || 'cloudy';
 }
 
-export const weatherIcon = code => `${weatherCategory(code)}.svg`;
+export const weatherIcon = (code, isDay = true) => WEATHER_ICONS[weatherCategory(code)][isDay === false ? 'night' : 'day'];
 export const weatherCondition = code => CONDITIONS.get(Number(code)) || 'Condizioni non disponibili';
 
 function requiredNumber(value, field) {
@@ -30,10 +50,12 @@ function requiredNumber(value, field) {
 
 const optionalNumber = value => Number.isFinite(value) ? value : null;
 const at = (values, index) => Array.isArray(values) ? values[index] : undefined;
-const weatherValue = (code, extra = {}) => ({
+const weatherValue = (code, { isDay = true, ...extra } = {}) => ({
   weatherCode: requiredNumber(code, 'weather_code'),
+  category: weatherCategory(code),
   condition: weatherCondition(code),
-  icon: weatherIcon(code),
+  icon: weatherIcon(code, isDay),
+  isDay: isDay !== false,
   ...extra,
 });
 
@@ -50,7 +72,7 @@ export function parseOpenMeteo(payload, config, updatedAt = new Date().toISOStri
     date,
     minTemperature: optionalNumber(at(daily.temperature_2m_min, index)),
     maxTemperature: optionalNumber(at(daily.temperature_2m_max, index)),
-    rainProbability: optionalNumber(at(daily.precipitation_probability_max, index)),
+    rainProbability: optionalNumber(at(daily.precipitation_probability_max, index)), isDay: true,
   }));
   if (!dailyForecast.length) throw new Error('Previsione Open-Meteo insufficiente');
   const remainingHourly = (hourly.time || []).map((time, index) => ({ time, index }))
@@ -60,6 +82,7 @@ export function parseOpenMeteo(payload, config, updatedAt = new Date().toISOStri
       temperature: optionalNumber(at(hourly.temperature_2m, index)),
       precipitation: optionalNumber(at(hourly.precipitation, index)),
       rainProbability: optionalNumber(at(hourly.precipitation_probability, index)),
+      isDay: at(hourly.is_day, index) !== 0,
     }));
   return {
     available: true,
@@ -75,6 +98,7 @@ export function parseOpenMeteo(payload, config, updatedAt = new Date().toISOStri
       windDirection: optionalNumber(current.wind_direction_10m),
       precipitation: optionalNumber(current.precipitation),
       rainProbability: currentRainProbability,
+      isDay: current.is_day !== 0,
     }),
     today: dailyForecast[0],
     hourly: remainingHourly,
@@ -96,8 +120,8 @@ export class WeatherService {
     const url = new URL(FORECAST_URL);
     url.searchParams.set('latitude', String(this.config.latitude));
     url.searchParams.set('longitude', String(this.config.longitude));
-    url.searchParams.set('current', 'temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m,precipitation');
-    url.searchParams.set('hourly', 'temperature_2m,weather_code,precipitation_probability,precipitation');
+    url.searchParams.set('current', 'temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,is_day,wind_speed_10m,wind_direction_10m,precipitation');
+    url.searchParams.set('hourly', 'temperature_2m,weather_code,is_day,precipitation_probability,precipitation');
     url.searchParams.set('daily', 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max');
     url.searchParams.set('timezone', this.config.timezone);
     url.searchParams.set('forecast_days', '5');

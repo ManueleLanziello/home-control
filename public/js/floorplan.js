@@ -233,7 +233,7 @@ function weatherImage(assets, icon, className = '') {
   const image = document.createElement('img');
   image.className = className;
   image.alt = '';
-  image.src = assetUrl(assets.has(icon) ? icon : 'weather.svg');
+  image.src = assetUrl(assets.has(icon) ? icon : 'cloudy.svg');
   return image;
 }
 
@@ -252,7 +252,7 @@ function updateWeatherDialog(snapshot) {
     currentHost.textContent = 'Dati meteo non disponibili';
     return;
   }
-  const icon = document.createElement('img'); icon.src = assetUrl(current.icon || 'weather.svg'); icon.alt = '';
+  const icon = document.createElement('img'); icon.src = assetUrl(current.icon || 'cloudy.svg'); icon.alt = '';
   const text = document.createElement('div'); text.innerHTML = `<strong>${weatherTemperature(current.temperature)}</strong><span>${current.condition}</span><small>Percepita ${weatherTemperature(current.apparentTemperature)}</small>`;
   currentHost.append(icon, text);
   for (const [label, value] of [
@@ -264,12 +264,12 @@ function updateWeatherDialog(snapshot) {
   }
   for (const item of snapshot.hourly || []) {
     const card = document.createElement('div');
-    card.innerHTML = `<strong>${weatherTime(item.time)}</strong><img src="${assetUrl(item.icon || 'weather.svg')}" alt=""><span>${weatherTemperature(item.temperature)}</span><small>${weatherPercent(item.rainProbability)}</small>`;
+    card.innerHTML = `<strong>${weatherTime(item.time)}</strong><img src="${assetUrl(item.icon || 'cloudy.svg')}" alt=""><span>${weatherTemperature(item.temperature)}</span><small>${weatherPercent(item.rainProbability)}</small>`;
     hourly.append(card);
   }
   for (const item of snapshot.daily || []) {
     const card = document.createElement('div');
-    card.innerHTML = `<strong>${weatherDay(item.date)}</strong><img src="${assetUrl(item.icon || 'weather.svg')}" alt=""><span>${item.condition}</span><small>${weatherTemperature(item.minTemperature)} / ${weatherTemperature(item.maxTemperature)} · ${weatherPercent(item.rainProbability)}</small>`;
+    card.innerHTML = `<strong>${weatherDay(item.date)}</strong><img src="${assetUrl(item.icon || 'cloudy.svg')}" alt=""><span>${item.condition}</span><small>${weatherTemperature(item.minTemperature)} / ${weatherTemperature(item.maxTemperature)} · ${weatherPercent(item.rainProbability)}</small>`;
     daily.append(card);
   }
 }
@@ -465,7 +465,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     placeHtml(integrationMapping, config.integration.options, integrationOptions);
     const renderWeather = snapshot => {
       const current = snapshot?.current;
-      weatherMarker.replaceChildren(weatherImage(assets, current?.icon || 'weather.svg'));
+      weatherMarker.replaceChildren(weatherImage(assets, current?.icon || 'cloudy.svg'));
       weatherMarker.dataset.available = String(Boolean(current));
       weatherMarker.setAttribute('aria-label', current ? `Apri METEO OGGI · ${current.condition}, ${weatherTemperature(current.temperature)}` : 'Apri METEO OGGI · dati non disponibili');
       weatherCard.replaceChildren();
