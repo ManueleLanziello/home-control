@@ -128,20 +128,23 @@ test('LAYER-08 associa ogni lettura LS/LU alla forma immediatamente collegata al
 });
 
 test('letture temperatura e umidità usano soglie centralizzate e unità più piccole', () => {
-  assert.equal(temperatureReadingColor(20.9), '#39a9ff');
-  assert.equal(temperatureReadingColor(21), '#55d66b');
-  assert.equal(temperatureReadingColor(23), '#55d66b');
+  assert.equal(temperatureReadingColor(20.9), '#17c8f4');
+  assert.equal(temperatureReadingColor(21), '#29df92');
+  assert.equal(temperatureReadingColor(23), '#29df92');
   assert.equal(temperatureReadingColor(23.1), '#ff9d3d');
   assert.equal(humidityReadingColor(0), '#fff');
   assert.equal(humidityReadingColor(50), '#fff');
-  assert.equal(humidityReadingColor(50.1), '#39a9ff');
+  assert.equal(humidityReadingColor(50.1), '#17c8f4');
 
   const attributes = {};
-  const reading = { setAttribute(name, value) { attributes[name] = value; }, replaceChildren(...children) { this.children = children; } };
+  const styles = {};
+  const reading = { dataset: {}, style: { setProperty(name, value, priority) { styles[name] = { value, priority }; } }, setAttribute(name, value) { attributes[name] = value; }, replaceChildren(...children) { this.children = children; } };
   const originalSvgElement = globalThis.document;
   globalThis.document = { createElementNS(namespace, tag) { return { setAttribute(name, value) { this.attributes ||= {}; this.attributes[name] = value; }, textContent: '', tag }; } };
   renderFloorplanReading(reading, 26.1, '°C', temperatureReadingColor(26.1));
   assert.equal(attributes.fill, '#ff9d3d');
+  assert.deepEqual(styles.fill, { value: '#ff9d3d', priority: 'important' });
+  assert.equal(reading.dataset.readingColor, '#ff9d3d');
   assert.equal(reading.children[0].textContent, '26.1');
   assert.equal(reading.children[1].textContent, ' °C');
   assert.equal(reading.children[1].attributes['font-size'], '.62em');
@@ -162,6 +165,9 @@ test('LAYER-22 resta una sorgente geometrica invisibile con marker CLK1', async 
   assert.match(floorplan, /source\.setAttribute\('visibility', 'hidden'\)/);
   assert.match(floorplan, /source\.style\.setProperty\('opacity', '0', 'important'\)/);
   assert.match(floorplan, /clockMapping\.box\(config\.clock\.marker\)/);
+  assert.match(floorplan, /await import\('\.\/floorplan-clock\.js'\)/);
+  assert.match(floorplan, /createFloorplanClock\(\{ overlay: clockMapping\.overlay, box: clockMapping\.box\(config\.clock\.marker\) \}\)/);
+  assert.match(floorplan, /console\.warn\('Orologio planimetria non disponibile', error\)/);
   assert.doesNotMatch(floorplan, /staticLayerNames = \[[^\n]*config\.mappings\.clock/);
   assert.deepEqual(floorplanConfig.clock.marker, { label: 'CLK1' });
 });

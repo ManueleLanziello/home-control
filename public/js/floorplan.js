@@ -57,12 +57,14 @@ export function shapeForLabel(source, label) {
   return null;
 }
 
-export const temperatureReadingColor = value => !Number.isFinite(value) ? '#fff' : value < 21 ? '#39a9ff' : value <= 23 ? '#55d66b' : '#ff9d3d';
-export const humidityReadingColor = value => Number.isFinite(value) && value > 50 ? '#39a9ff' : '#fff';
+export const temperatureReadingColor = value => !Number.isFinite(value) ? '#fff' : value < 21 ? '#17c8f4' : value <= 23 ? '#29df92' : '#ff9d3d';
+export const humidityReadingColor = value => Number.isFinite(value) && value > 50 ? '#17c8f4' : '#fff';
 export const sensorReadingFontSize = referenceBox => referenceBox.height * .34;
 
 export function renderFloorplanReading(reading, value, unit, color) {
   reading.setAttribute('fill', color);
+  reading.style.setProperty('fill', color, 'important');
+  reading.dataset.readingColor = color;
   const number = svgElement('tspan');
   number.textContent = Number.isFinite(value) ? value.toFixed(1) : '—';
   const suffix = svgElement('tspan', { 'font-size': '.62em' });
@@ -349,11 +351,12 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
   if (!stage) return;
   void switchSound.preload();
   const mappings = [];
+  let floorplanClock;
   try {
     const response = await fetch(homeControlPath('/api/floorplan/assets'), { cache: 'no-store' });
     if (!response.ok) throw new Error('Elenco asset non disponibile');
     const assets = new Set((await response.json()).assets);
-    const required = [...Object.values(config.backgrounds), ...config.rooms.filter(room => !room.optional).flatMap(room => [room.on, room.off]), ...Object.values(config.mappings), ...Object.values(config.ledbar.layers), config.icons.ledbarOn, config.icons.ledbarOff, config.icons.cappaOn, config.icons.cappaOff];
+    const required = [...Object.values(config.backgrounds), ...config.rooms.filter(room => !room.optional).flatMap(room => [room.on, room.off]), ...Object.values(config.mappings).filter(name => name !== config.mappings.clock), ...Object.values(config.ledbar.layers), config.icons.ledbarOn, config.icons.ledbarOff, config.icons.cappaOn, config.icons.cappaOff];
     const missing = required.filter(name => !assets.has(name));
     if (missing.length) throw new Error('Asset planimetria mancanti: ' + missing.join(', '));
     const imageLayers = new Map();
@@ -389,9 +392,14 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     const integrationMapping = await loadMapping(config.mappings.integration, stage); mappings.push(integrationMapping);
     // LAYER-17 is a hidden geometric source only; it is never a painted stack layer.
     const ledbarMapping = await loadMapping(config.mappings.ledbar, stage); mappings.push(ledbarMapping);
-    // LAYER-22 is a hidden geometric source until the clock UI is implemented.
-    const clockMapping = await loadMapping(config.mappings.clock, stage); mappings.push(clockMapping);
-    clockMapping.box(config.clock.marker);
+    // The decorative clock is isolated: any asset, marker or module failure leaves the Dashboard available.
+    try {
+      const { createFloorplanClock } = await import('./floorplan-clock.js');
+      const clockMapping = await loadMapping(config.mappings.clock, stage); mappings.push(clockMapping);
+      floorplanClock = createFloorplanClock({ overlay: clockMapping.overlay, box: clockMapping.box(config.clock.marker) });
+    } catch (error) {
+      console.warn('Orologio planimetria non disponibile', error);
+    }
     const lightMarkers = new Map();
     for (const light of config.lights) {
       const element = markerElement('Luce ' + light.room, true);
@@ -616,7 +624,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     window.addEventListener('pageshow', tick);
     status.hidden = true;
     stage.dataset.ready = 'true';
-    return { store, destroy() { clearTimeout(timer); clearTimeout(ledbarThrottle); ledbarEvents?.close(); unsubscribe(); document.removeEventListener('visibilitychange', tick); window.removeEventListener('pageshow', tick); if (renderWeatherSnapshot === renderWeather) renderWeatherSnapshot = () => {}; stage.replaceChildren(); } };
+    return { store, destroy() { clearTimeout(timer); clearTimeout(ledbarThrottle); ledbarEvents?.close(); unsubscribe(); document.removeEventListener('visibilitychange', tick); window.removeEventListener('pageshow', tick); floorplanClock?.destroy(); if (renderWeatherSnapshot === renderWeather) renderWeatherSnapshot = () => {}; stage.replaceChildren(); } };
   } catch (error) {
     status.textContent = error.message;
   } finally {

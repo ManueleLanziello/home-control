@@ -78,6 +78,14 @@ button.floorplan-marker { pointer-events: auto; cursor: pointer; }
 .weather-popup-daily div { grid-template-columns: 100px 40px minmax(0, 1fr); justify-items: start; align-items: center; text-align: left; }
 .weather-popup-daily small { grid-column: 3; }
 .floorplan-reading { fill: #fff; font-family: system-ui, sans-serif; font-weight: 700; paint-order: stroke; stroke: #06131f; stroke-width: 8; stroke-linejoin: round; }
+.floorplan-clock-face { fill: rgb(5 11 18 / 72%); stroke: #17c8f4; stroke-width: 1.25; filter: drop-shadow(0 0 2px rgb(23 200 244 / 45%)); }
+.floorplan-clock-ticks { stroke: #b7ceda; stroke-width: 1.4; stroke-linecap: round; }
+.floorplan-clock-digital { fill: #17c8f4; font: 650 9px/1 system-ui, sans-serif; letter-spacing: .45px; filter: drop-shadow(0 0 1.2px rgb(23 200 244 / 70%)); }
+.floorplan-clock-hand { stroke-linecap: round; }
+.floorplan-clock-hour-hand { stroke: #f2f7fb; stroke-width: 3.4; }
+.floorplan-clock-minute-hand { stroke: #9cc3d3; stroke-width: 2.4; }
+.floorplan-clock-second-hand { stroke: #17c8f4; stroke-width: 1.15; filter: drop-shadow(0 0 1.2px rgb(23 200 244 / 75%)); }
+.floorplan-clock-pin { fill: #17c8f4; stroke: #06131f; stroke-width: 1.1; }
 .floorplan-integration-title, .floorplan-integration-options { box-sizing: border-box; width: calc(100% - 10px); height: calc(100% - 10px); margin: 5px; border: 0; outline: 0; background: transparent; box-shadow: none; }
 .floorplan-integration-title { display: flex; align-items: center; justify-content: center; gap: .18em; padding: 0 32px; font-size: 62px; font-weight: 800; letter-spacing: .035em; line-height: 1; white-space: nowrap; }
 .floorplan-integration-home { color: #fff; }
