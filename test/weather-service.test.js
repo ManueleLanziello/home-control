@@ -84,17 +84,17 @@ test('il rendering METEO usa cloudy come fallback e non referenzia più il set l
   assert.doesNotMatch(floorplan, /weather\.svg|cloud\.svg|sun\.svg|storm\.svg/);
 });
 
-test('M1/QM1/LM1 sono identificati da ID stabili e ne leggono la geometria dal layer', async () => {
-  assert.deepEqual(floorplanConfig.weather.marker, { selector: '#M1' });
-  assert.deepEqual(floorplanConfig.weather.card, { selector: '#QM1' });
-  assert.deepEqual(floorplanConfig.weather.temperatureLabel, { selector: '#LM1' });
+test('M1/QM1/LM1 sono identificati da label stabili e ne leggono la geometria dal layer', async () => {
+  assert.deepEqual(floorplanConfig.weather.marker, { label: 'M1' });
+  assert.deepEqual(floorplanConfig.weather.card, { label: 'QM1' });
+  assert.deepEqual(floorplanConfig.weather.temperatureLabel, { label: 'LM1' });
   const [floorplan, layer13] = await Promise.all([readFile(new URL('../public/js/floorplan.js', import.meta.url), 'utf8'), readFile(new URL('../design/LAYER-13-METEO.svg', import.meta.url), 'utf8')]);
   const css = await readFile(new URL('../public/floorplan.css', import.meta.url), 'utf8');
   assert.match(floorplan, /loadMapping\(config\.mappings\.weather/);
-  for (const id of ['M1', 'QM1', 'LM1']) assert.match(layer13, new RegExp(`id="${id}"`));
+  for (const label of ['M1', 'QM1', 'LM1']) assert.match(layer13, new RegExp(`>${label}</text>`));
   const movedLayer = layer13.replace('M453.5 3237', 'M999.5 999').replace('x="356.5" y="3456.5"', 'x="999.5" y="999.5"').replace('x="520.5" y="3826.5"', 'x="777.5" y="777.5"');
-  for (const id of ['M1', 'QM1', 'LM1']) assert.match(movedLayer, new RegExp(`id="${id}"`));
-  assert.match(floorplan, /index === undefined \? source\.querySelector\(selector\)/);
+  for (const label of ['M1', 'QM1', 'LM1']) assert.match(movedLayer, new RegExp(`>${label}</text>`));
+  assert.match(floorplan, /shapeForLabel\(source, label\)/);
   assert.match(floorplan, /const bounds = shape\.getBBox\(\)/);
   assert.match(floorplan, /bindWeatherPopupTrigger\(weatherMarker\)/);
   assert.match(floorplan, /bindWeatherPopupTrigger\(weatherCard\)/);

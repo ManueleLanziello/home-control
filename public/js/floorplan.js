@@ -2,7 +2,7 @@ import { switchSound } from './light-sound.js';
 import { homeControlPath } from '../base-path.js';
 import { floorplanConfig as config } from './floorplan-config.js';
 import { backgroundPeriod, createFloorplanState } from './floorplan-state.js';
-import { bindSensorPopupTrigger, sensorReadingLines, showSensorPopup, updateSensorPopup } from './sensor-popup.js';
+import { bindSensorPopupTrigger, showSensorPopup, updateSensorPopup } from './sensor-popup.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const assetUrl = name => homeControlPath('/design/' + name);
@@ -27,6 +27,49 @@ const svgElement = (tag, attributes = {}) => {
   return element;
 };
 
+export function shapeForLabel(source, label) {
+  for (const candidate of source.querySelectorAll('text')) {
+    let first = candidate;
+    while (first.previousElementSibling?.localName === 'text') first = first.previousElementSibling;
+    if (first !== candidate) continue;
+
+    const labels = [];
+    for (let current = first; current?.localName === 'text'; current = current.nextElementSibling) labels.push(current.textContent.trim());
+
+    let lastShape = first.previousElementSibling;
+    const shapeType = lastShape?.localName;
+    if (!shapeType) continue;
+    const shapes = [];
+    while (lastShape?.localName === shapeType) {
+      shapes.unshift(lastShape);
+      lastShape = lastShape.previousElementSibling;
+    }
+
+    for (let start = 0; start < labels.length; start += 1) {
+      let text = '';
+      for (let index = start; index < labels.length; index += 1) {
+        text += labels[index];
+        if (text === label) return (shapes.length === labels.length ? shapes[start] : shapes.at(-1)) || null;
+        if (!label.startsWith(text)) break;
+      }
+    }
+  }
+  return null;
+}
+
+export const temperatureReadingColor = value => !Number.isFinite(value) ? '#fff' : value < 21 ? '#39a9ff' : value <= 23 ? '#55d66b' : '#ff9d3d';
+export const humidityReadingColor = value => Number.isFinite(value) && value > 50 ? '#39a9ff' : '#fff';
+export const sensorReadingFontSize = referenceBox => referenceBox.height * .34;
+
+export function renderFloorplanReading(reading, value, unit, color) {
+  reading.setAttribute('fill', color);
+  const number = svgElement('tspan');
+  number.textContent = Number.isFinite(value) ? value.toFixed(1) : '—';
+  const suffix = svgElement('tspan', { 'font-size': '.62em' });
+  suffix.textContent = ' ' + unit;
+  reading.replaceChildren(number, suffix);
+}
+
 // Mapping drawings are measured invisibly, never painted or modified on disk.
 // Native getBBox/getCTM retain the exported transforms and exact marker sizes.
 async function loadMapping(name, stage) {
@@ -40,13 +83,17 @@ async function loadMapping(name, stage) {
   source.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
   source.classList.add('floorplan-mapping-source');
   source.setAttribute('aria-hidden', 'true');
+  // Mapping sources stay measurable for getBBox/getCTM but are never painted.
+  source.setAttribute('visibility', 'hidden');
+  source.style.setProperty('opacity', '0', 'important');
+  source.style.setProperty('pointer-events', 'none', 'important');
   stage.append(source);
   const overlay = svgElement('svg', { viewBox: '0 0 ' + width + ' ' + height, class: 'floorplan-stack-layer floorplan-overlay', 'aria-label': name });
   stage.append(overlay);
   return {
     overlay,
-    box({ selector, index }) {
-      const shape = index === undefined ? source.querySelector(selector) : source.querySelectorAll(selector)[index];
+    box({ selector, index, label }) {
+      const shape = label === undefined ? (index === undefined ? source.querySelector(selector) : source.querySelectorAll(selector)[index]) : shapeForLabel(source, label);
       if (!shape) throw new Error('Marker mancante in ' + name);
       const bounds = shape.getBBox();
       const matrix = source.getCTM().inverse().multiply(shape.getCTM());
@@ -342,6 +389,9 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     const integrationMapping = await loadMapping(config.mappings.integration, stage); mappings.push(integrationMapping);
     // LAYER-17 is a hidden geometric source only; it is never a painted stack layer.
     const ledbarMapping = await loadMapping(config.mappings.ledbar, stage); mappings.push(ledbarMapping);
+    // LAYER-22 is a hidden geometric source until the clock UI is implemented.
+    const clockMapping = await loadMapping(config.mappings.clock, stage); mappings.push(clockMapping);
+    clockMapping.box(config.clock.marker);
     const lightMarkers = new Map();
     for (const light of config.lights) {
       const element = markerElement('Luce ' + light.room, true);
@@ -380,6 +430,8 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     ledbarSlider.addEventListener('change', sendLedbarBrightness);
     placeHtml(ledbarMapping, config.ledbar.slider, ledbarSlider, true);
     const sensorReadings = new Map();
+    const sensorHumidityReadings = new Map();
+    const sensorTypography = { fontSize: sensorReadingFontSize(sensorMapping.box(config.sensors.find(sensor => sensor.id === 'S3').reading)) };
     for (const sensor of config.sensors) {
       const zigbee = ['S1', 'S2', 'S4'].includes(sensor.id);
       const element = markerElement('Temperatura ' + sensor.room, zigbee);
@@ -387,10 +439,9 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
       element.append(createIcon(assets, config.icons.sensor, '🌡'));
       placeHtml(sensorMapping, sensor.marker, element);
       const box = sensorMapping.box(sensor.reading);
-      const text = svgElement('text', { x: box.x + box.width / 2, y: box.y + box.height / 2, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': box.height * .34, class: 'floorplan-reading' });
+      const text = svgElement('text', { x: box.x + box.width / 2, y: box.y + box.height / 2, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': sensorTypography.fontSize, class: 'floorplan-reading' });
       text.dataset.sensorReading = sensor.id;
       if (zigbee) {
-        text.setAttribute('font-size', box.height * .30);
         text.setAttribute('aria-label', 'Apri sensore ' + sensor.room);
         const opener = () => showSensorPopup(sensor.id, store.snapshot().sensorDetails[sensor.id]);
         bindSensorPopupTrigger(element, opener);
@@ -398,6 +449,14 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
       }
       sensorMapping.overlay.append(text);
       sensorReadings.set(sensor.id, text);
+      if (sensor.humidityReading) {
+        const humidityBox = sensorMapping.box(sensor.humidityReading);
+        const humidity = svgElement('text', { x: humidityBox.x + humidityBox.width / 2, y: humidityBox.y + humidityBox.height / 2, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': sensorTypography.fontSize, class: 'floorplan-reading' });
+        humidity.dataset.sensorHumidityReading = sensor.id;
+        if (zigbee) bindSensorPopupTrigger(humidity, () => showSensorPopup(sensor.id, store.snapshot().sensorDetails[sensor.id]));
+        sensorMapping.overlay.append(humidity);
+        sensorHumidityReadings.set(sensor.id, humidity);
+      }
     }
     for (const camera of config.cameras) {
       const element = markerElement('Camera ' + camera.room, true);
@@ -503,15 +562,11 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
       for (const sensor of config.sensors) {
         const value = state.sensors[sensor.id];
         const reading = sensorReadings.get(sensor.id);
-        if (['S1', 'S2', 'S4'].includes(sensor.id)) {
-          const lines = sensorReadingLines(state.sensorDetails[sensor.id]);
-          reading.replaceChildren(...lines.map((line, index) => {
-            const span = svgElement('tspan', { x: reading.getAttribute('x'), dy: index === 0 ? '-.55em' : '1.15em' });
-            span.textContent = line;
-            return span;
-          }));
-        } else {
-          reading.textContent = Number.isFinite(value) ? value.toFixed(1) + ' °C' : '— °C';
+        renderFloorplanReading(reading, value, '°C', temperatureReadingColor(value));
+        const humidityReading = sensorHumidityReadings.get(sensor.id);
+        if (humidityReading) {
+          const humidity = state.sensorDetails[sensor.id]?.humidity;
+          renderFloorplanReading(humidityReading, humidity, '%', humidityReadingColor(humidity));
         }
       }
       const ledbar = state.ledbar;

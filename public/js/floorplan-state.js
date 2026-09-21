@@ -9,7 +9,7 @@ export function createFloorplanState() {
     lights: Object.fromEntries(floorplanConfig.lights.map(light => [light.id, false])),
     sensors: { S1: null, S2: null, S3: null, S4: null, S5: null },
     sensorDetails: {},
-    lightSources: Object.fromEntries(floorplanConfig.lights.map(light => [light.id, 'unavailable'])),
+    lightSources: Object.fromEntries(floorplanConfig.lights.map(light => [light.id, light.localOnly ? 'simulation' : 'unavailable'])),
     cameras: {},
     boiler: { on: null, mode: null },
     hood: { online: false, power: null, fanSpeed: null, light: null, operatingStatus: null, updatedAt: null },
