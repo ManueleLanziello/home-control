@@ -46,7 +46,7 @@ button.floorplan-marker { pointer-events: auto; cursor: pointer; }
 .floorplan-marker-weather { border: 0; background: transparent; }
 .floorplan-marker-weather > img { width: 100%; height: 100%; object-fit: contain; }
 .floorplan-marker-weather[data-available="false"] { opacity: .55; }
-.floorplan-weather-card { box-sizing: border-box; display: grid; place-items: center; width: 100%; height: 100%; padding: 4% 5%; border: 4px solid #5194ae; border-radius: 28px; color: #e5f7ff; background: #071d2ef0; font-family: system-ui, sans-serif; overflow: hidden; pointer-events: auto; cursor: pointer; }
+.floorplan-weather-card { box-sizing: border-box; display: grid; place-items: center; width: 100%; height: 100%; padding: 4% 5%; border: 4px solid #5194ae; border-radius: 28px; color: #e5f7ff; background: rgb(5 11 18 / 72%); font-family: system-ui, sans-serif; overflow: hidden; pointer-events: auto; cursor: pointer; }
 .floorplan-weather-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; width: 100%; height: 100%; color: #d7edf7; font-size: 46px; font-weight: 700; }
 .floorplan-weather-facts span { display: grid; grid-template-rows: minmax(0, 2fr) minmax(0, 1fr); justify-items: center; align-items: center; min-width: 0; white-space: nowrap; }
 .floorplan-weather-facts img { width: 82%; height: 100%; object-fit: contain; }
@@ -93,7 +93,7 @@ button.floorplan-marker { pointer-events: auto; cursor: pointer; }
 .floorplan-integration-options { display: grid; place-items: center; cursor: pointer; pointer-events: auto; }
 .floorplan-integration-options:focus-visible { outline: none; }
 .floorplan-integration-options img { display: block; width: 80%; height: 80%; object-fit: contain; }
-.floorplan-boiler-mini { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); width: 100%; height: 100%; background: #071d2ef0; border: 5px solid #5194ae; border-radius: 28px; overflow: hidden; }
+.floorplan-boiler-mini { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); width: 100%; height: 100%; background: rgb(5 11 18 / 72%); border: 5px solid #5194ae; border-radius: 28px; overflow: hidden; }
 .floorplan-boiler-open { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: center; justify-items: center; gap: 0; border: 0; background: transparent; color: #def1fb; cursor: pointer; pointer-events: auto; padding: 0; }
 .floorplan-boiler-status, .floorplan-boiler-mode { width: 72%; height: 72%; object-fit: contain; }
 .floorplan-boiler-status[data-available="false"], .floorplan-boiler-mode[data-mode="unknown"] { opacity: .45; }
