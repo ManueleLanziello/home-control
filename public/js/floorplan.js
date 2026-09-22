@@ -358,7 +358,15 @@ export function bindWeatherPopupTrigger(element, opener = openWeather) {
   });
 }
 
-export async function initFloorplan({ store = createFloorplanState(), onCameraSelect = showCamera, onCameraEventsSelect = () => {}, onLightToggle = id => store.setLight(id, !store.snapshot().lights[id]), onLedbarPower = on => fetch(homeControlPath('/api/ledbar/power'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on }) }), onLedbarBrightness = brightness => fetch(homeControlPath('/api/ledbar/brightness'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ brightness }) }) } = {}) {
+export async function initFloorplan({ store = createFloorplanState(), onCameraSelect = showCamera, onCameraEventsSelect = () => {}, onCameraPrivacyToggle = async (id, enabled) => {
+  const response = await fetch(homeControlPath('/api/cameras/' + id + '/privacy'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }) });
+  if (!response.ok) throw new Error('Comando Privacy non disponibile');
+  return response.json();
+}, onCameraPrivacyRead = async id => {
+  const response = await fetch(homeControlPath('/api/cameras/' + id + '/privacy'), { cache: 'no-store' });
+  if (!response.ok) throw new Error('Privacy non disponibile');
+  return response.json();
+}, onLightToggle = id => store.setLight(id, !store.snapshot().lights[id]), onLedbarPower = on => fetch(homeControlPath('/api/ledbar/power'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on }) }), onLedbarBrightness = brightness => fetch(homeControlPath('/api/ledbar/brightness'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ brightness }) }) } = {}) {
   const stage = document.querySelector('[data-layered-floorplan]');
   const status = document.querySelector('[data-floorplan-status]');
   if (!stage) return;
@@ -498,6 +506,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
       }
     }
     const cameraControls = new Map();
+    const privacyPending = new Set();
     for (const camera of config.cameras) {
       const element = markerElement('Camera ' + camera.room, true);
       element.classList.add('floorplan-marker-camera');
@@ -514,11 +523,25 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
         control.addEventListener('click', event => {
           event.preventDefault();
           event.stopPropagation();
+          if (kind === 'privacy') {
+            const privacy = store.snapshot().cameras[camera.id]?.privacy;
+            if (privacyPending.has(camera.id) || typeof privacy?.enabled !== 'boolean') return;
+            privacyPending.add(camera.id);
+            control.disabled = true;
+            void onCameraPrivacyToggle(camera.id, !privacy.enabled)
+              .then(readBack => store.applyCameraPrivacy(camera.id, readBack))
+              .catch(() => {})
+              .finally(() => { privacyPending.delete(camera.id); control.disabled = false; });
+            return;
+          }
           if (kind === 'events') onCameraEventsSelect({ ...camera, status: store.snapshot().cameras[camera.id] });
         });
         if (placeHtmlOptional(cameraMapping, marker, control, true, camera.id + ':' + kind)) controls[kind] = control;
       }
       cameraControls.set(camera.id, controls);
+    }
+    for (const camera of config.cameras.filter(camera => camera.id !== 'C3')) {
+      void onCameraPrivacyRead(camera.id).then(privacy => store.applyCameraPrivacy(camera.id, privacy)).catch(() => {});
     }
     const boilerIcon = markerElement('Apri card CALDAIA', true);
     boilerIcon.append(createIcon(assets, config.icons.boiler, '♨'));
@@ -630,7 +653,6 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
         const cameraState = state.cameras[camera.id] || {};
         const controls = cameraControls.get(camera.id) || {};
         const binaryControls = {
-          privacy: [config.icons.privacyOn, config.icons.privacyOff],
           detection: [config.icons.detectionOn, config.icons.detectionOff],
           alarm: [config.icons.alarmOn, config.icons.alarmOff],
         };
@@ -641,8 +663,8 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
           const available = typeof value === 'boolean';
           control.dataset.available = String(available);
           control.setAttribute('aria-label', `${kind} ${camera.room}: ${available ? value ? 'ON' : 'OFF' : 'stato non disponibile'}`);
-          // UNKNOWN is intentionally visual-only: it must not hide the control or imply a camera state.
-          control.replaceChildren(createIcon(assets, available && value ? onIcon : offIcon, '?'));
+          if (kind === 'privacy' && !available) control.replaceChildren(document.createTextNode('?'));
+          else control.replaceChildren(createIcon(assets, available && value ? onIcon : offIcon, '?'));
         }
         const battery = controls.battery;
         if (battery) {

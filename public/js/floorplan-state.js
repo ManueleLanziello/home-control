@@ -50,6 +50,11 @@ export function createFloorplanState() {
       if (ledbar && typeof ledbar === 'object') state.ledbar = { ...state.ledbar, state: ['ON', 'OFF'].includes(ledbar.state) ? ledbar.state : state.ledbar.state, brightness: Number.isInteger(ledbar.brightness) ? ledbar.brightness : state.ledbar.brightness, online: ledbar.online === true, available: ledbar.available === true, updatedAt: ledbar.updatedAt ?? state.ledbar.updatedAt };
       for (const listener of listeners) listener(this.snapshot());
     },
+    applyCameraPrivacy(id, privacy) {
+      if (typeof privacy?.enabled !== 'boolean') return;
+      state.cameras[id] = { ...(state.cameras[id] || {}), privacy: { available: true, enabled: privacy.enabled } };
+      for (const listener of listeners) listener(this.snapshot());
+    },
     applyThermostatSnapshot(thermostat) {
       applyThermostat(thermostat);
       for (const listener of listeners) listener(this.snapshot());

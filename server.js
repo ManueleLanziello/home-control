@@ -297,6 +297,21 @@ export function createHomeControlServer({
       try { const payload = await readJson(request); if (typeof payload?.active !== 'boolean') throw new Error('Stato camera non valido'); return sendJson(response, 200, await cameras.setLive(cameraLiveMatch[1], payload.active)); }
       catch (error) { return sendJson(response, 503, { error: error.message || 'Comando camera non disponibile' }); }
     }
+    const cameraPrivacyMatch = /^\/api\/cameras\/(C[123])\/privacy$/.exec(url.pathname);
+    if (cameraPrivacyMatch) {
+      if (request.method === 'GET') {
+        try { return sendJson(response, 200, await cameras.getPrivacyMode(cameraPrivacyMatch[1])); }
+        catch (error) { return sendJson(response, 503, { error: error.message || 'Privacy non disponibile' }); }
+      }
+      if (request.method !== 'PUT') return sendJson(response, 405, { error: 'Metodo non consentito' });
+      try {
+        const payload = await readJson(request);
+        if (typeof payload?.enabled !== 'boolean') throw new Error('Stato Privacy non valido');
+        const privacy = await cameras.setPrivacyMode(cameraPrivacyMatch[1], payload.enabled);
+        homeStatus.invalidate();
+        return sendJson(response, 200, privacy);
+      } catch (error) { return sendJson(response, 503, { error: error.message || 'Comando Privacy non disponibile' }); }
+    }
     const cameraVerifyMatch = /^\/api\/hardware\/cameras\/([^/]+)\/verify$/.exec(url.pathname);
     if (cameraVerifyMatch) {
       if (request.method !== 'POST') return sendJson(response, 405, { error: 'Metodo non consentito' });

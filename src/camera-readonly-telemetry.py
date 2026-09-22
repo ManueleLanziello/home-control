@@ -88,6 +88,12 @@ def main() -> int:
             result["recordings"] = {"available": True, "clips": clips}
         except Exception:
             result["recordings"] = {"available": False, "clips": []}
+        try:
+            privacy = camera.getPrivacyMode()
+            enabled = privacy.get("enabled") if isinstance(privacy, dict) else None
+            result["privacy"] = {"available": enabled in ("on", "off"), "enabled": enabled}
+        except Exception:
+            result["privacy"] = {"available": False}
         print(json.dumps(result, ensure_ascii=False))
         return 0
     except Exception:

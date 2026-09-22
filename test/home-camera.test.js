@@ -13,7 +13,7 @@ const camera = (id, alias, ip, mac) => ({
   id, alias, model: 'C410', connection: { ip }, identity: { mac }, metadata: { adapter: 'tapo-c410-owned' },
   configurationStatus: 'complete', verificationStatus: 'verified',
 });
-const noTelemetry = async () => ({ battery: { available: false, percent: null, charging: null }, events: { available: false, count: null, windowHours: 12 }, telemetryUpdatedAt: null });
+const noTelemetry = async () => ({ battery: { available: false, percent: null, charging: null }, events: { available: false, count: null, windowHours: 12 }, privacy: { available: false, enabled: null }, telemetryUpdatedAt: null });
 
 test('C1 and C2 are independent cameras owned directly by Home-Control', async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'home-camera-owned-'));
@@ -104,6 +104,34 @@ test('telemetria read-only C1/C2 è indipendente, in cache e non blocca lo snaps
   } finally { await runtime.close(); }
 });
 
+test('Privacy usa il ruolo richiesto, conserva solo il read-back e isola C1/C2/C3', async () => {
+  const records = [
+    camera('c1', 'Terrazzo', '192.0.2.1', 'AA:BB:CC:DD:EE:01'),
+    camera('c2', 'Pond', '192.0.2.2', 'AA:BB:CC:DD:EE:02'),
+  ];
+  const calls = [];
+  const runtime = new HomeCameraRuntime({
+    hardwareStore: { async read() { return { devices: records }; } },
+    roleStore: { async read() { return { c1: 'camera_terrazzo', c2: 'camera_pond' }; } },
+    root: process.cwd(), readTelemetry: noTelemetry,
+    async readPrivacy({ ip }) { return { available: true, enabled: ip.endsWith('.1') }; },
+    async setPrivacy({ ip, enabled }) {
+      calls.push([ip, enabled]);
+      if (ip.endsWith('.2')) throw new Error('fixture failure');
+      return { available: true, enabled };
+    },
+  });
+  runtime.owned.createRuntime = async () => ({ async snapshot() { return { configured: true, status: 'READY', live: false }; }, async stop() {} });
+  try {
+    assert.deepEqual(await runtime.getPrivacyMode('C1'), { available: true, enabled: true });
+    assert.deepEqual(await runtime.setPrivacyMode('C1', true), { available: true, enabled: true });
+    assert.equal((await runtime.snapshot()).C1.privacy.enabled, true);
+    await assert.rejects(runtime.setPrivacyMode('C2', false), /fixture failure/);
+    await assert.rejects(runtime.setPrivacyMode('C3', true), /Camera non disponibile/);
+    assert.deepEqual(calls, [['192.0.2.1', true], ['192.0.2.2', false]]);
+  } finally { await runtime.close(); }
+});
+
 test('camera configuration exposes C1/C2/C3 as local roles and C2 media uses the local runtime', async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'home-camera-api-'));
   const imagePath = path.join(directory, 'c2.jpg'); await writeFile(imagePath, new Uint8Array([0xff, 0xd8, 0xff]));
@@ -118,6 +146,8 @@ test('camera configuration exposes C1/C2/C3 as local roles and C2 media uses the
     }; },
     async imagePath(role) { calls.push(['image', role]); return role === 'C2' ? imagePath : null; },
     async setLive(role, active) { calls.push(['live', role, active]); return { role, active, sourceType: 'owned' }; },
+    async getPrivacyMode(role) { calls.push(['privacy-read', role]); return { available: true, enabled: false }; },
+    async setPrivacyMode(role, enabled) { calls.push(['privacy', role, enabled]); return { available: true, enabled }; },
     async verify() { return { model: 'C410' }; }, async close() {},
   };
   const server = createHomeControlServer({ hardwareStore, roleStore, cameraRuntime,
@@ -135,6 +165,12 @@ test('camera configuration exposes C1/C2/C3 as local roles and C2 media uses the
     assert.deepEqual([...new Uint8Array(await media.arrayBuffer())], [0xff, 0xd8, 0xff]);
     const live = await fetch(`${base}/api/cameras/C2/live`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ active: true }) });
     assert.equal(live.status, 200); assert.deepEqual(calls, [['image', 'C2'], ['live', 'C2', true]]);
+    const privacy = await fetch(`${base}/api/cameras/C1/privacy`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: true }) });
+    assert.equal(privacy.status, 200); assert.deepEqual(await privacy.json(), { available: true, enabled: true });
+    assert.deepEqual(calls.at(-1), ['privacy', 'C1', true]);
+    const privacyRead = await fetch(`${base}/api/cameras/C2/privacy`);
+    assert.equal(privacyRead.status, 200); assert.deepEqual(await privacyRead.json(), { available: true, enabled: false });
+    assert.deepEqual(calls.at(-1), ['privacy-read', 'C2']);
     const home = await (await fetch(`${base}/api/home/status`)).json();
     assert.equal(home.cameras.C2.sourceType, 'owned'); assert.equal(home.cameras.C1.role, 'C1');
   } finally { server.close(); await once(server, 'close'); await rm(directory, { recursive: true, force: true }); }

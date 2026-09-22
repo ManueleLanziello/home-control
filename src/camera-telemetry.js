@@ -49,6 +49,10 @@ export function normalizeCameraTelemetry(payload, now = Date.now()) {
       count: recordingsAvailable ? countRecentRecordings(payload.recordings.clips, now) : null,
       windowHours: 12,
     },
+    privacy: {
+      available: payload?.privacy?.available === true && ['on', 'off'].includes(payload.privacy.enabled),
+      enabled: payload?.privacy?.available === true && payload.privacy.enabled === 'on' ? true : payload?.privacy?.available === true ? false : null,
+    },
     telemetryUpdatedAt: new Date(now).toISOString(),
   };
 }

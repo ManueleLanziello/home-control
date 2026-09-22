@@ -201,12 +201,23 @@ test('stati futuri privacy, rilevamento e allarme hanno gli asset esatti senza s
   assert.match(floorplan, /createIcon\(assets, available && value \? onIcon : offIcon, '\?'\)/);
 });
 
+test('Privacy camera usa read-back reale, non fallback OFF né click streaming', async () => {
+  const floorplan = await readFile(new URL('../public/js/floorplan.js', import.meta.url), 'utf8');
+  assert.match(floorplan, /\/api\/cameras\/\' \+ id \+ \'\/privacy/);
+  assert.match(floorplan, /onCameraPrivacyToggle\(camera\.id, !privacy\.enabled\)/);
+  assert.match(floorplan, /onCameraPrivacyRead\(camera\.id\)\.then\(privacy => store\.applyCameraPrivacy\(camera\.id, privacy\)\)/);
+  assert.match(floorplan, /\.then\(readBack => store\.applyCameraPrivacy\(camera\.id, readBack\)\)/);
+  assert.match(floorplan, /if \(kind === 'privacy' && !available\) control\.replaceChildren\(document\.createTextNode\('\?'\)\)/);
+  assert.match(floorplan, /event\.stopPropagation\(\);\s*if \(kind === 'privacy'\)/);
+});
+
 test('controlli camera compatti isolano il click dallo streaming e restano fail-safe', async () => {
   const [floorplan, css] = await Promise.all([
     readFile(new URL('../public/js/floorplan.js', import.meta.url), 'utf8'),
     readFile(new URL('../public/floorplan.css', import.meta.url), 'utf8'),
   ]);
-  assert.match(floorplan, /event\.preventDefault\(\);\s*event\.stopPropagation\(\);\s*if \(kind === 'events'\) onCameraEventsSelect/);
+  assert.match(floorplan, /event\.preventDefault\(\);\s*event\.stopPropagation\(\);\s*if \(kind === 'privacy'\)/);
+  assert.match(floorplan, /if \(kind === 'events'\) onCameraEventsSelect/);
   assert.match(floorplan, /placeHtmlOptional\(cameraMapping, marker, control, true/);
   assert.match(floorplan, /console\.warn\('Marker camera non disponibile: ' \+ label, error\)/);
   assert.doesNotMatch(floorplan, /if \(kind === 'events'\) onCameraSelect/);
