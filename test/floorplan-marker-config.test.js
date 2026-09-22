@@ -163,11 +163,15 @@ test('gli altri marker semantici restano risolvibili nelle rispettive geometrie'
   }
 });
 
-test('LAYER-09 risolve semanticamente C1-C3 e i cinque marker compatti di ogni camera', async () => {
+test('LAYER-09 mantiene le identità C1/C2/C3 sulle rispettive posizioni grafiche e controlli', async () => {
   const { source: svg } = await labelsIn('LAYER-09-CAM.svg');
   const source = markerSourceFromSvg(svg);
+  assert.deepEqual(floorplanConfig.cameras.map(({ id, room, marker, controls }) => ({ id, room, marker: marker.label, controls: Object.fromEntries(Object.entries(controls).map(([kind, control]) => [kind, control.label])) })), [
+    { id: 'C1', room: 'TERRAZZO', marker: 'C1', controls: { privacy: 'c1a', detection: 'c1b', alarm: 'c1c', battery: 'c1d', events: 'c1e' } },
+    { id: 'C2', room: 'POND', marker: 'C2', controls: { privacy: 'c2a', detection: 'c2b', alarm: 'c2c', battery: 'c2d', events: 'c2e' } },
+    { id: 'C3', room: 'GIARDINO', marker: 'C3', controls: { privacy: 'c3a', detection: 'c3b', alarm: 'c3c', battery: 'c3d', events: 'c3e' } },
+  ]);
   for (const camera of floorplanConfig.cameras) {
-    assert.deepEqual(camera.marker, { label: camera.id });
     assert.deepEqual(Object.keys(camera.controls), ['privacy', 'detection', 'alarm', 'battery', 'events']);
     for (const marker of [camera.marker, ...Object.values(camera.controls)]) assert.ok(shapeForLabel(source, marker.label), marker.label);
   }
@@ -186,7 +190,7 @@ test('icone batteria camera rispettano soglie esatte e priorità ricarica', () =
   assert.equal(cameraBatteryIcon({ percent: null, charging: false }), null);
 });
 
-test('stati futuri privacy, rilevamento e allarme hanno gli asset esatti senza setter', async () => {
+test('Privacy renderizza gli asset reali e mantiene unknown fail-safe', async () => {
   assert.deepEqual({
     privacy: [floorplanConfig.icons.privacyOn, floorplanConfig.icons.privacyOff],
     detection: [floorplanConfig.icons.detectionOn, floorplanConfig.icons.detectionOff],
@@ -199,16 +203,49 @@ test('stati futuri privacy, rilevamento e allarme hanno gli asset esatti senza s
   const floorplan = await readFile(new URL('../public/js/floorplan.js', import.meta.url), 'utf8');
   assert.doesNotMatch(floorplan, /setPrivacy|setDetection|setAlarm/);
   assert.match(floorplan, /createIcon\(assets, available && value \? onIcon : offIcon, '\?'\)/);
+  assert.match(floorplan, /const value = cameraState\.privacy\?\.enabled;/);
+  assert.match(floorplan, /value \? config\.icons\.privacyOn : config\.icons\.privacyOff/);
+  assert.match(floorplan, /if \(!available\) privacy\.replaceChildren\(document\.createTextNode\('\?'\)\)/);
 });
 
-test('Privacy camera usa read-back reale, non fallback OFF né click streaming', async () => {
+test('Privacy camera blocca unknown e invia il toggle solo con read-back booleano', async () => {
   const floorplan = await readFile(new URL('../public/js/floorplan.js', import.meta.url), 'utf8');
   assert.match(floorplan, /\/api\/cameras\/\' \+ id \+ \'\/privacy/);
   assert.match(floorplan, /onCameraPrivacyToggle\(camera\.id, !privacy\.enabled\)/);
   assert.match(floorplan, /onCameraPrivacyRead\(camera\.id\)\.then\(privacy => store\.applyCameraPrivacy\(camera\.id, privacy\)\)/);
   assert.match(floorplan, /\.then\(readBack => store\.applyCameraPrivacy\(camera\.id, readBack\)\)/);
-  assert.match(floorplan, /if \(kind === 'privacy' && !available\) control\.replaceChildren\(document\.createTextNode\('\?'\)\)/);
+  assert.match(floorplan, /if \(privacyPending\.has\(camera\.id\) \|\| typeof privacy\?\.enabled !== 'boolean'\) return;/);
+  assert.match(floorplan, /privacyPending\.add\(camera\.id\);\s*control\.disabled = true;\s*void onCameraPrivacyToggle\(camera\.id, !privacy\.enabled\)/);
   assert.match(floorplan, /event\.stopPropagation\(\);\s*if \(kind === 'privacy'\)/);
+});
+
+test('Rilevazione camera usa C1b/C2b con read-back e resta fail-safe', async () => {
+  const floorplan = await readFile(new URL('../public/js/floorplan.js', import.meta.url), 'utf8');
+  assert.match(floorplan, /\/api\/cameras\/' \+ id \+ '\/detection/);
+  assert.match(floorplan, /onCameraDetectionRead\(camera\.id\)\.then\(detection => store\.applyCameraDetection\(camera\.id, detection\)\)/);
+  assert.match(floorplan, /if \(detectionPending\.has\(camera\.id\) \|\| typeof detection !== 'boolean'\) return;/);
+  assert.match(floorplan, /onCameraDetectionToggle\(camera\.id, !detection\)\s*\.then\(readBack => store\.applyCameraDetection\(camera\.id, readBack\)\)/);
+  assert.match(floorplan, /event\.preventDefault\(\);\s*event\.stopPropagation\(\);\s*if \(kind === 'privacy'\)/);
+  assert.match(floorplan, /if \(kind === 'detection' && !available\) control\.replaceChildren\(document\.createTextNode\('\?'\)\)/);
+});
+
+test('snapshot Privacy conserva l’ultimo read-back booleano ma accetta nuovi booleani', () => {
+  const store = createFloorplanState();
+  store.applyCameraPrivacy('C1', { available: true, enabled: true });
+  store.applyHomeSnapshot({ cameras: { C1: { privacy: { available: false, enabled: null } } } });
+  assert.equal(store.snapshot().cameras.C1.privacy.enabled, true);
+  store.applyHomeSnapshot({ cameras: { C1: { privacy: { available: true, enabled: false } } } });
+  assert.equal(store.snapshot().cameras.C1.privacy.enabled, false);
+});
+
+test('snapshot Rilevazione conserva l’ultimo master booleano e rispetta C2', () => {
+  const store = createFloorplanState();
+  store.applyCameraDetection('C2', { available: true, enabled: true });
+  store.applyHomeSnapshot({ cameras: { C2: { detection: null }, C3: { detection: null } } });
+  assert.equal(store.snapshot().cameras.C2.detection, true);
+  assert.equal(store.snapshot().cameras.C3.detection, null);
+  store.applyHomeSnapshot({ cameras: { C2: { detection: false } } });
+  assert.equal(store.snapshot().cameras.C2.detection, false);
 });
 
 test('controlli camera compatti isolano il click dallo streaming e restano fail-safe', async () => {

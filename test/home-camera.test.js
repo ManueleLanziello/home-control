@@ -132,6 +132,29 @@ test('Privacy usa il ruolo richiesto, conserva solo il read-back e isola C1/C2/C
   } finally { await runtime.close(); }
 });
 
+test('Rilevazione usa il master del ruolo richiesto, con read-back e C3 fail-safe', async () => {
+  const records = [
+    camera('c1', 'Terrazzo', '192.0.2.1', 'AA:BB:CC:DD:EE:01'),
+    camera('c2', 'Pond', '192.0.2.2', 'AA:BB:CC:DD:EE:02'),
+  ];
+  const calls = [];
+  const runtime = new HomeCameraRuntime({
+    hardwareStore: { async read() { return { devices: records }; } },
+    roleStore: { async read() { return { c1: 'camera_terrazzo', c2: 'camera_pond' }; } },
+    root: process.cwd(), readTelemetry: noTelemetry,
+    async readDetection({ ip }) { calls.push(['read', ip]); return { available: true, enabled: ip.endsWith('.1') }; },
+    async setDetection({ ip, enabled }) { calls.push(['set', ip, enabled]); return { available: true, enabled }; },
+  });
+  runtime.owned.createRuntime = async () => ({ async snapshot() { return { configured: true, status: 'READY', live: false }; }, async stop() {} });
+  try {
+    assert.deepEqual(await runtime.getDetectionMode('C1'), { available: true, enabled: true });
+    assert.deepEqual(await runtime.setDetectionMode('C2', true), { available: true, enabled: true });
+    assert.equal((await runtime.snapshot()).C2.detection, true);
+    await assert.rejects(runtime.getDetectionMode('C3'), /Camera non disponibile/);
+    assert.deepEqual(calls, [['read', '192.0.2.1'], ['set', '192.0.2.2', true]]);
+  } finally { await runtime.close(); }
+});
+
 test('camera configuration exposes C1/C2/C3 as local roles and C2 media uses the local runtime', async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'home-camera-api-'));
   const imagePath = path.join(directory, 'c2.jpg'); await writeFile(imagePath, new Uint8Array([0xff, 0xd8, 0xff]));
@@ -148,6 +171,8 @@ test('camera configuration exposes C1/C2/C3 as local roles and C2 media uses the
     async setLive(role, active) { calls.push(['live', role, active]); return { role, active, sourceType: 'owned' }; },
     async getPrivacyMode(role) { calls.push(['privacy-read', role]); return { available: true, enabled: false }; },
     async setPrivacyMode(role, enabled) { calls.push(['privacy', role, enabled]); return { available: true, enabled }; },
+    async getDetectionMode(role) { calls.push(['detection-read', role]); if (role === 'C3') throw new Error('Camera non disponibile'); return { available: true, enabled: role === 'C1' }; },
+    async setDetectionMode(role, enabled) { calls.push(['detection', role, enabled]); if (role === 'C3') throw new Error('Camera non disponibile'); return { available: true, enabled }; },
     async verify() { return { model: 'C410' }; }, async close() {},
   };
   const server = createHomeControlServer({ hardwareStore, roleStore, cameraRuntime,
@@ -171,6 +196,14 @@ test('camera configuration exposes C1/C2/C3 as local roles and C2 media uses the
     const privacyRead = await fetch(`${base}/api/cameras/C2/privacy`);
     assert.equal(privacyRead.status, 200); assert.deepEqual(await privacyRead.json(), { available: true, enabled: false });
     assert.deepEqual(calls.at(-1), ['privacy-read', 'C2']);
+    const detection = await fetch(`${base}/api/cameras/C2/detection`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: true }) });
+    assert.equal(detection.status, 200); assert.deepEqual(await detection.json(), { available: true, enabled: true });
+    assert.deepEqual(calls.at(-1), ['detection', 'C2', true]);
+    const detectionRead = await fetch(`${base}/api/cameras/C1/detection`);
+    assert.equal(detectionRead.status, 200); assert.deepEqual(await detectionRead.json(), { available: true, enabled: true });
+    assert.deepEqual(calls.at(-1), ['detection-read', 'C1']);
+    const detectionC3 = await fetch(`${base}/api/cameras/C3/detection`);
+    assert.equal(detectionC3.status, 503);
     const home = await (await fetch(`${base}/api/home/status`)).json();
     assert.equal(home.cameras.C2.sourceType, 'owned'); assert.equal(home.cameras.C1.role, 'C1');
   } finally { server.close(); await once(server, 'close'); await rm(directory, { recursive: true, force: true }); }

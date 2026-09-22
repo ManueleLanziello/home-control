@@ -55,6 +55,11 @@ export function createFloorplanState() {
       state.cameras[id] = { ...(state.cameras[id] || {}), privacy: { available: true, enabled: privacy.enabled } };
       for (const listener of listeners) listener(this.snapshot());
     },
+    applyCameraDetection(id, detection) {
+      if (typeof detection?.enabled !== 'boolean') return;
+      state.cameras[id] = { ...(state.cameras[id] || {}), detection: detection.enabled };
+      for (const listener of listeners) listener(this.snapshot());
+    },
     applyThermostatSnapshot(thermostat) {
       applyThermostat(thermostat);
       for (const listener of listeners) listener(this.snapshot());
@@ -69,7 +74,18 @@ export function createFloorplanState() {
         if (state.lightSources[id] === 'simulation' && state.lights[id] === null) state.lights[id] = false;
         if (state.lightSources[id] !== 'simulation') state.lights[id] = light?.available === true && typeof light.state === 'boolean' ? light.state : null;
       }
-      state.cameras = home.cameras || {};
+      state.cameras = Object.fromEntries(Object.entries(home.cameras || {}).map(([id, camera]) => {
+        const previousEnabled = state.cameras[id]?.privacy?.enabled;
+        const nextEnabled = camera?.privacy?.enabled;
+        const previousDetection = state.cameras[id]?.detection;
+        const nextDetection = camera?.detection;
+        const nextCamera = { ...camera };
+        if (typeof previousEnabled === 'boolean' && typeof nextEnabled !== 'boolean') {
+          nextCamera.privacy = { ...camera?.privacy, available: true, enabled: previousEnabled };
+        }
+        if (typeof previousDetection === 'boolean' && typeof nextDetection !== 'boolean') nextCamera.detection = previousDetection;
+        return [id, nextCamera];
+      }));
       applyThermostat(home.thermostat);
       applyHood(home.hood);
       if (home.ledbar) state.ledbar = { ...state.ledbar, ...home.ledbar };

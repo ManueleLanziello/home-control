@@ -30,10 +30,13 @@ export const floorplanConfig = {
     const id = 'S' + (index + 1);
     return { id, room, marker: labeledMarker(id), reading: labeledMarker('LS' + (index + 1)), humidityReading: ['S1', 'S2', 'S4'].includes(id) ? labeledMarker('LU' + (index + 1)) : null, futureSource: index === 2 ? 'AVATTO' : null };
   }),
-  cameras: ['TERRAZZO', 'POND', 'GIARDINO'].map((room, index) => {
-    const id = 'C' + (index + 1);
+  cameras: [
+    { id: 'C1', room: 'TERRAZZO', markerId: 'C1' },
+    { id: 'C2', room: 'POND', markerId: 'C2' },
+    { id: 'C3', room: 'GIARDINO', markerId: 'C3' },
+  ].map(({ id, room, markerId }) => {
     const prefix = id.toLowerCase();
-    return { id, room, marker: labeledMarker(id), controls: { privacy: labeledMarker(prefix + 'a'), detection: labeledMarker(prefix + 'b'), alarm: labeledMarker(prefix + 'c'), battery: labeledMarker(prefix + 'd'), events: labeledMarker(prefix + 'e') } };
+    return { id, room, marker: labeledMarker(markerId), controls: { privacy: labeledMarker(prefix + 'a'), detection: labeledMarker(prefix + 'b'), alarm: labeledMarker(prefix + 'c'), battery: labeledMarker(prefix + 'd'), events: labeledMarker(prefix + 'e') } };
   }),
   boiler: { marker: labeledMarker('D1'), card: labeledMarker('QD1'), target: '.boiler-card', settings: '.boiler-settings-link' },
   cappa: { id: 'K1', marker: marker(0) },
