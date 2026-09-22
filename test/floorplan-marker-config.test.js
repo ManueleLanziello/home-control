@@ -7,7 +7,7 @@ import { backgroundPeriod, createFloorplanState } from '../public/js/floorplan-s
 import { createHomeControlServer } from '../server.js';
 
 globalThis.window = { addEventListener() {} };
-const { shapeForLabel, humidityReadingColor, renderFloorplanReading, sensorReadingFontSize, temperatureReadingColor } = await import('../public/js/floorplan.js');
+const { cameraBatteryIcon, shapeForLabel, humidityReadingColor, renderFloorplanReading, sensorReadingFontSize, temperatureReadingColor } = await import('../public/js/floorplan.js');
 
 async function labelsIn(file) {
   const source = await readFile(new URL(`../design/${file}`, import.meta.url), 'utf8');
@@ -161,6 +161,56 @@ test('gli altri marker semantici restano risolvibili nelle rispettive geometrie'
     const source = markerSourceFromSvg(svg);
     for (const label of labels) assert.ok(shapeForLabel(source, label), `${file}: ${label}`);
   }
+});
+
+test('LAYER-09 risolve semanticamente C1-C3 e i cinque marker compatti di ogni camera', async () => {
+  const { source: svg } = await labelsIn('LAYER-09-CAM.svg');
+  const source = markerSourceFromSvg(svg);
+  for (const camera of floorplanConfig.cameras) {
+    assert.deepEqual(camera.marker, { label: camera.id });
+    assert.deepEqual(Object.keys(camera.controls), ['privacy', 'detection', 'alarm', 'battery', 'events']);
+    for (const marker of [camera.marker, ...Object.values(camera.controls)]) assert.ok(shapeForLabel(source, marker.label), marker.label);
+  }
+});
+
+test('icone batteria camera rispettano soglie esatte e priorità ricarica', () => {
+  assert.equal(cameraBatteryIcon({ percent: 0, charging: false }), 'solar-panel-battery-empty.svg');
+  assert.equal(cameraBatteryIcon({ percent: 20, charging: false }), 'solar-panel-battery-empty.svg');
+  assert.equal(cameraBatteryIcon({ percent: 21, charging: false }), 'solar-panel-battery-low.svg');
+  assert.equal(cameraBatteryIcon({ percent: 40, charging: false }), 'solar-panel-battery-low.svg');
+  assert.equal(cameraBatteryIcon({ percent: 41, charging: false }), 'solar-panel-battery-half.svg');
+  assert.equal(cameraBatteryIcon({ percent: 70, charging: false }), 'solar-panel-battery-half.svg');
+  assert.equal(cameraBatteryIcon({ percent: 71, charging: false }), 'solar-panel-battery-full.svg');
+  assert.equal(cameraBatteryIcon({ percent: 100, charging: false }), 'solar-panel-battery-full.svg');
+  assert.equal(cameraBatteryIcon({ percent: 5, charging: true }), 'solar-panel-battery-charging.svg');
+  assert.equal(cameraBatteryIcon({ percent: null, charging: false }), null);
+});
+
+test('stati futuri privacy, rilevamento e allarme hanno gli asset esatti senza setter', async () => {
+  assert.deepEqual({
+    privacy: [floorplanConfig.icons.privacyOn, floorplanConfig.icons.privacyOff],
+    detection: [floorplanConfig.icons.detectionOn, floorplanConfig.icons.detectionOff],
+    alarm: [floorplanConfig.icons.alarmOn, floorplanConfig.icons.alarmOff],
+  }, {
+    privacy: ['privacyon.svg', 'privacyoff.svg'],
+    detection: ['rilevon.svg', 'rilevoff.svg'],
+    alarm: ['alarmon.svg', 'alarmoff.svg'],
+  });
+  const floorplan = await readFile(new URL('../public/js/floorplan.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(floorplan, /setPrivacy|setDetection|setAlarm/);
+  assert.match(floorplan, /createIcon\(assets, available && value \? onIcon : offIcon, '\?'\)/);
+});
+
+test('controlli camera compatti isolano il click dallo streaming e restano fail-safe', async () => {
+  const [floorplan, css] = await Promise.all([
+    readFile(new URL('../public/js/floorplan.js', import.meta.url), 'utf8'),
+    readFile(new URL('../public/floorplan.css', import.meta.url), 'utf8'),
+  ]);
+  assert.match(floorplan, /event\.preventDefault\(\);\s*event\.stopPropagation\(\);\s*if \(kind === 'events'\) onCameraEventsSelect/);
+  assert.match(floorplan, /placeHtmlOptional\(cameraMapping, marker, control, true/);
+  assert.match(floorplan, /console\.warn\('Marker camera non disponibile: ' \+ label, error\)/);
+  assert.doesNotMatch(floorplan, /if \(kind === 'events'\) onCameraSelect/);
+  assert.match(css, /\.floorplan-marker-camera-aux \{[^}]*font-size: 56px/);
 });
 
 test('LAYER-08 associa ogni lettura LS/LU alla forma immediatamente collegata alla label', async () => {

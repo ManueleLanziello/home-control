@@ -60,6 +60,14 @@ export function shapeForLabel(source, label) {
 export const temperatureReadingColor = value => !Number.isFinite(value) ? '#fff' : value < 21 ? '#17c8f4' : value <= 23 ? '#29df92' : '#ff9d3d';
 export const humidityReadingColor = value => Number.isFinite(value) && value > 50 ? '#17c8f4' : '#fff';
 export const sensorReadingFontSize = referenceBox => referenceBox.height * .34;
+export function cameraBatteryIcon({ percent, charging } = {}) {
+  if (charging === true) return config.icons.batteryCharging;
+  if (!Number.isFinite(percent)) return null;
+  if (percent <= 20) return config.icons.batteryEmpty;
+  if (percent <= 40) return config.icons.batteryLow;
+  if (percent <= 70) return config.icons.batteryHalf;
+  return config.icons.batteryFull;
+}
 
 export function renderFloorplanReading(reading, value, unit, color) {
   reading.setAttribute('fill', color);
@@ -116,6 +124,11 @@ function placeHtml(mapping, marker, element, interactive = false) {
   foreign.append(element);
   mapping.overlay.append(foreign);
   return box;
+}
+
+function placeHtmlOptional(mapping, marker, element, interactive, label) {
+  try { placeHtml(mapping, marker, element, interactive); return true; }
+  catch (error) { console.warn('Marker camera non disponibile: ' + label, error); return false; }
 }
 
 function createIcon(assets, asset, fallback) {
@@ -345,7 +358,7 @@ export function bindWeatherPopupTrigger(element, opener = openWeather) {
   });
 }
 
-export async function initFloorplan({ store = createFloorplanState(), onCameraSelect = showCamera, onLightToggle = id => store.setLight(id, !store.snapshot().lights[id]), onLedbarPower = on => fetch(homeControlPath('/api/ledbar/power'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on }) }), onLedbarBrightness = brightness => fetch(homeControlPath('/api/ledbar/brightness'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ brightness }) }) } = {}) {
+export async function initFloorplan({ store = createFloorplanState(), onCameraSelect = showCamera, onCameraEventsSelect = () => {}, onLightToggle = id => store.setLight(id, !store.snapshot().lights[id]), onLedbarPower = on => fetch(homeControlPath('/api/ledbar/power'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on }) }), onLedbarBrightness = brightness => fetch(homeControlPath('/api/ledbar/brightness'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ brightness }) }) } = {}) {
   const stage = document.querySelector('[data-layered-floorplan]');
   const status = document.querySelector('[data-floorplan-status]');
   if (!stage) return;
@@ -484,13 +497,28 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
         sensorHumidityReadings.set(sensor.id, humidity);
       }
     }
+    const cameraControls = new Map();
     for (const camera of config.cameras) {
       const element = markerElement('Camera ' + camera.room, true);
       element.classList.add('floorplan-marker-camera');
       element.dataset.cameraId = camera.id;
       element.append(createIcon(assets, config.icons.camera, '📷'));
       element.addEventListener('click', () => onCameraSelect({ ...camera, status: store.snapshot().cameras[camera.id] }));
-      placeHtml(cameraMapping, camera.marker, element);
+      placeHtmlOptional(cameraMapping, camera.marker, element, true, camera.id);
+      const controls = {};
+      for (const [kind, marker] of Object.entries(camera.controls)) {
+        const control = markerElement(kind === 'events' ? 'Eventi recenti ' + camera.room : kind + ' ' + camera.room, true);
+        control.classList.add('floorplan-marker-camera-aux');
+        control.dataset.cameraControl = kind;
+        control.dataset.cameraId = camera.id;
+        control.addEventListener('click', event => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (kind === 'events') onCameraEventsSelect({ ...camera, status: store.snapshot().cameras[camera.id] });
+        });
+        if (placeHtmlOptional(cameraMapping, marker, control, true, camera.id + ':' + kind)) controls[kind] = control;
+      }
+      cameraControls.set(camera.id, controls);
     }
     const boilerIcon = markerElement('Apri card CALDAIA', true);
     boilerIcon.append(createIcon(assets, config.icons.boiler, '♨'));
@@ -596,6 +624,41 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
         if (humidityReading) {
           const humidity = state.sensorDetails[sensor.id]?.humidity;
           renderFloorplanReading(humidityReading, humidity, '%', humidityReadingColor(humidity));
+        }
+      }
+      for (const camera of config.cameras) {
+        const cameraState = state.cameras[camera.id] || {};
+        const controls = cameraControls.get(camera.id) || {};
+        const binaryControls = {
+          privacy: [config.icons.privacyOn, config.icons.privacyOff],
+          detection: [config.icons.detectionOn, config.icons.detectionOff],
+          alarm: [config.icons.alarmOn, config.icons.alarmOff],
+        };
+        for (const [kind, [onIcon, offIcon]] of Object.entries(binaryControls)) {
+          const control = controls[kind];
+          if (!control) continue;
+          const value = cameraState[kind];
+          const available = typeof value === 'boolean';
+          control.dataset.available = String(available);
+          control.setAttribute('aria-label', `${kind} ${camera.room}: ${available ? value ? 'ON' : 'OFF' : 'stato non disponibile'}`);
+          // UNKNOWN is intentionally visual-only: it must not hide the control or imply a camera state.
+          control.replaceChildren(createIcon(assets, available && value ? onIcon : offIcon, '?'));
+        }
+        const battery = controls.battery;
+        if (battery) {
+          const available = cameraState.battery?.available === true;
+          const percent = available ? cameraState.battery.percent : null;
+          const icon = cameraBatteryIcon(cameraState.battery);
+          battery.dataset.available = String(available);
+          battery.setAttribute('aria-label', `Batteria ${camera.room}: ${available ? percent + '%' + (cameraState.battery.charging ? ', in carica' : '') : 'non disponibile'}`);
+          battery.replaceChildren(icon ? createIcon(assets, icon, '▰') : document.createTextNode('—'));
+        }
+        const events = controls.events;
+        if (events) {
+          const available = cameraState.events?.available === true;
+          events.dataset.available = String(available);
+          events.textContent = available ? String(cameraState.events.count) : '—';
+          events.setAttribute('aria-label', `Eventi ${camera.room}, ultime 12 ore: ${available ? cameraState.events.count : 'non disponibili'}`);
         }
       }
       const ledbar = state.ledbar;

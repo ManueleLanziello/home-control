@@ -1,17 +1,42 @@
 import path from 'node:path';
 import { CameraManager, c410WorkerPath, defaultCameraPython, RoleRuntimeManager, verifyTapoC410 } from '@smarthome/core';
+import { CAMERA_TELEMETRY_TTL_MS, readCameraTelemetry } from './camera-telemetry.js';
 
 export const OWNED_CAMERA_ADAPTER = 'tapo-c410-owned';
 export const CAMERA_ROLE_MAP = Object.freeze({ C1: 'camera_terrazzo', C2: 'camera_pond', C3: 'camera_giardino' });
-const EMPTY = role => ({ role, configured: false, sourceType: 'owned', online: false, available: false, alias: null, model: null, updatedAt: null, error: null, status: 'NOT_CONFIGURED', imageAvailable: false, live: false });
+const EMPTY_TELEMETRY = () => ({
+  battery: { available: false, percent: null, charging: null },
+  events: { available: false, count: null, windowHours: 12 },
+  telemetryUpdatedAt: null,
+});
+const EMPTY = role => ({ role, configured: false, sourceType: 'owned', online: false, available: false, alias: null, model: null, updatedAt: null, error: null, status: 'NOT_CONFIGURED', imageAvailable: false, live: false, ...EMPTY_TELEMETRY() });
 
 export class HomeCameraRuntime {
-  constructor({ hardwareStore, roleStore, root, env = process.env }) {
-    Object.assign(this, { hardwareStore, roleStore, root, env });
+  constructor({ hardwareStore, roleStore, root, env = process.env, readTelemetry = readCameraTelemetry, now = Date.now, telemetryTtlMs = CAMERA_TELEMETRY_TTL_MS }) {
+    Object.assign(this, { hardwareStore, roleStore, root, env, readTelemetry, now, telemetryTtlMs });
+    this.telemetryCache = new Map();
+    this.telemetryPending = new Map();
     this.owned = new RoleRuntimeManager({ category: 'camera', emptySnapshot: () => EMPTY('C1'), createRuntime: (record, signature) => new CameraManager({
       ip: record.ip, pythonPath: defaultCameraPython(root), workerPath: c410WorkerPath(), env,
       outputDirectory: path.join(root, 'data', 'camera', record.id, signature),
     }) });
+  }
+
+  telemetryFor(record) {
+    const cached = this.telemetryCache.get(record.id);
+    const signature = `${record.id}:${record.connection?.ip || ''}`;
+    return cached?.signature === signature && cached.expiresAt > this.now() ? cached.value : EMPTY_TELEMETRY();
+  }
+
+  scheduleTelemetry(record) {
+    const signature = `${record.id}:${record.connection?.ip || ''}`;
+    const cached = this.telemetryCache.get(record.id);
+    if ((cached?.signature === signature && cached.expiresAt > this.now()) || this.telemetryPending.has(record.id)) return;
+    const pending = this.readTelemetry({ ip: record.connection?.ip, root: this.root, env: this.env, now: this.now() })
+      .catch(() => EMPTY_TELEMETRY())
+      .then(value => this.telemetryCache.set(record.id, { signature, value, expiresAt: this.now() + this.telemetryTtlMs }))
+      .finally(() => this.telemetryPending.delete(record.id));
+    this.telemetryPending.set(record.id, pending);
   }
 
   async reconcile() {
@@ -29,8 +54,10 @@ export class HomeCameraRuntime {
     const active = this.owned.has(record.id);
     try {
       const technical = active ? await this.owned.snapshot(CAMERA_ROLE_MAP[role]) : EMPTY(role);
+      const telemetry = this.telemetryFor(record);
+      if (active && technical.live !== true) this.scheduleTelemetry(record);
       return { ...technical, role, configured: record.configurationStatus === 'complete', sourceType: 'owned', alias: record.alias, model: record.model,
-        online: active && technical.status !== 'ERROR', available: active && technical.status !== 'ERROR', error: technical.error || null };
+        online: active && technical.status !== 'ERROR', available: active && technical.status !== 'ERROR', error: technical.error || null, ...telemetry };
     } catch {
       return { ...EMPTY(role), configured: true, alias: record.alias, model: record.model, status: 'ERROR', error: 'Camera non disponibile' };
     }

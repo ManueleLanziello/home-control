@@ -13,6 +13,7 @@ const camera = (id, alias, ip, mac) => ({
   id, alias, model: 'C410', connection: { ip }, identity: { mac }, metadata: { adapter: 'tapo-c410-owned' },
   configurationStatus: 'complete', verificationStatus: 'verified',
 });
+const noTelemetry = async () => ({ battery: { available: false, percent: null, charging: null }, events: { available: false, count: null, windowHours: 12 }, telemetryUpdatedAt: null });
 
 test('C1 and C2 are independent cameras owned directly by Home-Control', async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'home-camera-owned-'));
@@ -24,6 +25,7 @@ test('C1 and C2 are independent cameras owned directly by Home-Control', async (
     hardwareStore: { async read() { return { devices: records }; } },
     roleStore: { async read() { return { c1: 'camera_terrazzo', c2: 'camera_pond' }; } },
     root: directory,
+    readTelemetry: noTelemetry,
   });
   const created = [];
   runtime.owned.createRuntime = async record => {
@@ -57,6 +59,7 @@ test('a C2 snapshot error is isolated from C1 and the rest of Home-Control', asy
     hardwareStore: { async read() { return { devices: records }; } },
     roleStore: { async read() { return { c1: 'camera_terrazzo', c2: 'camera_pond' }; } },
     root: process.cwd(),
+    readTelemetry: noTelemetry,
   });
   runtime.owned.createRuntime = async record => ({
     async snapshot() { if (record.id === 'c2') throw new Error('fixture failure'); return { configured: true, status: 'READY' }; },
@@ -66,6 +69,38 @@ test('a C2 snapshot error is isolated from C1 and the rest of Home-Control', asy
     const snapshot = await runtime.snapshot();
     assert.equal(snapshot.C1.status, 'READY'); assert.equal(snapshot.C1.available, true);
     assert.equal(snapshot.C2.status, 'ERROR'); assert.equal(snapshot.C2.available, false); assert.equal(snapshot.C2.alias, 'Pond');
+    assert.equal(snapshot.C2.battery.available, false); assert.equal(snapshot.C2.events.available, false);
+  } finally { await runtime.close(); }
+});
+
+test('telemetria read-only C1/C2 è indipendente, in cache e non blocca lo snapshot', async () => {
+  const records = [
+    camera('c1', 'Terrazzo', '192.0.2.1', 'AA:BB:CC:DD:EE:01'),
+    camera('c2', 'Pond', '192.0.2.2', 'AA:BB:CC:DD:EE:02'),
+  ];
+  const calls = [];
+  const runtime = new HomeCameraRuntime({
+    hardwareStore: { async read() { return { devices: records }; } },
+    roleStore: { async read() { return { c1: 'camera_terrazzo', c2: 'camera_pond' }; } },
+    root: process.cwd(), telemetryTtlMs: 60_000,
+    async readTelemetry({ ip }) {
+      calls.push(ip);
+      if (ip.endsWith('.2')) throw new Error('C2 unavailable');
+      return { battery: { available: true, percent: 72, charging: true }, events: { available: true, count: 3, windowHours: 12 }, telemetryUpdatedAt: '2026-09-22T10:00:00.000Z' };
+    },
+  });
+  runtime.owned.createRuntime = async () => ({ async snapshot() { return { configured: true, status: 'READY', live: false }; }, async stop() {} });
+  try {
+    const initial = await runtime.snapshot();
+    assert.equal(initial.C1.battery.available, false);
+    assert.equal(initial.C2.events.available, false);
+    await Promise.all(runtime.telemetryPending.values());
+    const updated = await runtime.snapshot();
+    assert.deepEqual(updated.C1.battery, { available: true, percent: 72, charging: true });
+    assert.deepEqual(updated.C1.events, { available: true, count: 3, windowHours: 12 });
+    assert.equal(updated.C2.battery.available, false);
+    assert.equal(updated.C2.events.available, false);
+    assert.deepEqual(calls.sort(), ['192.0.2.1', '192.0.2.2']);
   } finally { await runtime.close(); }
 });
 

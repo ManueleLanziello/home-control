@@ -21,7 +21,7 @@ export const floorplanConfig = {
     title: exactShape('rect[x="260.5"][y="1039.5"][width="750"][height="130"]'),
     options: exactShape('rect[x="1026.5"][y="1039.5"][width="175"][height="130"]'),
   },
-  icons: { lightOn: 'lampon.svg', lightOff: 'lampoff.svg', ledbarOn: 'ledbaron.svg', ledbarOff: 'ledbaroff.svg', sensor: 'temp.svg', camera: 'cam.svg', boiler: 'boiler.svg', cappaOn: 'CAPPAON.svg', cappaOff: 'CAPPAOFF.svg' },
+  icons: { lightOn: 'lampon.svg', lightOff: 'lampoff.svg', ledbarOn: 'ledbaron.svg', ledbarOff: 'ledbaroff.svg', sensor: 'temp.svg', camera: 'cam.svg', privacyOn: 'privacyon.svg', privacyOff: 'privacyoff.svg', detectionOn: 'rilevon.svg', detectionOff: 'rilevoff.svg', alarmOn: 'alarmon.svg', alarmOff: 'alarmoff.svg', batteryEmpty: 'solar-panel-battery-empty.svg', batteryLow: 'solar-panel-battery-low.svg', batteryHalf: 'solar-panel-battery-half.svg', batteryFull: 'solar-panel-battery-full.svg', batteryCharging: 'solar-panel-battery-charging.svg', boiler: 'boiler.svg', cappaOn: 'CAPPAON.svg', cappaOff: 'CAPPAOFF.svg' },
   // Semantic labels survive a geometry-only edit of their mapping SVG.
   lights: ['CUCINA', 'CAMERA', 'SALOTTO', 'DISIMPEGNO', 'BAGNO', 'CAMERETTA', 'GAZEBO', 'ESTERNO 8', 'ESTERNO 9', 'ESTERNO 10', 'ESTERNO 11', 'ESTERNO 12'].map((room, index) => ({ id: 'L' + (index + 1), room, marker: labeledMarker('L' + (index + 1)), ...(index >= 7 ? { localOnly: true } : {}) })),
   // These are full-plan graphical effects, not marker-sized light layers.
@@ -30,11 +30,11 @@ export const floorplanConfig = {
     const id = 'S' + (index + 1);
     return { id, room, marker: labeledMarker(id), reading: labeledMarker('LS' + (index + 1)), humidityReading: ['S1', 'S2', 'S4'].includes(id) ? labeledMarker('LU' + (index + 1)) : null, futureSource: index === 2 ? 'AVATTO' : null };
   }),
-  cameras: [
-    { id: 'C1', room: 'TERRAZZO', marker: marker(0) },
-    { id: 'C2', room: 'POND', marker: marker(2) },
-    { id: 'C3', room: 'GIARDINO', marker: marker(1) },
-  ],
+  cameras: ['TERRAZZO', 'POND', 'GIARDINO'].map((room, index) => {
+    const id = 'C' + (index + 1);
+    const prefix = id.toLowerCase();
+    return { id, room, marker: labeledMarker(id), controls: { privacy: labeledMarker(prefix + 'a'), detection: labeledMarker(prefix + 'b'), alarm: labeledMarker(prefix + 'c'), battery: labeledMarker(prefix + 'd'), events: labeledMarker(prefix + 'e') } };
+  }),
   boiler: { marker: labeledMarker('D1'), card: labeledMarker('QD1'), target: '.boiler-card', settings: '.boiler-settings-link' },
   cappa: { id: 'K1', marker: marker(0) },
   // Semantic SVG labels remain stable when a weather reference is moved in the design.
