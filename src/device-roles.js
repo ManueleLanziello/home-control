@@ -3,7 +3,7 @@ import path from 'node:path';
 
 const ROLE_PATTERN = /^[a-z][a-z0-9_-]*$/;
 export const HOME_SENSOR_ROLES = Object.freeze(['temperature_cucina', 'temperature_camera', 'temperature_cameretta', 'temperature_giardino']);
-export const HOME_CAMERA_ROLES = Object.freeze(['camera_terrazzo', 'camera_giardino']);
+export const HOME_CAMERA_ROLES = Object.freeze(['camera_terrazzo', 'camera_pond', 'camera_giardino']);
 
 export class DeviceRoleStore {
   constructor({ filePath }) {

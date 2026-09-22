@@ -7,7 +7,6 @@ const cancel = document.querySelector('#sensor-cancel');
 const cameraForm = document.querySelector('#camera-form');
 const cameraList = document.querySelector('#camera-devices');
 const cameraCancel = document.querySelector('#camera-cancel');
-const sharedCamera = document.querySelector('#shared-camera');
 const roles = Object.freeze({ none: 'Nessun ruolo', temperature_cucina: 'S1 · Cucina', temperature_camera: 'S2 · Camera', temperature_cameretta: 'S4 · Cameretta', temperature_giardino: 'S5 · Giardino' });
 
 async function request(path, options = {}) {
@@ -46,7 +45,7 @@ function render(sensors) {
   }
 }
 async function load() { try { render((await request('/api/hardware/sensors')).sensors); } catch (error) { message(error.message); } }
-function renderCameras(cameras, shared) {
+function renderCameras(cameras) {
   cameraList.replaceChildren();
   if (!cameras.length) cameraList.innerHTML = '<div class="empty-settings"><strong>Nessuna camera locale configurata</strong></div>';
   for (const camera of cameras) {
@@ -57,9 +56,8 @@ function renderCameras(cameras, shared) {
     const actions = document.createElement('div'); actions.className = 'sensor-actions'; actions.append(button('Verifica', 'camera-verify', camera.id), button('Modifica', 'camera-edit', camera.id), button('Rimuovi', 'camera-remove', camera.id));
     card.append(title, identity, state, actions); cameraList.append(card);
   }
-  sharedCamera.innerHTML = `<article class="sensor-device"><strong>C2 · Laghetto</strong><span>Condivisa da ${shared?.sourceApp || 'Pond-Control'}</span><small>${shared?.configured ? 'Endpoint Pond configurato' : 'Endpoint Pond non configurato'}</small></article>`;
 }
-async function loadCameras() { try { const result = await request('/api/hardware/cameras'); renderCameras(result.cameras, result.shared); } catch (error) { message(error.message); } }
+async function loadCameras() { try { const result = await request('/api/hardware/cameras'); renderCameras(result.cameras); } catch (error) { message(error.message); } }
 form.addEventListener('submit', async event => {
   event.preventDefault(); const data = Object.fromEntries(new FormData(form));
   try { await request(data.id ? `/api/hardware/sensors/${encodeURIComponent(data.id)}` : '/api/hardware/sensors', { method: data.id ? 'PUT' : 'POST', body: JSON.stringify(data) }); form.reset(); cancel.hidden = true; message('Sensore salvato. Verificalo prima dell’uso.'); await load(); } catch (error) { message(error.message); }

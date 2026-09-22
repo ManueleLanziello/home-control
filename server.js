@@ -283,14 +283,6 @@ export function createHomeControlServer({
       if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
       const role = cameraImageMatch[1];
       try {
-        if (role === 'C2') {
-          const state = (await cameras.snapshot()).C2;
-          if (!state.available || !cameras.pondUrl) return sendJson(response, 503, { error: state.error || 'Pond non disponibile' });
-          const upstream = await cameras.requestPond('/api/camera/image', { cache: 'no-store' }, 8000);
-          if (!upstream.ok) return sendJson(response, 503, { error: 'Immagine Pond non disponibile' });
-          const content = Buffer.from(await upstream.arrayBuffer());
-          response.writeHead(200, { 'Content-Type': 'image/jpeg', 'Content-Length': content.length, 'Cache-Control': 'no-store' }); response.end(content); return;
-        }
         return sendCameraImage(response, await cameras.imagePath(role));
       } catch { return sendJson(response, 503, { error: 'Immagine camera non disponibile' }); }
     }
@@ -315,7 +307,7 @@ export function createHomeControlServer({
     if (cameraMatch) {
       try {
         const registry = await hardwareStore.read(); const deviceIds = registry.devices.map(device => device.id); const id = cameraMatch[1] && decodeURIComponent(cameraMatch[1]);
-        if (request.method === 'GET' && !id) { const assignments = await roleStore.read(deviceIds); return sendJson(response, 200, { cameras: registry.devices.filter(device => device.metadata?.adapter === OWNED_CAMERA_ADAPTER).map(device => ({ ...device, role: assignments[device.id] || 'none' })), shared: { role: 'camera_pond', sourceApp: 'Pond-Control', configured: Boolean(cameras.pondUrl) } }); }
+        if (request.method === 'GET' && !id) { const assignments = await roleStore.read(deviceIds); return sendJson(response, 200, { cameras: registry.devices.filter(device => device.metadata?.adapter === OWNED_CAMERA_ADAPTER).map(device => ({ ...device, role: assignments[device.id] || 'none' })) }); }
         if (request.method === 'POST' && !id) { const payload = await readJson(request); const camera = cameraRecord(payload); await hardwareStore.write({ ...registry, devices: [...registry.devices, camera] }); const ids = [...deviceIds, camera.id]; if (payload?.role && payload.role !== 'none') await roleStore.assignCamera(camera.id, payload.role, ids); else await roleStore.write(await roleStore.read(ids), ids); homeStatus.invalidate(); return sendJson(response, 201, { device: camera }); }
         const previous = registry.devices.find(device => device.id === id && device.metadata?.adapter === OWNED_CAMERA_ADAPTER);
         if (!previous) return sendJson(response, 404, { error: 'Camera non configurata' });
