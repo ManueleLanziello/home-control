@@ -360,15 +360,33 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     const missing = required.filter(name => !assets.has(name));
     if (missing.length) throw new Error('Asset planimetria mancanti: ' + missing.join(', '));
     const imageLayers = new Map();
-    const staticLayerNames = [...Object.values(config.backgrounds), ...config.rooms.flatMap(room => [room.off, room.on].filter(name => !room.optional || assets.has(name))), ...Object.values(config.ledbar.layers), config.mappings.integration];
+    const externalOverlayNames = new Map(Object.entries(config.externalLightOverlays).map(([lightId, name]) => [name, lightId]));
+    // Place exterior effects immediately above the base, before every interactive mapping overlay.
+    const staticLayerNames = [...Object.values(config.backgrounds), ...externalOverlayNames.keys(), ...config.rooms.flatMap(room => [room.off, room.on].filter(name => !room.optional || assets.has(name))), ...Object.values(config.ledbar.layers), config.mappings.integration];
     await Promise.all(staticLayerNames.map(name => new Promise((resolve, reject) => {
+      const externalLightId = externalOverlayNames.get(name);
+      if (externalLightId && !assets.has(name)) {
+        console.warn('Overlay luce esterna non disponibile: ' + name);
+        resolve();
+        return;
+      }
       const image = document.createElement('img');
       image.className = 'floorplan-stack-layer';
+      if (externalLightId) image.classList.add('floorplan-external-light-overlay');
       image.alt = '';
       image.hidden = true;
       image.dataset.layer = name;
+      if (externalLightId) image.dataset.externalLightOverlay = externalLightId;
       image.addEventListener('load', resolve, { once: true });
-      image.addEventListener('error', () => { image.remove(); reject(new Error('Impossibile caricare ' + name)); }, { once: true });
+      image.addEventListener('error', () => {
+        image.remove();
+        if (externalLightId) {
+          console.warn('Overlay luce esterna non caricabile: ' + name);
+          resolve();
+          return;
+        }
+        reject(new Error('Impossibile caricare ' + name));
+      }, { once: true });
       stage.append(image);
       imageLayers.set(name, image);
       image.src = assetUrl(name);
@@ -554,6 +572,9 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
         const on = state.lights[room.lightId] === true;
         if (imageLayers.has(room.on)) imageLayers.get(room.on).hidden = !on;
         if (imageLayers.has(room.off)) imageLayers.get(room.off).hidden = on || state.lights[room.lightId] === null;
+      }
+      for (const [lightId, name] of Object.entries(config.externalLightOverlays)) {
+        if (imageLayers.has(name)) imageLayers.get(name).hidden = state.lights[lightId] !== true;
       }
       for (const light of config.lights) {
         const on = state.lights[light.id] === true;

@@ -11,6 +11,7 @@ body.dashboard-body.layered-dashboard { height: 100svh; min-height: 100svh; padd
 .layered-floorplan-stage { --floorplan-ratio: 4932 / 3091; --floorplan-width-ratio: 1.5956; position: relative; width: min(100%, calc(var(--floorplan-available-height, 65svh) * var(--floorplan-width-ratio))); aspect-ratio: var(--floorplan-ratio); margin: 0 auto; isolation: isolate; }
 .floorplan-stack-layer, .floorplan-mapping-source { position: absolute; inset: 0; width: 100%; height: 100%; display: block; object-fit: contain; pointer-events: none; }
 .floorplan-stack-layer[hidden] { display: none; }
+.floorplan-external-light-overlay { pointer-events: none; }
 .floorplan-mapping-source { visibility: hidden; }
 .floorplan-overlay { overflow: visible; }
 .floorplan-marker { display: grid; place-items: center; width: 100%; height: 100%; padding: 0; margin: 0; border: 5px solid transparent; border-radius: 50%; background: rgba(10, 30, 50, 0.25); color: #b7ceda; font: inherit; }
