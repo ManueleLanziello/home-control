@@ -16,6 +16,8 @@ export function createFloorplanState() {
     ledbar: { state: null, brightness: null, online: false, available: false, updatedAt: null },
   };
   const listeners = new Set();
+  const cameraReadBackAt = new Map();
+  const noteCameraReadBack = (id, kind) => cameraReadBackAt.set(`${id}:${kind}`, Date.now());
   const applyHood = hood => {
     if (!hood || typeof hood !== 'object') {
       state.hood.online = false;
@@ -52,19 +54,38 @@ export function createFloorplanState() {
     },
     applyCameraPrivacy(id, privacy) {
       if (typeof privacy?.enabled !== 'boolean') return;
+      noteCameraReadBack(id, 'privacy');
       state.cameras[id] = { ...(state.cameras[id] || {}), privacy: { available: true, enabled: privacy.enabled } };
       for (const listener of listeners) listener(this.snapshot());
     },
     applyCameraDetection(id, detection) {
       if (typeof detection?.enabled !== 'boolean') return;
+      noteCameraReadBack(id, 'detection');
       state.cameras[id] = { ...(state.cameras[id] || {}), detection: detection.enabled };
+      for (const listener of listeners) listener(this.snapshot());
+    },
+    applyCameraAlarm(id, alarm) {
+      if (typeof alarm?.enabled !== 'boolean') return;
+      noteCameraReadBack(id, 'alarm');
+      state.cameras[id] = { ...(state.cameras[id] || {}), alarm: { available: true, enabled: alarm.enabled } };
+      for (const listener of listeners) listener(this.snapshot());
+    },
+    applyCameraEventAlerts(alerts = {}) {
+      for (const id of ['C1', 'C2', 'C3']) {
+        const alert = alerts[id];
+        state.cameras[id] = { ...(state.cameras[id] || {}), recentEventAlert: {
+          active: alert?.active === true,
+          version: typeof alert?.version === 'string' ? alert.version : null,
+          until: Number.isFinite(alert?.until) ? alert.until : null,
+        } };
+      }
       for (const listener of listeners) listener(this.snapshot());
     },
     applyThermostatSnapshot(thermostat) {
       applyThermostat(thermostat);
       for (const listener of listeners) listener(this.snapshot());
     },
-    applyHomeSnapshot(home = {}) {
+    applyHomeSnapshot(home = {}, requestedAt = Number.POSITIVE_INFINITY) {
       state.sensorDetails = Object.fromEntries(['S1', 'S2', 'S4'].map(id => [id, structuredClone(home.sensors?.[id] ?? {})]));
       for (const id of Object.keys(state.sensors)) state.sensors[id] = home.sensors?.[id]?.available === true && Number.isFinite(home.sensors[id].value) ? home.sensors[id].value : null;
       for (const id of Object.keys(state.lights)) {
@@ -74,16 +95,19 @@ export function createFloorplanState() {
         if (state.lightSources[id] === 'simulation' && state.lights[id] === null) state.lights[id] = false;
         if (state.lightSources[id] !== 'simulation') state.lights[id] = light?.available === true && typeof light.state === 'boolean' ? light.state : null;
       }
-      state.cameras = Object.fromEntries(Object.entries(home.cameras || {}).map(([id, camera]) => {
+      if (home.cameras) state.cameras = Object.fromEntries(Object.entries(home.cameras).map(([id, camera]) => {
         const previousEnabled = state.cameras[id]?.privacy?.enabled;
         const nextEnabled = camera?.privacy?.enabled;
         const previousDetection = state.cameras[id]?.detection;
         const nextDetection = camera?.detection;
+        const previousAlarm = state.cameras[id]?.alarm?.enabled;
+        const nextAlarm = camera?.alarm?.enabled;
         const nextCamera = { ...camera };
-        if (typeof previousEnabled === 'boolean' && typeof nextEnabled !== 'boolean') {
+        if (typeof previousEnabled === 'boolean' && (typeof nextEnabled !== 'boolean' || requestedAt <= (cameraReadBackAt.get(`${id}:privacy`) || 0))) {
           nextCamera.privacy = { ...camera?.privacy, available: true, enabled: previousEnabled };
         }
-        if (typeof previousDetection === 'boolean' && typeof nextDetection !== 'boolean') nextCamera.detection = previousDetection;
+        if (typeof previousDetection === 'boolean' && (typeof nextDetection !== 'boolean' || requestedAt <= (cameraReadBackAt.get(`${id}:detection`) || 0))) nextCamera.detection = previousDetection;
+        if (typeof previousAlarm === 'boolean' && (typeof nextAlarm !== 'boolean' || requestedAt <= (cameraReadBackAt.get(`${id}:alarm`) || 0))) nextCamera.alarm = { ...camera?.alarm, available: true, enabled: previousAlarm };
         return [id, nextCamera];
       }));
       applyThermostat(home.thermostat);

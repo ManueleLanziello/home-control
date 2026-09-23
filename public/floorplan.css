@@ -11,6 +11,10 @@ body.dashboard-body.layered-dashboard { height: 100svh; min-height: 100svh; padd
 .layered-floorplan-stage { --floorplan-ratio: 4932 / 3091; --floorplan-width-ratio: 1.5956; position: relative; width: min(100%, calc(var(--floorplan-available-height, 65svh) * var(--floorplan-width-ratio))); aspect-ratio: var(--floorplan-ratio); margin: 0 auto; isolation: isolate; }
 .floorplan-stack-layer, .floorplan-mapping-source { position: absolute; inset: 0; width: 100%; height: 100%; display: block; object-fit: contain; pointer-events: none; }
 .floorplan-stack-layer[hidden] { display: none; }
+.floorplan-camera-event-layer { pointer-events: none; }
+.floorplan-camera-event-layer.is-camera-event-alert { animation: floorplan-camera-event-pulse 1s ease-in-out infinite; }
+@keyframes floorplan-camera-event-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .05; } }
+@media (prefers-reduced-motion: reduce) { .floorplan-camera-event-layer.is-camera-event-alert { animation: none; opacity: 1; } }
 .floorplan-external-light-overlay { pointer-events: none; }
 .floorplan-mapping-source { visibility: hidden; }
 .floorplan-overlay { overflow: visible; }
@@ -42,6 +46,17 @@ button.floorplan-marker { pointer-events: auto; cursor: pointer; }
 .sensor-dialog section { display: grid; gap: 8px; }
 .sensor-dialog section div { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 9px; border-radius: 9px; background: #071826; font-size: .85rem; }
 .sensor-dialog section span { color: #8eacbd; }
+.camera-events-dialog { width: min(390px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); box-sizing: border-box; padding: 16px; margin: auto; border: 1px solid #3c718c; border-radius: 20px; background: #081522; color: #e5f3fc; overflow: auto; }
+.camera-events-dialog::backdrop { background: #0009; }
+.camera-events-dialog header { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
+.camera-events-dialog h2 { margin: 0; font-size: 1.1rem; }
+.camera-events-dialog header button { width: 34px; height: 34px; border: 1px solid #476b83; border-radius: 9px; background: #132d40; color: inherit; cursor: pointer; }
+.camera-events-dialog section { display: grid; gap: 8px; }
+.camera-events-dialog section div, .camera-events-row { display: flex; justify-content: space-between; align-items: center; padding: 9px; border-radius: 9px; background: #071826; }
+.camera-events-row { width: 100%; border: 1px solid transparent; color: inherit; font: inherit; cursor: pointer; text-align: left; }
+.camera-events-row:hover, .camera-events-row:focus-visible { border-color: #5194ae; background: #102b3d; }
+.camera-events-back { justify-self: start; border: 1px solid #476b83; border-radius: 8px; padding: 7px 10px; background: #132d40; color: inherit; cursor: pointer; }
+.camera-events-dialog video { display: block; width: 100%; max-height: min(56vw, 430px); background: #000; border-radius: 10px; }
 .floorplan-marker-camera { color: #8adeff; }
 .floorplan-marker-camera-aux { position: relative; box-sizing: border-box; border-width: 2px; border-color: rgba(138, 222, 255, .45); border-radius: 22%; background: rgba(7, 24, 38, .72); color: #e3f4ff; font-size: 56px; font-weight: 700; line-height: 1; overflow: hidden; }
 .floorplan-marker-camera-aux .floorplan-symbol { width: 70%; height: 70%; }

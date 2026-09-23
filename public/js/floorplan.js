@@ -3,6 +3,7 @@ import { homeControlPath } from '../base-path.js';
 import { floorplanConfig as config } from './floorplan-config.js';
 import { backgroundPeriod, createFloorplanState } from './floorplan-state.js';
 import { bindSensorPopupTrigger, showSensorPopup, updateSensorPopup } from './sensor-popup.js';
+import { showCameraEventsPopup } from './camera-events-popup.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const assetUrl = name => homeControlPath('/design/' + name);
@@ -34,7 +35,11 @@ export function shapeForLabel(source, label) {
     if (first !== candidate) continue;
 
     const labels = [];
-    for (let current = first; current?.localName === 'text'; current = current.nextElementSibling) labels.push(current.textContent.trim());
+    const labelNodes = [];
+    for (let current = first; current?.localName === 'text'; current = current.nextElementSibling) {
+      labels.push(current.textContent.trim());
+      labelNodes.push(current);
+    }
 
     let lastShape = first.previousElementSibling;
     const shapeType = lastShape?.localName;
@@ -45,11 +50,33 @@ export function shapeForLabel(source, label) {
       lastShape = lastShape.previousElementSibling;
     }
 
+    const center = element => {
+      if (typeof element?.getBBox !== 'function') return null;
+      const bounds = element.getBBox();
+      const point = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+      const matrix = typeof element.getCTM === 'function' ? element.getCTM() : null;
+      if (!matrix || typeof DOMPoint !== 'function') return point;
+      return new DOMPoint(point.x, point.y).matrixTransform(matrix);
+    };
+    const nearestShape = labelNode => {
+      const labelCenter = center(labelNode);
+      if (!labelCenter) return null;
+      let nearest = null;
+      let nearestDistance = Infinity;
+      for (const shape of shapes) {
+        const shapeCenter = center(shape);
+        if (!shapeCenter) return null;
+        const distance = (shapeCenter.x - labelCenter.x) ** 2 + (shapeCenter.y - labelCenter.y) ** 2;
+        if (distance < nearestDistance) { nearest = shape; nearestDistance = distance; }
+      }
+      return nearest;
+    };
+
     for (let start = 0; start < labels.length; start += 1) {
       let text = '';
       for (let index = start; index < labels.length; index += 1) {
         text += labels[index];
-        if (text === label) return (shapes.length === labels.length ? shapes[start] : shapes.at(-1)) || null;
+        if (text === label) return nearestShape(labelNodes[start]) || (shapes.length === labels.length ? shapes[start] : shapes.at(-1)) || null;
         if (!label.startsWith(text)) break;
       }
     }
@@ -65,7 +92,8 @@ export function cameraBatteryIcon({ percent, charging } = {}) {
   if (!Number.isFinite(percent)) return null;
   if (percent <= 20) return config.icons.batteryEmpty;
   if (percent <= 40) return config.icons.batteryLow;
-  if (percent <= 70) return config.icons.batteryHalf;
+  if (percent <= 60) return config.icons.batteryHalf;
+  if (percent <= 80) return config.icons.batteryHalf2;
   return config.icons.batteryFull;
 }
 
@@ -131,25 +159,40 @@ function placeHtmlOptional(mapping, marker, element, interactive, label) {
   catch (error) { console.warn('Marker camera non disponibile: ' + label, error); return false; }
 }
 
-function createIcon(assets, asset, fallback) {
+function createIcon(assets, asset, fallback, { immediate = false } = {}) {
   const wrapper = document.createElement('span');
   wrapper.className = 'floorplan-symbol';
   wrapper.setAttribute('aria-hidden', 'true');
   const placeholder = document.createElement('span');
   placeholder.className = 'floorplan-fallback';
   placeholder.textContent = fallback;
+  placeholder.hidden = immediate && assets.has(asset);
   wrapper.append(placeholder);
   // The inventory is refreshed on page load: absent files are never requested.
   if (assets.has(asset)) {
     const image = document.createElement('img');
     image.alt = '';
-    image.hidden = true;
+    image.hidden = !immediate;
     image.addEventListener('load', () => { image.hidden = false; placeholder.hidden = true; }, { once: true });
-    image.addEventListener('error', () => image.remove(), { once: true });
+    image.addEventListener('error', () => { image.remove(); placeholder.hidden = false; }, { once: true });
     image.src = assetUrl(asset);
     wrapper.append(image);
   }
   return wrapper;
+}
+
+export function renderCameraIcon(control, assets, asset, fallback) {
+  const renderKey = `icon:${asset}`;
+  if (control.dataset.renderKey === renderKey) return;
+  control.dataset.renderKey = renderKey;
+  control.replaceChildren(createIcon(assets, asset, fallback, { immediate: true }));
+}
+
+function renderCameraText(control, text) {
+  const renderKey = `text:${text}`;
+  if (control.dataset.renderKey === renderKey) return;
+  control.dataset.renderKey = renderKey;
+  control.replaceChildren(document.createTextNode(text));
 }
 
 function markerElement(label, interactive = false) {
@@ -358,7 +401,7 @@ export function bindWeatherPopupTrigger(element, opener = openWeather) {
   });
 }
 
-export async function initFloorplan({ store = createFloorplanState(), onCameraSelect = showCamera, onCameraEventsSelect = () => {}, onCameraPrivacyToggle = async (id, enabled) => {
+export async function initFloorplan({ store = createFloorplanState(), onCameraSelect = showCamera, onCameraEventsSelect = camera => showCameraEventsPopup(camera), onCameraPrivacyToggle = async (id, enabled) => {
   const response = await fetch(homeControlPath('/api/cameras/' + id + '/privacy'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }) });
   if (!response.ok) throw new Error('Comando Privacy non disponibile');
   return response.json();
@@ -374,6 +417,14 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
   const response = await fetch(homeControlPath('/api/cameras/' + id + '/detection'), { cache: 'no-store' });
   if (!response.ok) throw new Error('Rilevazione non disponibile');
   return response.json();
+}, onCameraAlarmToggle = async (id, enabled) => {
+  const response = await fetch(homeControlPath('/api/cameras/' + id + '/alarm'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }) });
+  if (!response.ok) throw new Error('Comando Allarme non disponibile');
+  return response.json();
+}, onCameraAlarmRead = async id => {
+  const response = await fetch(homeControlPath('/api/cameras/' + id + '/alarm'), { cache: 'no-store' });
+  if (!response.ok) throw new Error('Allarme non disponibile');
+  return response.json();
 }, onLightToggle = id => store.setLight(id, !store.snapshot().lights[id]), onLedbarPower = on => fetch(homeControlPath('/api/ledbar/power'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on }) }), onLedbarBrightness = brightness => fetch(homeControlPath('/api/ledbar/brightness'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ brightness }) }) } = {}) {
   const stage = document.querySelector('[data-layered-floorplan]');
   const status = document.querySelector('[data-floorplan-status]');
@@ -385,13 +436,14 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     const response = await fetch(homeControlPath('/api/floorplan/assets'), { cache: 'no-store' });
     if (!response.ok) throw new Error('Elenco asset non disponibile');
     const assets = new Set((await response.json()).assets);
-    const required = [...Object.values(config.backgrounds), ...config.rooms.filter(room => !room.optional).flatMap(room => [room.on, room.off]), ...Object.values(config.mappings).filter(name => name !== config.mappings.clock), ...Object.values(config.ledbar.layers), config.icons.ledbarOn, config.icons.ledbarOff, config.icons.cappaOn, config.icons.cappaOff];
+    const required = [...Object.values(config.backgrounds), ...config.rooms.filter(room => !room.optional).flatMap(room => [room.on, room.off]), ...Object.values(config.mappings).filter(name => name !== config.mappings.clock), ...Object.values(config.ledbar.layers), ...Object.values(config.cameraEventLayers), config.icons.ledbarOn, config.icons.ledbarOff, config.icons.cappaOn, config.icons.cappaOff];
     const missing = required.filter(name => !assets.has(name));
     if (missing.length) throw new Error('Asset planimetria mancanti: ' + missing.join(', '));
     const imageLayers = new Map();
     const externalOverlayNames = new Map(Object.entries(config.externalLightOverlays).map(([lightId, name]) => [name, lightId]));
     // Place exterior effects immediately above the base, before every interactive mapping overlay.
-    const staticLayerNames = [...Object.values(config.backgrounds), ...externalOverlayNames.keys(), ...config.rooms.flatMap(room => [room.off, room.on].filter(name => !room.optional || assets.has(name))), ...Object.values(config.ledbar.layers), config.mappings.integration];
+    const cameraEventLayerNames = new Set(Object.values(config.cameraEventLayers));
+    const staticLayerNames = [...Object.values(config.backgrounds), ...externalOverlayNames.keys(), ...config.rooms.flatMap(room => [room.off, room.on].filter(name => !room.optional || assets.has(name))), ...Object.values(config.ledbar.layers), ...cameraEventLayerNames, config.mappings.integration];
     await Promise.all(staticLayerNames.map(name => new Promise((resolve, reject) => {
       const externalLightId = externalOverlayNames.get(name);
       if (externalLightId && !assets.has(name)) {
@@ -402,6 +454,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
       const image = document.createElement('img');
       image.className = 'floorplan-stack-layer';
       if (externalLightId) image.classList.add('floorplan-external-light-overlay');
+      if (cameraEventLayerNames.has(name)) image.classList.add('floorplan-camera-event-layer');
       image.alt = '';
       image.hidden = true;
       image.dataset.layer = name;
@@ -516,6 +569,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     const cameraControls = new Map();
     const detectionPending = new Set();
     const privacyPending = new Set();
+    const alarmPending = new Set();
     for (const camera of config.cameras) {
       const element = markerElement('Camera ' + camera.room, true);
       element.classList.add('floorplan-marker-camera');
@@ -554,6 +608,16 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
               .finally(() => { detectionPending.delete(camera.id); control.disabled = false; });
             return;
           }
+          if (kind === 'alarm') {
+            const alarm = store.snapshot().cameras[camera.id]?.alarm;
+            if (alarmPending.has(camera.id) || typeof alarm?.enabled !== 'boolean') return;
+            alarmPending.add(camera.id); control.disabled = true;
+            void onCameraAlarmToggle(camera.id, !alarm.enabled)
+              .then(readBack => store.applyCameraAlarm(camera.id, readBack))
+              .catch(() => {})
+              .finally(() => { alarmPending.delete(camera.id); control.disabled = false; });
+            return;
+          }
           if (kind === 'events') onCameraEventsSelect({ ...camera, status: store.snapshot().cameras[camera.id] });
         });
         if (placeHtmlOptional(cameraMapping, marker, control, true, camera.id + ':' + kind)) controls[kind] = control;
@@ -563,6 +627,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     for (const camera of config.cameras.filter(camera => camera.id !== 'C3')) {
       void onCameraPrivacyRead(camera.id).then(privacy => store.applyCameraPrivacy(camera.id, privacy)).catch(() => {});
       void onCameraDetectionRead(camera.id).then(detection => store.applyCameraDetection(camera.id, detection)).catch(() => {});
+      void onCameraAlarmRead(camera.id).then(alarm => store.applyCameraAlarm(camera.id, alarm)).catch(() => {});
     }
     const boilerIcon = markerElement('Apri card CALDAIA', true);
     boilerIcon.append(createIcon(assets, config.icons.boiler, '♨'));
@@ -639,6 +704,16 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     let previousLights = {};
     let previousCappaPower;
     let previousLedbarOn;
+    const cameraAlertVersions = new Map();
+    const cameraAlertTimers = new Map();
+    const showCameraEventAlert = (id, version) => {
+      const layer = imageLayers.get(config.cameraEventLayers[id]);
+      if (!layer || !version || cameraAlertVersions.get(id) === version) return;
+      cameraAlertVersions.set(id, version);
+      clearTimeout(cameraAlertTimers.get(id));
+      layer.hidden = false; layer.classList.add('is-camera-event-alert');
+      cameraAlertTimers.set(id, setTimeout(() => { layer.classList.remove('is-camera-event-alert'); layer.hidden = true; }, 15_000));
+    };
     const render = state => {
       for (const room of config.rooms) {
         const on = state.lights[room.lightId] === true;
@@ -672,6 +747,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
       }
       for (const camera of config.cameras) {
         const cameraState = state.cameras[camera.id] || {};
+        if (cameraState.recentEventAlert?.active) showCameraEventAlert(camera.id, cameraState.recentEventAlert.version);
         const controls = cameraControls.get(camera.id) || {};
         const binaryControls = {
           detection: [config.icons.detectionOn, config.icons.detectionOff],
@@ -680,12 +756,11 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
         for (const [kind, [onIcon, offIcon]] of Object.entries(binaryControls)) {
           const control = controls[kind];
           if (!control) continue;
-          const value = cameraState[kind];
+          const value = kind === 'alarm' ? cameraState.alarm?.enabled : cameraState[kind];
           const available = typeof value === 'boolean';
           control.dataset.available = String(available);
           control.setAttribute('aria-label', `${kind} ${camera.room}: ${available ? value ? 'ON' : 'OFF' : 'stato non disponibile'}`);
-          if (kind === 'detection' && !available) control.replaceChildren(document.createTextNode('?'));
-          else control.replaceChildren(createIcon(assets, available && value ? onIcon : offIcon, '?'));
+          renderCameraIcon(control, assets, available && value ? onIcon : offIcon, '—');
         }
         const privacy = controls.privacy;
         if (privacy) {
@@ -693,8 +768,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
           const available = typeof value === 'boolean';
           privacy.dataset.available = String(available);
           privacy.setAttribute('aria-label', `privacy ${camera.room}: ${available ? value ? 'ON' : 'OFF' : 'stato non disponibile'}`);
-          if (!available) privacy.replaceChildren(document.createTextNode('?'));
-          else privacy.replaceChildren(createIcon(assets, value ? config.icons.privacyOn : config.icons.privacyOff, '?'));
+          renderCameraIcon(privacy, assets, available && value ? config.icons.privacyOn : config.icons.privacyOff, '—');
         }
         const battery = controls.battery;
         if (battery) {
@@ -703,13 +777,14 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
           const icon = cameraBatteryIcon(cameraState.battery);
           battery.dataset.available = String(available);
           battery.setAttribute('aria-label', `Batteria ${camera.room}: ${available ? percent + '%' + (cameraState.battery.charging ? ', in carica' : '') : 'non disponibile'}`);
-          battery.replaceChildren(icon ? createIcon(assets, icon, '▰') : document.createTextNode('—'));
+          if (icon) renderCameraIcon(battery, assets, icon, '▰');
+          else renderCameraText(battery, '—');
         }
         const events = controls.events;
         if (events) {
           const available = cameraState.events?.available === true;
           events.dataset.available = String(available);
-          events.textContent = available ? String(cameraState.events.count) : '—';
+          renderCameraText(events, available ? String(cameraState.events.count) : '—');
           events.setAttribute('aria-label', `Eventi ${camera.room}, ultime 12 ore: ${available ? cameraState.events.count : 'non disponibili'}`);
         }
       }
@@ -742,6 +817,15 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     if (ledbarEvents) ledbarEvents.onmessage = event => {
       try { store.applyLedbarSnapshot(JSON.parse(event.data)); } catch { /* A malformed event must not break the floorplan. */ }
     };
+    let cameraAlertTimer;
+    const refreshCameraAlerts = async () => {
+      try {
+        const response = await fetch(homeControlPath('/api/cameras/event-alerts'), { cache: 'no-store' });
+        if (response.ok) store.applyCameraEventAlerts((await response.json()).alerts);
+      } catch { /* The next lightweight cache read retries; no camera hardware is contacted here. */ }
+      finally { cameraAlertTimer = setTimeout(refreshCameraAlerts, 5_000); }
+    };
+    void refreshCameraAlerts();
 
     // Runs at the boundary, also after tab suspension or browser clock changes.
     let timer;
@@ -760,7 +844,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     window.addEventListener('pageshow', tick);
     status.hidden = true;
     stage.dataset.ready = 'true';
-    return { store, destroy() { clearTimeout(timer); clearTimeout(ledbarThrottle); ledbarEvents?.close(); unsubscribe(); document.removeEventListener('visibilitychange', tick); window.removeEventListener('pageshow', tick); floorplanClock?.destroy(); if (renderWeatherSnapshot === renderWeather) renderWeatherSnapshot = () => {}; stage.replaceChildren(); } };
+    return { store, destroy() { clearTimeout(timer); clearTimeout(ledbarThrottle); clearTimeout(cameraAlertTimer); for (const alertTimer of cameraAlertTimers.values()) clearTimeout(alertTimer); ledbarEvents?.close(); unsubscribe(); document.removeEventListener('visibilitychange', tick); window.removeEventListener('pageshow', tick); floorplanClock?.destroy(); if (renderWeatherSnapshot === renderWeather) renderWeatherSnapshot = () => {}; stage.replaceChildren(); } };
   } catch (error) {
     status.textContent = error.message;
   } finally {

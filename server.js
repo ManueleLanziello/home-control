@@ -1,6 +1,6 @@
 import http from 'node:http';
 import crypto from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { createReadStream, existsSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { loadEnvFile } from 'node:process';
@@ -40,6 +40,7 @@ const STATIC_FILES = new Map([
   ['/js/light-sound.js', ['js/light-sound.js', 'text/javascript; charset=utf-8']],
   ['/sounds/switch.ogg', ['sounds/switch.ogg', 'audio/ogg']],
   ['/js/floorplan.js', ['js/floorplan.js', 'text/javascript; charset=utf-8']],
+  ['/js/camera-events-popup.js', ['js/camera-events-popup.js', 'text/javascript; charset=utf-8']],
   ['/js/floorplan-clock.js', ['js/floorplan-clock.js', 'text/javascript; charset=utf-8']],
   ['/js/floorplan-config.js', ['js/floorplan-config.js', 'text/javascript; charset=utf-8']],
   ['/js/floorplan-state.js', ['js/floorplan-state.js', 'text/javascript; charset=utf-8']],
@@ -137,6 +138,40 @@ async function sendCameraImage(response, imagePath) {
   response.end(content);
 }
 
+function sendCameraRecording(request, response, recording) {
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    Promise.resolve(recording.release?.() || recording.cleanup?.()).catch(() => {});
+  };
+  const range = request.headers.range;
+  let start = 0; let end = recording.size - 1; let status = 200;
+  if (range) {
+    const match = /^bytes=(\d*)-(\d*)$/.exec(range);
+    if (!match || (!match[1] && !match[2])) {
+      release(); response.writeHead(416, { 'Content-Range': `bytes */${recording.size}`, 'Accept-Ranges': 'bytes' }); response.end(); return;
+    }
+    if (match[1]) start = Number(match[1]); else start = Math.max(0, recording.size - Number(match[2]));
+    if (match[2]) end = Math.min(end, Number(match[2]));
+    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start > end || start >= recording.size) {
+      release(); response.writeHead(416, { 'Content-Range': `bytes */${recording.size}`, 'Accept-Ranges': 'bytes' }); response.end(); return;
+    }
+    status = 206;
+  }
+  const stream = createReadStream(recording.path, { start, end });
+  stream.once('error', () => { release(); if (!response.headersSent) sendJson(response, 503, { error: 'Video non disponibile' }); else response.destroy(); });
+  stream.once('close', release);
+  request.once('aborted', () => stream.destroy());
+  response.once('close', () => { if (!response.writableEnded) stream.destroy(); });
+  response.writeHead(status, {
+    'Content-Type': 'video/mp4', 'Content-Length': end - start + 1, 'Cache-Control': 'no-store', 'Accept-Ranges': 'bytes',
+    ...(status === 206 ? { 'Content-Range': `bytes ${start}-${end}/${recording.size}` } : {}),
+    'X-Content-Type-Options': 'nosniff', 'Content-Disposition': 'inline',
+  });
+  stream.pipe(response);
+}
+
 export function createHomeControlServer({
   hardwareStore = new HardwareRegistryStore({ filePath: HARDWARE_FILE, defaults: defaultHardwareRegistry() }),
   roleStore = new DeviceRoleStore({ filePath: ROLE_FILE }),
@@ -180,6 +215,7 @@ export function createHomeControlServer({
   let activeHoodRuntime = hoodRuntime;
   const getHoodRuntime = () => activeHoodRuntime ||= new HomeCiarraRuntime({ adapter: null });
   const cameras = cameraRuntime || new HomeCameraRuntime({ hardwareStore, roleStore, root: ROOT });
+  cameras.startEventMonitor?.();
   const activeWeatherService = weatherService || new WeatherService({ config: WEATHER_CONFIG, logError: message => console.error(message) });
   homeStatus = new HomeStatusRuntime({ hardwareStore, roleStore, createSensorRuntime,
     readZigbeeSensors: zigbeeRuntime ? () => zigbeeRuntime.readSnapshot() : null,
@@ -220,6 +256,10 @@ export function createHomeControlServer({
       if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
       try { return sendJson(response, 200, await homeStatus.readSnapshot()); }
       catch { return sendJson(response, 503, { error: 'Stato casa non disponibile' }); }
+    }
+    if (url.pathname === '/api/cameras/event-alerts') {
+      if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
+      return sendJson(response, 200, { alerts: cameras.getCameraEventAlerts?.() || {} });
     }
     if (url.pathname === '/api/ledbar/events') {
       if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
@@ -326,6 +366,34 @@ export function createHomeControlServer({
         homeStatus.invalidate();
         return sendJson(response, 200, detection);
       } catch (error) { return sendJson(response, 503, { error: error.message || 'Comando Rilevazione non disponibile' }); }
+    }
+    const cameraAlarmMatch = /^\/api\/cameras\/(C[123])\/alarm$/.exec(url.pathname);
+    if (cameraAlarmMatch) {
+      if (request.method === 'GET') {
+        try { return sendJson(response, 200, await cameras.getAlarmMode(cameraAlarmMatch[1])); }
+        catch (error) { return sendJson(response, 503, { error: error.message || 'Allarme non disponibile' }); }
+      }
+      if (request.method !== 'PUT') return sendJson(response, 405, { error: 'Metodo non consentito' });
+      try {
+        const payload = await readJson(request);
+        if (typeof payload?.enabled !== 'boolean') throw new Error('Stato Allarme non valido');
+        const alarm = await cameras.setAlarmMode(cameraAlarmMatch[1], payload.enabled);
+        homeStatus.invalidate();
+        return sendJson(response, 200, alarm);
+      } catch (error) { return sendJson(response, 503, { error: error.message || 'Comando Allarme non disponibile' }); }
+    }
+    const cameraEventVideoMatch = /^\/api\/cameras\/(C[123])\/events\/(\d+-\d+)\/video$/.exec(url.pathname);
+    if (cameraEventVideoMatch) {
+      if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
+      try { return sendCameraRecording(request, response, await cameras.getCameraEventVideo(cameraEventVideoMatch[1], cameraEventVideoMatch[2])); }
+      catch (error) { return sendJson(response, 503, { error: error.message || 'Video non disponibile' }); }
+    }
+    const cameraEventsMatch = /^\/api\/cameras\/(C[123])\/events$/.exec(url.pathname);
+    if (cameraEventsMatch) {
+      if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
+      const hours = Number(url.searchParams.get('hours') || 12);
+      try { return sendJson(response, 200, await cameras.getCameraEvents(cameraEventsMatch[1], hours)); }
+      catch (error) { return sendJson(response, 503, { error: error.message || 'Storico non disponibile' }); }
     }
     const cameraVerifyMatch = /^\/api\/hardware\/cameras\/([^/]+)\/verify$/.exec(url.pathname);
     if (cameraVerifyMatch) {

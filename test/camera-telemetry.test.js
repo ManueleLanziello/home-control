@@ -27,8 +27,12 @@ test('normalizzazione espone solo batteria/carica e conteggio eventi utili alla 
   const telemetry = normalizeCameraTelemetry({
     battery: { available: true, percent: 104, chargingState: 'NORMAL', statisticChargingState: 'charging' },
     recordings: { available: true, clips: [{ startTime: Math.floor((now - 1000) / 1000), endTime: 7, vedio_type: 2 }] },
+    detection: { available: true, enabled: 'on' },
+    alarm: { available: true, enabled: 'off' },
   }, now);
   assert.deepEqual(telemetry.battery, { available: true, percent: 100, charging: true });
   assert.deepEqual(telemetry.events, { available: true, count: 1, windowHours: 12 });
+  assert.equal(telemetry.detection, true);
+  assert.deepEqual(telemetry.alarm, { available: true, enabled: false });
   assert.equal(telemetry.telemetryUpdatedAt, '2026-09-22T10:00:00.000Z');
 });

@@ -454,13 +454,14 @@ function previewSetpoint() {
 }
 
 async function loadHomeSnapshot() {
+  const requestedAt = Date.now();
   const requestedThermostatRevision = thermostatMutation.revision;
   try {
     const response = await fetch(homeControlPath('/api/home/status'), { cache: 'no-store', signal: AbortSignal.timeout(30_000) });
     if (!response.ok) throw new Error('Stato casa non disponibile');
     const home = await response.json();
     const acceptThermostat = shouldAcceptThermostatStatus({ requestedRevision: requestedThermostatRevision, currentRevision: thermostatMutation.revision });
-    floorplanStore.applyHomeSnapshot(acceptThermostat ? home : { ...home, thermostat: boilerSnapshot });
+    floorplanStore.applyHomeSnapshot(acceptThermostat ? home : { ...home, thermostat: boilerSnapshot }, requestedAt);
     if (acceptThermostat) boilerSnapshot = home.thermostat;
     cappaSnapshot = home.hood;
     renderBoiler(boilerSnapshot);

@@ -7,7 +7,7 @@ import { backgroundPeriod, createFloorplanState } from '../public/js/floorplan-s
 import { createHomeControlServer } from '../server.js';
 
 globalThis.window = { addEventListener() {} };
-const { cameraBatteryIcon, shapeForLabel, humidityReadingColor, renderFloorplanReading, sensorReadingFontSize, temperatureReadingColor } = await import('../public/js/floorplan.js');
+const { cameraBatteryIcon, renderCameraIcon, shapeForLabel, humidityReadingColor, renderFloorplanReading, sensorReadingFontSize, temperatureReadingColor } = await import('../public/js/floorplan.js');
 
 async function labelsIn(file) {
   const source = await readFile(new URL(`../design/${file}`, import.meta.url), 'utf8');
@@ -133,6 +133,26 @@ test('il resolver associa correttamente marker e label anche quando le label son
   assert.equal(shapeForLabel(source, 'L11'), paths[6]);
 });
 
+test('il resolver dei main camera usa la posizione della label, non l ordine dei path', () => {
+  const nodes = [
+    { localName: 'path', getBBox: () => ({ x: 0, y: 0, width: 10, height: 10 }) },
+    { localName: 'path', getBBox: () => ({ x: 100, y: 0, width: 10, height: 10 }) },
+    { localName: 'path', getBBox: () => ({ x: 200, y: 0, width: 10, height: 10 }) },
+    { localName: 'text', textContent: 'C1', getBBox: () => ({ x: 0, y: 0, width: 10, height: 10 }) },
+    { localName: 'text', textContent: 'C2', getBBox: () => ({ x: 200, y: 0, width: 10, height: 10 }) },
+    { localName: 'text', textContent: 'C3', getBBox: () => ({ x: 100, y: 0, width: 10, height: 10 }) },
+  ];
+  for (const [index, node] of nodes.entries()) {
+    node.previousElementSibling = nodes[index - 1] || null;
+    node.nextElementSibling = nodes[index + 1] || null;
+  }
+  const source = { querySelectorAll: selector => nodes.filter(node => node.localName === selector) };
+  const paths = nodes.filter(node => node.localName === 'path');
+  assert.equal(shapeForLabel(source, 'C1'), paths[0]);
+  assert.equal(shapeForLabel(source, 'C2'), paths[2]);
+  assert.equal(shapeForLabel(source, 'C3'), paths[1]);
+});
+
 test('LAYER-13 associa LM1 al rettangolino immediatamente precedente, non al contenitore', async () => {
   const { source: svg } = await labelsIn('LAYER-13-METEO.svg');
   const source = markerSourceFromSvg(svg);
@@ -183,8 +203,10 @@ test('icone batteria camera rispettano soglie esatte e priorità ricarica', () =
   assert.equal(cameraBatteryIcon({ percent: 21, charging: false }), 'solar-panel-battery-low.svg');
   assert.equal(cameraBatteryIcon({ percent: 40, charging: false }), 'solar-panel-battery-low.svg');
   assert.equal(cameraBatteryIcon({ percent: 41, charging: false }), 'solar-panel-battery-half.svg');
-  assert.equal(cameraBatteryIcon({ percent: 70, charging: false }), 'solar-panel-battery-half.svg');
-  assert.equal(cameraBatteryIcon({ percent: 71, charging: false }), 'solar-panel-battery-full.svg');
+  assert.equal(cameraBatteryIcon({ percent: 60, charging: false }), 'solar-panel-battery-half.svg');
+  assert.equal(cameraBatteryIcon({ percent: 61, charging: false }), 'solar-panel-battery-half2.svg');
+  assert.equal(cameraBatteryIcon({ percent: 80, charging: false }), 'solar-panel-battery-half2.svg');
+  assert.equal(cameraBatteryIcon({ percent: 81, charging: false }), 'solar-panel-battery-full.svg');
   assert.equal(cameraBatteryIcon({ percent: 100, charging: false }), 'solar-panel-battery-full.svg');
   assert.equal(cameraBatteryIcon({ percent: 5, charging: true }), 'solar-panel-battery-charging.svg');
   assert.equal(cameraBatteryIcon({ percent: null, charging: false }), null);
@@ -202,10 +224,72 @@ test('Privacy renderizza gli asset reali e mantiene unknown fail-safe', async ()
   });
   const floorplan = await readFile(new URL('../public/js/floorplan.js', import.meta.url), 'utf8');
   assert.doesNotMatch(floorplan, /setPrivacy|setDetection|setAlarm/);
-  assert.match(floorplan, /createIcon\(assets, available && value \? onIcon : offIcon, '\?'\)/);
+  assert.match(floorplan, /renderCameraIcon\(control, assets, available && value \? onIcon : offIcon/);
   assert.match(floorplan, /const value = cameraState\.privacy\?\.enabled;/);
   assert.match(floorplan, /value \? config\.icons\.privacyOn : config\.icons\.privacyOff/);
-  assert.match(floorplan, /if \(!available\) privacy\.replaceChildren\(document\.createTextNode\('\?'\)\)/);
+  assert.match(floorplan, /renderCameraIcon\(privacy, assets, available && value \? config\.icons\.privacyOn : config\.icons\.privacyOff/);
+  assert.match(floorplan, /renderCameraIcon\(control, assets, available && value \? onIcon : offIcon/);
+});
+
+test('unknown resta semanticamente unknown ma usa l icona OFF e le icone camera non vengono ricreate se l asset non cambia', async () => {
+  const store = createFloorplanState();
+  store.applyHomeSnapshot({ cameras: { C1: { privacy: { available: false, enabled: null }, detection: null } } });
+  assert.equal(store.snapshot().cameras.C1.privacy.enabled, null);
+  assert.equal(store.snapshot().cameras.C1.detection, null);
+  const floorplan = await readFile(new URL('../public/js/floorplan.js', import.meta.url), 'utf8');
+  assert.match(floorplan, /available && value \? onIcon : offIcon/);
+  assert.match(floorplan, /available && value \? config\.icons\.privacyOn : config\.icons\.privacyOff/);
+  assert.match(floorplan, /alarm: \[config\.icons\.alarmOn, config\.icons\.alarmOff\]/);
+  assert.match(floorplan, /renderCameraIcon\(control, assets, available && value \? onIcon : offIcon/);
+  assert.match(floorplan, /control\.dataset\.renderKey === renderKey/);
+  assert.match(floorplan, /control\.replaceChildren\(createIcon\(assets, asset, fallback, \{ immediate: true \}\)\)/);
+});
+
+test('renderCameraIcon aggiorna il DOM solo quando cambia l asset', () => {
+  const previousDocument = globalThis.document;
+  let imageCreations = 0;
+  let srcAssignments = 0;
+  const createElement = tag => {
+    if (tag === 'img') imageCreations += 1;
+    const element = {
+      tag,
+      dataset: {},
+      append() {},
+      replaceChildren(...children) { this.children = children; this.replaceCount = (this.replaceCount || 0) + 1; },
+      setAttribute() {},
+      addEventListener() {},
+    };
+    if (tag === 'img') Object.defineProperty(element, 'src', { get() { return this._src; }, set(value) { this._src = value; srcAssignments += 1; } });
+    return element;
+  };
+  globalThis.document = { createElement };
+  try {
+    const control = createElement('button');
+    const assets = new Set(['privacyoff.svg', 'privacyon.svg', 'solar-panel-battery-empty.svg', 'solar-panel-battery-low.svg']);
+    renderCameraIcon(control, assets, 'privacyoff.svg', '?');
+    renderCameraIcon(control, assets, 'privacyoff.svg', '?');
+    assert.equal(control.replaceCount, 1);
+    assert.equal(control.children.length, 1);
+    assert.equal(srcAssignments, 1);
+    renderCameraIcon(control, assets, 'privacyon.svg', '?');
+    assert.equal(control.replaceCount, 2);
+    assert.equal(srcAssignments, 2);
+    renderCameraIcon(control, assets, 'solar-panel-battery-empty.svg', '▰');
+    renderCameraIcon(control, assets, 'solar-panel-battery-empty.svg', '▰');
+    assert.equal(control.replaceCount, 3);
+    assert.equal(srcAssignments, 3);
+    renderCameraIcon(control, assets, 'solar-panel-battery-low.svg', '▰');
+    assert.equal(control.replaceCount, 4);
+    assert.equal(srcAssignments, 4);
+  } finally {
+    globalThis.document = previousDocument;
+  }
+  assert.equal(imageCreations, 4);
+});
+
+test('il badge eventi mantiene il testo se invariato e lo aggiorna quando cambia', async () => {
+  const floorplan = await readFile(new URL('../public/js/floorplan.js', import.meta.url), 'utf8');
+  assert.match(floorplan, /renderCameraText\(events, available \? String\(cameraState\.events\.count\) : '—'\)/);
 });
 
 test('Privacy camera blocca unknown e invia il toggle solo con read-back booleano', async () => {
@@ -226,7 +310,7 @@ test('Rilevazione camera usa C1b/C2b con read-back e resta fail-safe', async () 
   assert.match(floorplan, /if \(detectionPending\.has\(camera\.id\) \|\| typeof detection !== 'boolean'\) return;/);
   assert.match(floorplan, /onCameraDetectionToggle\(camera\.id, !detection\)\s*\.then\(readBack => store\.applyCameraDetection\(camera\.id, readBack\)\)/);
   assert.match(floorplan, /event\.preventDefault\(\);\s*event\.stopPropagation\(\);\s*if \(kind === 'privacy'\)/);
-  assert.match(floorplan, /if \(kind === 'detection' && !available\) control\.replaceChildren\(document\.createTextNode\('\?'\)\)/);
+  assert.match(floorplan, /renderCameraIcon\(control, assets, available && value \? onIcon : offIcon/);
 });
 
 test('snapshot Privacy conserva l’ultimo read-back booleano ma accetta nuovi booleani', () => {
@@ -248,6 +332,22 @@ test('snapshot Rilevazione conserva l’ultimo master booleano e rispetta C2', (
   assert.equal(store.snapshot().cameras.C2.detection, false);
 });
 
+test('snapshot precedente al read-back Alarm non annulla il PUT e un errore Home conserva camera', () => {
+  const store = createFloorplanState();
+  const requestedAt = Date.now() - 1000;
+  store.applyCameraAlarm('C1', { available: true, enabled: true });
+  store.applyCameraPrivacy('C1', { available: true, enabled: false });
+  store.applyCameraDetection('C1', { available: true, enabled: true });
+  store.applyHomeSnapshot({ cameras: { C1: { alarm: { available: true, enabled: false }, privacy: { available: true, enabled: true }, detection: false, battery: { available: true, percent: 70 }, events: { available: true, count: 2 } } } }, requestedAt);
+  assert.equal(store.snapshot().cameras.C1.alarm.enabled, true);
+  assert.equal(store.snapshot().cameras.C1.privacy.enabled, false);
+  assert.equal(store.snapshot().cameras.C1.detection, true);
+  assert.equal(store.snapshot().cameras.C1.battery.percent, 70);
+  store.applyHomeSnapshot();
+  assert.equal(store.snapshot().cameras.C1.alarm.enabled, true);
+  assert.equal(store.snapshot().cameras.C1.events.count, 2);
+});
+
 test('controlli camera compatti isolano il click dallo streaming e restano fail-safe', async () => {
   const [floorplan, css] = await Promise.all([
     readFile(new URL('../public/js/floorplan.js', import.meta.url), 'utf8'),
@@ -255,6 +355,10 @@ test('controlli camera compatti isolano il click dallo streaming e restano fail-
   ]);
   assert.match(floorplan, /event\.preventDefault\(\);\s*event\.stopPropagation\(\);\s*if \(kind === 'privacy'\)/);
   assert.match(floorplan, /if \(kind === 'events'\) onCameraEventsSelect/);
+  assert.match(floorplan, /if \(kind === 'alarm'\)/);
+  assert.match(floorplan, /onCameraAlarmToggle\(camera\.id, !alarm\.enabled\)/);
+  assert.match(floorplan, /onCameraAlarmRead\(camera\.id\)/);
+  assert.match(floorplan, /showCameraEventsPopup/);
   assert.match(floorplan, /placeHtmlOptional\(cameraMapping, marker, control, true/);
   assert.match(floorplan, /console\.warn\('Marker camera non disponibile: ' \+ label, error\)/);
   assert.doesNotMatch(floorplan, /if \(kind === 'events'\) onCameraSelect/);

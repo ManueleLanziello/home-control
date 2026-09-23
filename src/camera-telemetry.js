@@ -53,6 +53,11 @@ export function normalizeCameraTelemetry(payload, now = Date.now()) {
       available: payload?.privacy?.available === true && ['on', 'off'].includes(payload.privacy.enabled),
       enabled: payload?.privacy?.available === true && payload.privacy.enabled === 'on' ? true : payload?.privacy?.available === true ? false : null,
     },
+    detection: payload?.detection?.available === true && ['on', 'off'].includes(payload.detection.enabled) ? payload.detection.enabled === 'on' : null,
+    alarm: {
+      available: payload?.alarm?.available === true && ['on', 'off'].includes(payload.alarm.enabled),
+      enabled: payload?.alarm?.available === true && ['on', 'off'].includes(payload.alarm.enabled) ? payload.alarm.enabled === 'on' : null,
+    },
     telemetryUpdatedAt: new Date(now).toISOString(),
   };
 }
@@ -67,5 +72,6 @@ export async function readCameraTelemetry({ ip, root, env = process.env, now = D
     timeout: 45_000,
     maxBuffer: 2 * 1024 * 1024,
   });
-  return normalizeCameraTelemetry(JSON.parse(stdout), now);
+  const payload = JSON.parse(stdout);
+  return { ...normalizeCameraTelemetry(payload, now), recordings: payload.recordings };
 }

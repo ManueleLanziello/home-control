@@ -73,14 +73,16 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--ip", required=True)
     parser.add_argument("--date", action="append", default=[])
+    parser.add_argument("--recordings-only", action="store_true")
     args = parser.parse_args()
     try:
         camera = create_camera(args.ip)
         result: dict[str, object] = {}
-        try:
-            result["battery"] = {"available": True, **battery(camera)}
-        except Exception:
-            result["battery"] = {"available": False}
+        if not args.recordings_only:
+            try:
+                result["battery"] = {"available": True, **battery(camera)}
+            except Exception:
+                result["battery"] = {"available": False}
         try:
             clips: list[dict[str, object]] = []
             for date in dict.fromkeys(args.date):
@@ -88,12 +90,25 @@ def main() -> int:
             result["recordings"] = {"available": True, "clips": clips}
         except Exception:
             result["recordings"] = {"available": False, "clips": []}
-        try:
-            privacy = camera.getPrivacyMode()
-            enabled = privacy.get("enabled") if isinstance(privacy, dict) else None
-            result["privacy"] = {"available": enabled in ("on", "off"), "enabled": enabled}
-        except Exception:
-            result["privacy"] = {"available": False}
+        if not args.recordings_only:
+            try:
+                privacy = camera.getPrivacyMode()
+                enabled = privacy.get("enabled") if isinstance(privacy, dict) else None
+                result["privacy"] = {"available": enabled in ("on", "off"), "enabled": enabled}
+            except Exception:
+                result["privacy"] = {"available": False}
+            try:
+                detection = camera.getMotionDetection()
+                enabled = detection.get("enabled") if isinstance(detection, dict) else None
+                result["detection"] = {"available": enabled in ("on", "off"), "enabled": enabled}
+            except Exception:
+                result["detection"] = {"available": False}
+            try:
+                alarm = camera.getAlarm()
+                enabled = alarm.get("enabled") if isinstance(alarm, dict) else None
+                result["alarm"] = {"available": enabled in ("on", "off"), "enabled": enabled}
+            except Exception:
+                result["alarm"] = {"available": False}
         print(json.dumps(result, ensure_ascii=False))
         return 0
     except Exception:

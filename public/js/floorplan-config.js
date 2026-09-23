@@ -21,11 +21,12 @@ export const floorplanConfig = {
     title: exactShape('rect[x="260.5"][y="1039.5"][width="750"][height="130"]'),
     options: exactShape('rect[x="1026.5"][y="1039.5"][width="175"][height="130"]'),
   },
-  icons: { lightOn: 'lampon.svg', lightOff: 'lampoff.svg', ledbarOn: 'ledbaron.svg', ledbarOff: 'ledbaroff.svg', sensor: 'temp.svg', camera: 'cam.svg', privacyOn: 'privacyon.svg', privacyOff: 'privacyoff.svg', detectionOn: 'rilevon.svg', detectionOff: 'rilevoff.svg', alarmOn: 'alarmon.svg', alarmOff: 'alarmoff.svg', batteryEmpty: 'solar-panel-battery-empty.svg', batteryLow: 'solar-panel-battery-low.svg', batteryHalf: 'solar-panel-battery-half.svg', batteryFull: 'solar-panel-battery-full.svg', batteryCharging: 'solar-panel-battery-charging.svg', boiler: 'boiler.svg', cappaOn: 'CAPPAON.svg', cappaOff: 'CAPPAOFF.svg' },
+  icons: { lightOn: 'lampon.svg', lightOff: 'lampoff.svg', ledbarOn: 'ledbaron.svg', ledbarOff: 'ledbaroff.svg', sensor: 'temp.svg', camera: 'cam.svg', privacyOn: 'privacyon.svg', privacyOff: 'privacyoff.svg', detectionOn: 'rilevon.svg', detectionOff: 'rilevoff.svg', alarmOn: 'alarmon.svg', alarmOff: 'alarmoff.svg', batteryEmpty: 'solar-panel-battery-empty.svg', batteryLow: 'solar-panel-battery-low.svg', batteryHalf: 'solar-panel-battery-half.svg', batteryHalf2: 'solar-panel-battery-half2.svg', batteryFull: 'solar-panel-battery-full.svg', batteryCharging: 'solar-panel-battery-charging.svg', boiler: 'boiler.svg', cappaOn: 'CAPPAON.svg', cappaOff: 'CAPPAOFF.svg' },
   // Semantic labels survive a geometry-only edit of their mapping SVG.
   lights: ['CUCINA', 'CAMERA', 'SALOTTO', 'DISIMPEGNO', 'BAGNO', 'CAMERETTA', 'GAZEBO', 'ESTERNO 8', 'ESTERNO 9', 'ESTERNO 10', 'ESTERNO 11', 'ESTERNO 12'].map((room, index) => ({ id: 'L' + (index + 1), room, marker: labeledMarker('L' + (index + 1)), ...(index >= 7 ? { localOnly: true } : {}) })),
   // These are full-plan graphical effects, not marker-sized light layers.
   externalLightOverlays: Object.fromEntries(['L8', 'L9', 'L10', 'L11', 'L12'].map(id => [id, 'LAYER-' + id + '-ON.svg'])),
+  cameraEventLayers: { C1: 'LAYER-C1-ALARM.svg', C2: 'LAYER-C2-ALARM.svg', C3: 'LAYER-C3-ALARM.svg' },
   sensors: ['CUCINA', 'CAMERA', 'SALOTTO', 'CAMERETTA', 'GIARDINO'].map((room, index) => {
     const id = 'S' + (index + 1);
     return { id, room, marker: labeledMarker(id), reading: labeledMarker('LS' + (index + 1)), humidityReading: ['S1', 'S2', 'S4'].includes(id) ? labeledMarker('LU' + (index + 1)) : null, futureSource: index === 2 ? 'AVATTO' : null };
