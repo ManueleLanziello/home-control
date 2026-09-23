@@ -30,7 +30,7 @@ test('normalizzazione espone solo batteria/carica e conteggio eventi utili alla 
     detection: { available: true, enabled: 'on' },
     alarm: { available: true, enabled: 'off' },
   }, now);
-  assert.deepEqual(telemetry.battery, { available: true, percent: 100, charging: true });
+  assert.deepEqual(telemetry.battery, { available: true, percent: 100, charging: false });
   assert.deepEqual(telemetry.events, { available: true, count: 1, windowHours: 12 });
   assert.equal(telemetry.detection, true);
   assert.deepEqual(telemetry.alarm, { available: true, enabled: false });

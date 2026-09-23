@@ -42,7 +42,7 @@ export function normalizeCameraTelemetry(payload, now = Date.now()) {
     battery: {
       available: batteryAvailable,
       percent: batteryAvailable ? Math.max(0, Math.min(100, percent)) : null,
-      charging: batteryAvailable ? chargingValue(payload.battery.chargingState, payload.battery.statisticChargingState) : null,
+      charging: batteryAvailable ? chargingValue(payload.battery.chargingState) : null,
     },
     events: {
       available: recordingsAvailable,
