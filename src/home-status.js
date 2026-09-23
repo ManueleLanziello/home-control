@@ -1,5 +1,6 @@
 import { TuyaCloudClient } from '@smarthome/core';
 import { HomeDewinRuntime, isDewinTuyaDevice } from './dewin-runtime.js';
+import { normalizeDeviceStatuses } from './device-status.js';
 import { ZIGBEE_SENSOR_CONFIG } from '../config/zigbee-sensors.js';
 
 // Explicit logical assignments; never infer rooms from aliases or physical IDs.
@@ -54,9 +55,10 @@ export class HomeStatusRuntime {
     Object.assign(this, { hardwareStore, roleStore, readThermostat, readHood, readZigbeeSensors, readZigbeeLedbar, readCameras, now, cacheMs, timeoutMs });
     this.createSensorRuntime = createSensorRuntime || (device => new HomeDewinRuntime({ device, client: new TuyaCloudClient({
       clientId: process.env.TUYA_CLIENT_ID_HOME, clientSecret: process.env.TUYA_CLIENT_SECRET_HOME,
-      deviceId: process.env.TUYA_DEWIN_ID?.trim() || device.identity?.tuyaDeviceId || device.tuyaDeviceId,
+      deviceId: process.env.TUYA_DEWIN_ID?.trim() || device.identity?.tuyaDeviceId || device.identity?.deviceId || device.tuyaDeviceId,
     }) }));
     this.runtimes = new Map();
+    this.inventoryRuntimes = new Map();
     this.pendingReads = new Map();
     this.cached = null;
     this.pending = null;
@@ -87,7 +89,7 @@ export class HomeStatusRuntime {
   async refresh(generation = this.generation) {
     const registry = await this.hardwareStore.read();
     const assignments = await this.roleStore.read(registry.devices.map(device => device.id));
-    const signature = JSON.stringify([registry.devices, assignments]);
+    const signature = JSON.stringify([registry.devices, registry.inventory, assignments]);
     if (this.cached?.signature === signature && this.now() < this.cached.expiresAt) return structuredClone(this.cached.snapshot);
     const currentKeys = new Set(registry.devices.map(device => JSON.stringify(device)));
     for (const key of this.runtimes.keys()) if (!currentKeys.has(key)) this.runtimes.delete(key);
@@ -96,6 +98,7 @@ export class HomeStatusRuntime {
     const hoodRead = this.readHood
       ? this.readDevice('hood', this.readHood).then(value => value, () => null)
       : Promise.resolve(null);
+    const inventoryDewinRead = this.readInventoryDewin(registry.inventory).then(value => value, () => null);
     let zigbeeSensors;
     try { zigbeeSensors = this.readZigbeeSensors?.(); } catch { /* MQTT must not block the Home snapshot. */ }
     const entries = await Promise.all(Object.entries(HOME_ROLES).map(async ([id, role]) => {
@@ -148,10 +151,12 @@ export class HomeStatusRuntime {
     const cameras = this.readCameras ? await this.readCameras() : Object.fromEntries(Object.entries(values).filter(([id]) => id.startsWith('C')));
     let ledbar = null;
     try { ledbar = this.readZigbeeLedbar?.(); } catch { /* MQTT must not block the Home snapshot. */ }
+    const inventoryDewin = await inventoryDewinRead;
     const snapshot = { updatedAt: new Date(this.now()).toISOString(), sensors, thermostat, hood,
       ledbar: ledbar || { id: 'LB1', name: 'SmartHomeLB1', state: null, brightness: null, online: false, available: false, updatedAt: null },
       lights: Object.fromEntries(Object.entries(values).filter(([id]) => id.startsWith('L'))),
       cameras,
+      devices: normalizeDeviceStatuses(registry.inventory, { selfOnline: true, ledbar, hood, thermostat, cameras, zigbee: zigbeeSensors, dewin: inventoryDewin }, this.now()),
       // S3 alone is the WT200 room reading, not a whole-house average.
       averageTemperature: indoors.length > 1 ? indoors.reduce((a,b)=>a+b,0)/indoors.length : null,
       indoorSensorCount: indoors.length,
@@ -161,5 +166,20 @@ export class HomeStatusRuntime {
     const expiresAt = Math.min(this.now() + this.cacheMs, ...timestamps.map(time => Date.parse(time) + MAX_AGE_MS), ...zigbeeExpirations);
     if (generation === this.generation) this.cached = { signature, expiresAt, snapshot };
     return structuredClone(snapshot);
+  }
+
+  async readInventoryDewin(inventory = []) {
+    const item = inventory.find(entry => entry.marker === 'D18' && entry.presenceEnabled === true);
+    const deviceId = item?.identity?.deviceId;
+    if (!deviceId) return null;
+    const key = `${item.marker}:${deviceId}`;
+    if (!this.inventoryRuntimes.has(key)) {
+      this.inventoryRuntimes.set(key, this.createSensorRuntime({
+        id: `inventory-${item.marker}`,
+        alias: item.name,
+        identity: { tuyaDeviceId: deviceId },
+      }));
+    }
+    return this.readDevice(`inventory:${key}`, () => this.inventoryRuntimes.get(key).readSnapshot());
   }
 }

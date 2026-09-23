@@ -62,6 +62,11 @@ button.floorplan-marker { pointer-events: auto; cursor: pointer; }
 .floorplan-marker-camera-aux .floorplan-symbol { width: 70%; height: 70%; }
 .floorplan-marker-camera-aux[data-available="false"] { opacity: .55; }
 .floorplan-marker-cappa[data-online="false"] { opacity: .58; }
+.floorplan-marker-device-status { width: 100%; height: 100%; border: 0; background: #778896; box-shadow: 0 0 5px rgb(151 174 188 / 45%); opacity: .7; pointer-events: none; }
+.floorplan-marker-device-status[data-device-status="online"] { background: #29df92; box-shadow: 0 0 8px rgb(41 223 146 / 70%); opacity: .5; animation: floorplan-device-online-pulse 2.4s ease-in-out infinite; }
+.floorplan-marker-device-status[data-device-status="offline"] { background: #e55663; box-shadow: 0 0 7px rgb(229 86 99 / 65%); opacity: .5; }
+@keyframes floorplan-device-online-pulse { 0%, 100% { opacity: .42; transform: scale(.94); } 50% { opacity: .64; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .floorplan-marker-device-status[data-device-status="online"] { animation: none; opacity: .5; } }
 .floorplan-marker-weather { border: 0; background: transparent; }
 .floorplan-marker-weather > img { width: 100%; height: 100%; object-fit: contain; }
 .floorplan-marker-weather[data-available="false"] { opacity: .55; }

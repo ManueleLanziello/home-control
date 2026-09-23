@@ -1,0 +1,67 @@
+{
+  "version": 4,
+  "devices": [
+    {
+      "id": "camera-0ca58ea0-6789-47b4-a35e-e3fbf5a367d4",
+      "alias": "C410 Terrazzo",
+      "model": "C410",
+      "protocol": "pytapo-https",
+      "connectionType": "lan",
+      "manufacturer": "TP-Link Tapo",
+      "type": "Telecamera IP",
+      "identity": {
+        "mac": "30:68:93:09:34:A3"
+      },
+      "connection": {
+        "ip": "192.168.1.9"
+      },
+      "metadata": {
+        "adapter": "tapo-c410-owned"
+      },
+      "configurationStatus": "complete",
+      "verificationStatus": "verified",
+      "verifiedAt": "2026-09-12T14:21:58.419Z"
+    },
+    {
+      "id": "tapo-c410-pond",
+      "alias": "C410 Pond",
+      "model": "C410",
+      "protocol": "pytapo-https",
+      "connectionType": "lan",
+      "manufacturer": "TP-Link Tapo",
+      "type": "Telecamera IP",
+      "identity": {
+        "mac": "30:68:93:2E:83:C2"
+      },
+      "connection": {
+        "ip": "192.168.1.11"
+      },
+      "metadata": {
+        "adapter": "tapo-c410-owned"
+      },
+      "configurationStatus": "complete",
+      "verificationStatus": "verified",
+      "verifiedAt": "2026-09-22T20:04:17.543Z"
+    }
+  ],
+  "inventory": [
+    { "marker": "D1", "name": "PC sviluppo", "hostname": "PC-MANU", "identity": { "mac": "08:8A:F1:31:9E:FF" }, "network": { "ipv4": "192.168.1.13", "ipv6": "fe80::a513:b3bf:a78e:340d", "medium": "Wi-Fi 5 GHz" }, "presenceEnabled": false },
+    { "marker": "D2", "name": "IV-WSTEC83", "hostname": "IV-WSTEC83", "identity": { "mac": "F0:20:FF:04:F0:C9" }, "network": { "ipv4": "192.168.1.20", "ipv6": "fe80::aa1:d1e4:d989:2c0", "medium": "Wi-Fi 5 GHz" }, "presenceEnabled": false },
+    { "marker": "D3", "name": "Fire TV Stick 4K", "model": "Amazon AFTMM", "identity": { "mac": "A0:D2:B1:5A:C8:0A" }, "network": { "ipv4": "192.168.1.2", "medium": "Wi-Fi" }, "presenceEnabled": false },
+    { "marker": "D4", "name": "Xbox One", "hostname": "XBOXONE", "identity": { "mac": "70:BC:10:4B:AC:C3" }, "network": { "ipv4": "192.168.1.16", "ipv6": "fe80::981d:8aee:2b0b:dfac", "medium": "Wi-Fi 5 GHz" }, "presenceEnabled": false },
+    { "marker": "D5", "name": "Samsung Serie 7", "model": "UE55TU7090UXZT", "protocol": "Samsung Tizen", "identity": { "mac": "10:2B:41:38:83:40" }, "network": { "ipv4": "192.168.1.10", "medium": "Wi-Fi" }, "presenceEnabled": false },
+    { "marker": "D6", "name": "PC SmartHome", "hostname": "HOME-SERVER", "identity": { "mac": "44:8A:5B:84:0B:91" }, "network": { "ipv4": "192.168.1.15", "ipv6": "fe80::88be:5f6b:3070:2223", "medium": "Ethernet" }, "presenceEnabled": true },
+    { "marker": "D7", "name": "Tapo P105 - Pompa", "model": "Tapo P105", "protocol": "TPAP/SPAKE2+", "identity": { "mac": "98:03:8E:9C:0C:AF", "deviceId": "tapo-p105-pond" }, "network": { "ipv4": "192.168.1.5", "medium": "Wi-Fi 2.4 GHz" }, "presenceEnabled": false },
+    { "marker": "D8", "name": "Tapo P105 - Riscaldatore", "model": "Tapo P105", "protocol": "TPAP/SPAKE2+", "identity": { "mac": "18:69:45:C7:DA:2E" }, "network": { "ipv4": "192.168.1.6", "medium": "Wi-Fi 2.4 GHz" }, "presenceEnabled": false },
+    { "marker": "D9", "name": "IKEA LED Bar", "protocol": "Zigbee", "identity": { "deviceId": "LB1" }, "friendlyName": "SmartHomeLB1", "topic": "zigbee2mqtt/SmartHomeLB1", "presenceEnabled": true },
+    { "marker": "D10", "name": "Cappa CIARRA", "model": "CBCW6736N", "protocol": "Tuya LAN", "identity": { "mac": "F8:17:2D:40:68:41", "deviceId": "bffddccc3f0714ef95rvpg" }, "network": { "ipv4": "192.168.1.12" }, "presenceEnabled": true },
+    { "marker": "D11", "name": "Camera C1", "model": "Tapo C410", "role": "terrazzo", "protocol": "PyTapo HTTPS", "identity": { "mac": "30:68:93:09:34:A3", "deviceId": "camera-0ca58ea0-6789-47b4-a35e-e3fbf5a367d4" }, "network": { "ipv4": "192.168.1.9" }, "presenceEnabled": true },
+    { "marker": "D12", "name": "Camera C2", "model": "Tapo C410", "role": "Pond", "protocol": "PyTapo HTTPS", "identity": { "mac": "30:68:93:2E:83:C2", "deviceId": "tapo-c410-pond" }, "network": { "ipv4": "192.168.1.11" }, "presenceEnabled": true },
+    { "marker": "D13", "name": "Camera C3", "model": "Tapo C410", "protocol": "PyTapo HTTPS", "presenceEnabled": false, "status": "future" },
+    { "marker": "D14", "name": "Termostato Avatto / WT200", "protocol": "Tuya LAN", "identity": { "mac": "FC:3C:D7:82:50:62", "deviceId": "bf4e2beb8e6333ee38m7lu" }, "network": { "ipv4": "192.168.1.19" }, "presenceEnabled": true },
+    { "marker": "D15", "name": "SONOFF S1", "model": "SNZB-02P", "protocol": "Zigbee", "identity": { "deviceId": "S1" }, "friendlyName": "SmartHomeS1", "topic": "zigbee2mqtt/SmartHomeS1", "presenceEnabled": true },
+    { "marker": "D16", "name": "SONOFF S2", "model": "SNZB-02P", "protocol": "Zigbee", "identity": { "deviceId": "S2" }, "friendlyName": "SmartHomeS2", "topic": "zigbee2mqtt/SmartHomeS2", "presenceEnabled": true },
+    { "marker": "D17", "name": "SONOFF S4", "model": "SNZB-02P", "protocol": "Zigbee", "identity": { "deviceId": "S4" }, "friendlyName": "SmartHomeS4", "topic": "zigbee2mqtt/SmartHomeS4", "presenceEnabled": true },
+    { "marker": "D18", "name": "Sensore Dewin Pond", "protocol": "Tuya Cloud", "identity": { "deviceId": "bf0a19b9163f00415ba1o9" }, "presenceEnabled": true }
+  ]
+}

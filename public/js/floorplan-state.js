@@ -14,6 +14,7 @@ export function createFloorplanState() {
     boiler: { on: null, mode: null },
     hood: { online: false, power: null, fanSpeed: null, light: null, operatingStatus: null, updatedAt: null },
     ledbar: { state: null, brightness: null, online: false, available: false, updatedAt: null },
+    devices: {},
   };
   const listeners = new Set();
   const cameraReadBackAt = new Map();
@@ -113,6 +114,7 @@ export function createFloorplanState() {
       applyThermostat(home.thermostat);
       applyHood(home.hood);
       if (home.ledbar) state.ledbar = { ...state.ledbar, ...home.ledbar };
+      if (home.devices && typeof home.devices === 'object') state.devices = structuredClone(home.devices);
       for (const listener of listeners) listener(this.snapshot());
     },
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },

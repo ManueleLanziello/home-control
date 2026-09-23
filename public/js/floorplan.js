@@ -492,6 +492,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     const integrationMapping = await loadMapping(config.mappings.integration, stage); mappings.push(integrationMapping);
     // LAYER-17 is a hidden geometric source only; it is never a painted stack layer.
     const ledbarMapping = await loadMapping(config.mappings.ledbar, stage); mappings.push(ledbarMapping);
+    const deviceMapping = await loadMapping(config.mappings.devices, stage); mappings.push(deviceMapping);
     // The decorative clock is isolated: any asset, marker or module failure leaves the Dashboard available.
     try {
       const { createFloorplanClock } = await import('./floorplan-clock.js');
@@ -537,6 +538,14 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     ledbarSlider.addEventListener('input', () => { clearTimeout(ledbarThrottle); ledbarThrottle = setTimeout(sendLedbarBrightness, 150); });
     ledbarSlider.addEventListener('change', sendLedbarBrightness);
     placeHtml(ledbarMapping, config.ledbar.slider, ledbarSlider, true);
+    const deviceMarkers = new Map();
+    for (const device of config.devices) {
+      const element = markerElement(`Stato dispositivo ${device.id}`);
+      element.classList.add('floorplan-marker-device-status');
+      element.dataset.deviceId = device.id;
+      placeHtml(deviceMapping, device.marker, element);
+      deviceMarkers.set(device.id, element);
+    }
     const sensorReadings = new Map();
     const sensorHumidityReadings = new Map();
     const sensorTypography = { fontSize: sensorReadingFontSize(sensorMapping.box(config.sensors.find(sensor => sensor.id === 'S3').reading)) };
@@ -789,6 +798,13 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
         }
       }
       const ledbar = state.ledbar;
+      for (const device of config.devices) {
+        const marker = deviceMarkers.get(device.id);
+        const deviceState = state.devices?.[device.id] || { presenceEnabled: false, status: 'disabled' };
+        marker.dataset.deviceStatus = deviceState.status;
+        marker.dataset.presenceEnabled = String(deviceState.presenceEnabled === true);
+        marker.setAttribute('aria-label', `Stato dispositivo ${device.id}: ${deviceState.status}`);
+      }
       const ledbarLayer = ledbarLayerFor(ledbar);
       for (const [key, name] of Object.entries(config.ledbar.layers)) imageLayers.get(name).hidden = key !== ledbarLayer;
       const ledbarOn = ledbar.state === 'ON';
