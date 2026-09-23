@@ -19,6 +19,11 @@ function requiredText(value, label) {
   return normalized;
 }
 
+function optionalText(value) {
+  const normalized = String(value || '').trim();
+  return normalized || null;
+}
+
 function normalizeConnectionType(value) {
   const connectionType = String(value || '').trim().toLowerCase();
   if (!CONNECTION_TYPES.includes(connectionType)) {
@@ -48,11 +53,42 @@ export function normalizeHardwareRecord(input) {
   };
 }
 
+function normalizeInventoryRecord(input) {
+  if (typeof input.presenceEnabled !== 'boolean') {
+    throw new HardwareRegistryError('Configurazione presence non valida.', 'INVALID_PRESENCE_CONFIGURATION');
+  }
+  const identity = {
+    ...(optionalText(input.identity?.mac) ? { mac: optionalText(input.identity.mac).toUpperCase() } : {}),
+    ...(optionalText(input.identity?.ieeeAddress) ? { ieeeAddress: optionalText(input.identity.ieeeAddress) } : {}),
+    ...(optionalText(input.identity?.deviceId) ? { deviceId: optionalText(input.identity.deviceId) } : {}),
+  };
+  const network = {
+    ...(optionalText(input.network?.ipv4) ? { ipv4: optionalText(input.network.ipv4) } : {}),
+    ...(optionalText(input.network?.ipv6) ? { ipv6: optionalText(input.network.ipv6) } : {}),
+    ...(optionalText(input.network?.medium) ? { medium: optionalText(input.network.medium) } : {}),
+  };
+  return {
+    marker: requiredText(input.marker, 'marker'),
+    name: requiredText(input.name, 'name'),
+    ...(optionalText(input.model) ? { model: optionalText(input.model) } : {}),
+    ...(optionalText(input.role) ? { role: optionalText(input.role) } : {}),
+    ...(optionalText(input.hostname) ? { hostname: optionalText(input.hostname) } : {}),
+    ...(optionalText(input.protocol) ? { protocol: optionalText(input.protocol) } : {}),
+    ...(Object.keys(identity).length ? { identity } : {}),
+    ...(Object.keys(network).length ? { network } : {}),
+    ...(optionalText(input.friendlyName) ? { friendlyName: optionalText(input.friendlyName) } : {}),
+    ...(optionalText(input.topic) ? { topic: optionalText(input.topic) } : {}),
+    presenceEnabled: input.presenceEnabled,
+    ...(input.status === 'future' ? { status: 'future' } : { status: 'active' }),
+  };
+}
+
 export function validateHardwareRegistry(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new HardwareRegistryError('Registro hardware non valido.');
   }
   const devices = (value.devices || []).map(normalizeHardwareRecord);
+  const inventory = (value.inventory || []).map(normalizeInventoryRecord);
   const ids = new Set();
   const tuyaDeviceIds = new Set();
   for (const device of devices) {
@@ -62,11 +98,16 @@ export function validateHardwareRegistry(value) {
     ids.add(device.id);
     if (tuyaDeviceId) tuyaDeviceIds.add(tuyaDeviceId);
   }
-  return { version: HARDWARE_REGISTRY_VERSION, devices };
+  const markers = new Set();
+  for (const item of inventory) {
+    if (markers.has(item.marker)) throw new HardwareRegistryError('Marker inventario duplicato.', 'DUPLICATE_INVENTORY_MARKER');
+    markers.add(item.marker);
+  }
+  return { version: HARDWARE_REGISTRY_VERSION, devices, inventory };
 }
 
 export function defaultHardwareRegistry() {
-  return { version: HARDWARE_REGISTRY_VERSION, devices: [] };
+  return { version: HARDWARE_REGISTRY_VERSION, devices: [], inventory: [] };
 }
 
 export class HardwareRegistryStore {

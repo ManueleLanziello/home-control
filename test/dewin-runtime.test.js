@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { DewinTuyaAdapter } from '@smarthome/core';
 import { defaultHardwareRegistry, validateHardwareRegistry } from '../src/hardware-registry.js';
@@ -102,7 +103,27 @@ test('importare il runtime non effettua chiamate cloud', () => {
 });
 
 test('registry Home vuoto resta valido', () => {
-  assert.deepEqual(validateHardwareRegistry(defaultHardwareRegistry()), { version: 4, devices: [] });
+  assert.deepEqual(validateHardwareRegistry(defaultHardwareRegistry()), { version: 4, devices: [], inventory: [] });
+});
+
+test('inventario dispositivi conserva il marker separato dall identita fisica', () => {
+  const registry = validateHardwareRegistry({
+    devices: [],
+    inventory: [{ marker: 'D15', name: 'SONOFF S1', protocol: 'Zigbee', identity: { deviceId: 'S1' }, friendlyName: 'SmartHomeS1', topic: 'zigbee2mqtt/SmartHomeS1', presenceEnabled: false }],
+  });
+  assert.deepEqual(registry.inventory, [{ marker: 'D15', name: 'SONOFF S1', protocol: 'Zigbee', identity: { deviceId: 'S1' }, friendlyName: 'SmartHomeS1', topic: 'zigbee2mqtt/SmartHomeS1', presenceEnabled: false, status: 'active' }]);
+  assert.throws(() => validateHardwareRegistry({ devices: [], inventory: [{ marker: 'D15', name: 'SONOFF S1' }] }), /presence/);
+});
+
+test('inventory D1-D18 parte con presence disabilitata e MAC confermati', async () => {
+  const value = JSON.parse(await readFile(new URL('../data/config/hardware.json', import.meta.url), 'utf8'));
+  const inventory = validateHardwareRegistry(value).inventory;
+  assert.equal(inventory.length, 18);
+  assert.deepEqual(inventory.filter(({ presenceEnabled }) => presenceEnabled).map(({ marker }) => marker), ['D6', 'D9', 'D10', 'D11', 'D12', 'D14', 'D15', 'D16', 'D17', 'D18']);
+  assert.deepEqual(inventory.filter(({ presenceEnabled }) => !presenceEnabled).map(({ marker }) => marker), ['D1', 'D2', 'D3', 'D4', 'D5', 'D7', 'D8', 'D13']);
+  assert.deepEqual(Object.fromEntries(inventory.slice(0, 4).map(({ marker, identity }) => [marker, identity.mac])), {
+    D1: '08:8A:F1:31:9E:FF', D2: 'F0:20:FF:04:F0:C9', D3: 'A0:D2:B1:5A:C8:0A', D4: '70:BC:10:4B:AC:C3',
+  });
 });
 
 test('riconoscimento Dewin Home senza ruoli o stanze hardcoded', () => {
