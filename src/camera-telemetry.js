@@ -62,14 +62,14 @@ export function normalizeCameraTelemetry(payload, now = Date.now()) {
   };
 }
 
-export async function readCameraTelemetry({ ip, root, env = process.env, now = Date.now() }) {
+export async function readCameraTelemetry({ ip, root, env = process.env, now = Date.now(), timeoutMs = 45_000 }) {
   const dates = recordingDatesForWindow(now);
   const worker = path.join(root, 'src', 'camera-readonly-telemetry.py');
   const { stdout } = await execFileAsync(defaultCameraPython(root, { env }), [worker, '--ip', ip, ...dates.flatMap(date => ['--date', date])], {
     cwd: root,
     env,
     windowsHide: true,
-    timeout: 45_000,
+    timeout: timeoutMs,
     maxBuffer: 2 * 1024 * 1024,
   });
   const payload = JSON.parse(stdout);

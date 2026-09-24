@@ -25,8 +25,8 @@ const EMPTY_TELEMETRY = () => ({
 const EMPTY = role => ({ role, configured: false, sourceType: 'owned', online: false, available: false, alias: null, model: null, updatedAt: null, error: null, status: 'NOT_CONFIGURED', imageAvailable: false, live: false, ...EMPTY_TELEMETRY() });
 
 export class HomeCameraRuntime {
-  constructor({ hardwareStore, roleStore, root, env = process.env, readTelemetry = readCameraTelemetry, readDetection = readCameraDetection, setDetection = setCameraDetection, readPrivacy = readCameraPrivacy, setPrivacy = setCameraPrivacy, readAlarm = readCameraAlarm, setAlarm = setCameraAlarm, readEvents = readCameraEvents, readRecording = readCameraRecording, readRecentEvents = readCameraRecentEvents, now = Date.now, telemetryTtlMs = CAMERA_TELEMETRY_TTL_MS, recordingTtlMs = RECORDING_CACHE_TTL_MS, eventMonitorIntervalMs = EVENT_MONITOR_INTERVAL_MS, eventAlertMs = EVENT_ALERT_MS }) {
-    Object.assign(this, { hardwareStore, roleStore, root, env, readTelemetry, readDetection, setDetection, readPrivacy, setPrivacy, readAlarm, setAlarm, readEvents, readRecording, readRecentEvents, now, telemetryTtlMs, recordingTtlMs, eventMonitorIntervalMs, eventAlertMs });
+  constructor({ hardwareStore, roleStore, root, env = process.env, readTelemetry = readCameraTelemetry, readDetection = readCameraDetection, setDetection = setCameraDetection, readPrivacy = readCameraPrivacy, setPrivacy = setCameraPrivacy, readAlarm = readCameraAlarm, setAlarm = setCameraAlarm, readEvents = readCameraEvents, readRecording = readCameraRecording, readRecentEvents = readCameraRecentEvents, now = Date.now, telemetryTtlMs = CAMERA_TELEMETRY_TTL_MS, availabilityTtlMs = 30_000, cameraProbeTimeoutMs = 8_000, recordingTtlMs = RECORDING_CACHE_TTL_MS, eventMonitorIntervalMs = EVENT_MONITOR_INTERVAL_MS, eventAlertMs = EVENT_ALERT_MS }) {
+    Object.assign(this, { hardwareStore, roleStore, root, env, readTelemetry, readDetection, setDetection, readPrivacy, setPrivacy, readAlarm, setAlarm, readEvents, readRecording, readRecentEvents, now, telemetryTtlMs, availabilityTtlMs, cameraProbeTimeoutMs, recordingTtlMs, eventMonitorIntervalMs, eventAlertMs });
     this.telemetryCache = new Map();
     this.telemetryPending = new Map();
     this.detectionPending = new Map();
@@ -54,13 +54,19 @@ export class HomeCameraRuntime {
     return { ...EMPTY_TELEMETRY(), ...value };
   }
 
+  isReachable(record) {
+    const cached = this.telemetryCache.get(record.id);
+    const signature = `${record.id}:${record.connection?.ip || ''}`;
+    return cached?.signature === signature && cached.online === true;
+  }
+
   cacheControl(record, update) {
     const signature = `${record.id}:${record.connection?.ip || ''}`;
     const cached = this.telemetryCache.get(record.id);
     const value = { ...(cached?.signature === signature ? cached.value : EMPTY_TELEMETRY()), ...update };
     const controlUpdatedAt = { ...(cached?.signature === signature ? cached.controlUpdatedAt : {}) };
     for (const kind of Object.keys(update)) controlUpdatedAt[kind] = this.now();
-    this.telemetryCache.set(record.id, { signature, value, controlUpdatedAt, expiresAt: cached?.signature === signature ? cached.expiresAt : 0 });
+    this.telemetryCache.set(record.id, { ...(cached?.signature === signature ? cached : {}), signature, value, controlUpdatedAt, expiresAt: cached?.signature === signature ? cached.expiresAt : 0 });
   }
 
   recentControl(record, kind) {
@@ -76,8 +82,8 @@ export class HomeCameraRuntime {
   scheduleTelemetry(record) {
     const signature = `${record.id}:${record.connection?.ip || ''}`;
     const cached = this.telemetryCache.get(record.id);
-    if ((cached?.signature === signature && cached.expiresAt > this.now()) || this.telemetryPending.has(record.id)) return;
-    const pending = this.operations.run(record.id, () => this.readTelemetry({ ip: record.connection?.ip, root: this.root, env: this.env, now: this.now() }), { background: true })
+    if ((cached?.signature === signature && this.now() - cached.checkedAt < this.availabilityTtlMs) || this.telemetryPending.has(record.id)) return;
+    const pending = this.operations.run(record.id, () => this.readTelemetry({ ip: record.connection?.ip, root: this.root, env: this.env, now: this.now(), timeoutMs: this.cameraProbeTimeoutMs }), { background: true })
       .then(value => {
         const latest = this.telemetryCache.get(record.id);
         const previous = latest?.signature === signature ? latest.value : EMPTY_TELEMETRY();
@@ -89,15 +95,15 @@ export class HomeCameraRuntime {
         if (typeof value.privacy?.enabled === 'boolean') controlUpdatedAt.privacy = this.now();
         if (typeof value.detection === 'boolean') controlUpdatedAt.detection = this.now();
         if (typeof value.alarm?.enabled === 'boolean') controlUpdatedAt.alarm = this.now();
-        this.telemetryCache.set(record.id, { signature, value: { ...previous, ...value, privacy, detection, alarm,
+        this.telemetryCache.set(record.id, { signature, online: true, checkedAt: this.now(), value: { ...previous, ...value, privacy, detection, alarm,
           battery: value.battery?.available ? value.battery : previous.battery,
           events: value.events?.available ? value.events : previous.events,
           recordings: value.recordings?.available ? value.recordings : previous.recordings }, controlUpdatedAt, expiresAt: this.now() + this.telemetryTtlMs });
       })
       .catch(() => {
         const latest = this.telemetryCache.get(record.id);
-        if (latest?.signature === signature) latest.expiresAt = this.now() + this.telemetryTtlMs;
-        else this.telemetryCache.set(record.id, { signature, value: EMPTY_TELEMETRY(), expiresAt: this.now() + this.telemetryTtlMs });
+        if (latest?.signature === signature) Object.assign(latest, { online: false, checkedAt: this.now(), expiresAt: this.now() + this.telemetryTtlMs });
+        else this.telemetryCache.set(record.id, { signature, online: false, checkedAt: this.now(), value: EMPTY_TELEMETRY(), expiresAt: this.now() + this.telemetryTtlMs });
       })
       .finally(() => this.telemetryPending.delete(record.id));
     this.telemetryPending.set(record.id, pending);
@@ -119,9 +125,13 @@ export class HomeCameraRuntime {
     try {
       const technical = active ? await this.owned.snapshot(CAMERA_ROLE_MAP[role]) : EMPTY(role);
       const telemetry = this.telemetryFor(record);
+      const cached = this.telemetryCache.get(record.id);
+      const signature = `${record.id}:${record.connection?.ip || ''}`;
       if (active && technical.live !== true) this.scheduleTelemetry(record);
-      return { ...technical, role, configured: record.configurationStatus === 'complete', sourceType: 'owned', alias: record.alias, model: record.model,
-        online: active && technical.status !== 'ERROR', available: active && technical.status !== 'ERROR', error: technical.error || null, ...telemetry };
+      const online = active && technical.status !== 'ERROR' && (technical.live === true || this.isReachable(record));
+      const status = !online && technical.status === 'READY' && cached?.signature === signature && cached.online === false ? 'OFFLINE' : technical.status;
+      return { ...technical, status, role, configured: record.configurationStatus === 'complete', sourceType: 'owned', alias: record.alias, model: record.model,
+        online, available: online, error: technical.error || null, ...(online ? telemetry : EMPTY_TELEMETRY()) };
     } catch {
       return { ...EMPTY(role), ...this.telemetryFor(record), configured: true, alias: record.alias, model: record.model, status: 'ERROR', error: 'Camera non disponibile' };
     }
@@ -138,14 +148,14 @@ export class HomeCameraRuntime {
   async setLive(role, active) {
     const { registry, assignments } = await this.reconcile();
     const record = registry.devices.find(device => assignments[device.id] === CAMERA_ROLE_MAP[role] && device.metadata?.adapter === OWNED_CAMERA_ADAPTER);
-    if (!record || !this.owned.has(record.id)) throw new Error('Camera non disponibile');
+    if (!record || !this.owned.has(record.id) || (active && !this.isReachable(record))) throw new Error('Camera non disponibile');
     await this.operations.run(record.id, () => active ? this.owned.start(CAMERA_ROLE_MAP[role]) : this.owned.stop(CAMERA_ROLE_MAP[role]));
     return (await this.snapshot())[role];
   }
   async getDetectionMode(role) {
     const { registry, assignments } = await this.reconcile();
     const record = registry.devices.find(device => assignments[device.id] === CAMERA_ROLE_MAP[role] && device.metadata?.adapter === OWNED_CAMERA_ADAPTER);
-    if (!record || !this.owned.has(record.id)) throw new Error('Camera non disponibile');
+    if (!record || !this.owned.has(record.id) || !this.isReachable(record)) throw new Error('Camera non disponibile');
     const detection = await this.operations.run(record.id, () => this.recentControl(record, 'detection') || this.readDetection({ ip: record.connection?.ip, root: this.root, env: this.env }));
     this.cacheControl(record, { detection: detection.enabled });
     return detection;
@@ -155,7 +165,7 @@ export class HomeCameraRuntime {
     if (this.detectionPending.has(role)) throw new Error('Operazione Rilevazione già in corso');
     const { registry, assignments } = await this.reconcile();
     const record = registry.devices.find(device => assignments[device.id] === CAMERA_ROLE_MAP[role] && device.metadata?.adapter === OWNED_CAMERA_ADAPTER);
-    if (!record || !this.owned.has(record.id)) throw new Error('Camera non disponibile');
+    if (!record || !this.owned.has(record.id) || !this.isReachable(record)) throw new Error('Camera non disponibile');
     const pending = this.operations.run(record.id, () => this.setDetection({ ip: record.connection?.ip, root: this.root, env: this.env, enabled }))
       .then(detection => {
         if (detection.enabled !== enabled) throw new Error('Read-back Rilevazione non coerente');
@@ -169,7 +179,7 @@ export class HomeCameraRuntime {
   async getPrivacyMode(role) {
     const { registry, assignments } = await this.reconcile();
     const record = registry.devices.find(device => assignments[device.id] === CAMERA_ROLE_MAP[role] && device.metadata?.adapter === OWNED_CAMERA_ADAPTER);
-    if (!record || !this.owned.has(record.id)) throw new Error('Camera non disponibile');
+    if (!record || !this.owned.has(record.id) || !this.isReachable(record)) throw new Error('Camera non disponibile');
     const privacy = await this.operations.run(record.id, () => this.recentControl(record, 'privacy') || this.readPrivacy({ ip: record.connection?.ip, root: this.root, env: this.env }));
     this.cacheControl(record, { privacy });
     return privacy;
@@ -179,7 +189,7 @@ export class HomeCameraRuntime {
     if (this.privacyPending.has(role)) throw new Error('Operazione Privacy già in corso');
     const { registry, assignments } = await this.reconcile();
     const record = registry.devices.find(device => assignments[device.id] === CAMERA_ROLE_MAP[role] && device.metadata?.adapter === OWNED_CAMERA_ADAPTER);
-    if (!record || !this.owned.has(record.id)) throw new Error('Camera non disponibile');
+    if (!record || !this.owned.has(record.id) || !this.isReachable(record)) throw new Error('Camera non disponibile');
     const pending = this.operations.run(record.id, () => this.setPrivacy({ ip: record.connection?.ip, root: this.root, env: this.env, enabled }))
       .then(privacy => {
         if (privacy.enabled !== enabled) throw new Error('Read-back Privacy non coerente');
@@ -194,7 +204,7 @@ export class HomeCameraRuntime {
   async getAlarmMode(role) {
     const { registry, assignments } = await this.reconcile();
     const record = registry.devices.find(device => assignments[device.id] === CAMERA_ROLE_MAP[role] && device.metadata?.adapter === OWNED_CAMERA_ADAPTER);
-    if (!record || !this.owned.has(record.id)) throw new Error('Camera non disponibile');
+    if (!record || !this.owned.has(record.id) || !this.isReachable(record)) throw new Error('Camera non disponibile');
     const alarm = await this.operations.run(record.id, () => this.recentControl(record, 'alarm') || this.readAlarm({ ip: record.connection?.ip, root: this.root, env: this.env }));
     this.cacheControl(record, { alarm });
     return alarm;
@@ -204,7 +214,7 @@ export class HomeCameraRuntime {
     if (this.alarmPending.has(role)) throw new Error('Operazione Allarme già in corso');
     const { registry, assignments } = await this.reconcile();
     const record = registry.devices.find(device => assignments[device.id] === CAMERA_ROLE_MAP[role] && device.metadata?.adapter === OWNED_CAMERA_ADAPTER);
-    if (!record || !this.owned.has(record.id)) throw new Error('Camera non disponibile');
+    if (!record || !this.owned.has(record.id) || !this.isReachable(record)) throw new Error('Camera non disponibile');
     const pending = this.operations.run(record.id, () => this.setAlarm({ ip: record.connection?.ip, root: this.root, env: this.env, enabled }))
       .then(alarm => { if (alarm.enabled !== enabled) throw new Error('Read-back Allarme non coerente'); this.cacheControl(record, { alarm }); return alarm; })
       .finally(() => this.alarmPending.delete(role));
@@ -215,7 +225,7 @@ export class HomeCameraRuntime {
     if (hours !== 12) throw new Error('Finestra storico non supportata');
     const { registry, assignments } = await this.reconcile();
     const record = registry.devices.find(device => assignments[device.id] === CAMERA_ROLE_MAP[role] && device.metadata?.adapter === OWNED_CAMERA_ADAPTER);
-    if (!record || !this.owned.has(record.id)) throw new Error('Camera non disponibile');
+    if (!record || !this.owned.has(record.id) || !this.isReachable(record)) throw new Error('Camera non disponibile');
     const signature = `${record.id}:${record.connection?.ip || ''}`;
     const cached = this.telemetryCache.get(record.id);
     if (cached?.signature === signature && cached.expiresAt > this.now() && cached.value.recordings?.available) {
@@ -295,7 +305,7 @@ export class HomeCameraRuntime {
   }
   async refreshCameraEventMonitor(role, registry, assignments) {
     const record = registry.devices.find(device => assignments[device.id] === CAMERA_ROLE_MAP[role] && device.metadata?.adapter === OWNED_CAMERA_ADAPTER);
-    if (!record || !this.owned.has(record.id) || this.eventMonitorPending.has(record.id)) return;
+    if (!record || !this.owned.has(record.id) || !this.isReachable(record) || this.eventMonitorPending.has(record.id)) return;
     const signature = `${record.id}:${record.connection?.ip || ''}`;
     const pending = this.operations.run(record.id, () => this.readRecentEvents({ ip: record.connection?.ip, root: this.root, env: this.env }), { background: true })
       .then(result => {

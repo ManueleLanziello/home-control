@@ -6,6 +6,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { createHomeControlServer } from '../server.js';
 import { HomeCameraRuntime } from '../src/camera-runtime.js';
+import { HomeStatusRuntime } from '../src/home-status.js';
 import { HardwareRegistryStore, defaultHardwareRegistry } from '../src/hardware-registry.js';
 import { DeviceRoleStore, HOME_CAMERA_ROLES } from '../src/device-roles.js';
 
@@ -67,7 +68,7 @@ test('a C2 snapshot error is isolated from C1 and the rest of Home-Control', asy
   });
   try {
     const snapshot = await runtime.snapshot();
-    assert.equal(snapshot.C1.status, 'READY'); assert.equal(snapshot.C1.available, true);
+    assert.equal(snapshot.C1.status, 'READY'); assert.equal(snapshot.C1.available, false);
     assert.equal(snapshot.C2.status, 'ERROR'); assert.equal(snapshot.C2.available, false); assert.equal(snapshot.C2.alias, 'Pond');
     assert.equal(snapshot.C2.battery.available, false); assert.equal(snapshot.C2.events.available, false);
   } finally { await runtime.close(); }
@@ -96,12 +97,46 @@ test('telemetria read-only C1/C2 è indipendente, in cache e non blocca lo snaps
     assert.equal(initial.C2.events.available, false);
     await Promise.all(runtime.telemetryPending.values());
     const updated = await runtime.snapshot();
+    assert.equal(updated.C1.online, true);
+    assert.equal(updated.C2.online, false);
     assert.deepEqual(updated.C1.battery, { available: true, percent: 72, charging: true });
     assert.deepEqual(updated.C1.events, { available: true, count: 3, windowHours: 12 });
     assert.equal(updated.C2.battery.available, false);
     assert.equal(updated.C2.events.available, false);
     assert.deepEqual(calls.sort(), ['192.0.2.1', '192.0.2.2']);
   } finally { await runtime.close(); }
+});
+
+test('camera offline publishes an immediate unavailable Home status without retaining online telemetry', async () => {
+  const record = camera('c1', 'Terrazzo', '192.0.2.1', 'AA:BB:CC:DD:EE:01');
+  let release; let probeTimeout; const pendingTelemetry = new Promise(resolve => { release = resolve; });
+  const cameraRuntime = new HomeCameraRuntime({
+    hardwareStore: { async read() { return { devices: [record], inventory: [{ marker: 'D11', presenceEnabled: true, status: 'active' }] }; } },
+    roleStore: { async read() { return { c1: 'camera_terrazzo' }; } }, root: process.cwd(),
+    async readTelemetry({ timeoutMs }) { probeTimeout = timeoutMs; await pendingTelemetry; throw new Error('offline'); },
+  });
+  cameraRuntime.owned.createRuntime = async () => ({ async snapshot() { return { configured: true, status: 'READY', live: false }; }, async stop() {} });
+  const homeRuntime = new HomeStatusRuntime({
+    hardwareStore: { async read() { return { devices: [record], inventory: [{ marker: 'D11', presenceEnabled: true, status: 'active' }] }; } },
+    roleStore: { async read() { return { c1: 'camera_terrazzo' }; } },
+    readThermostat: async () => ({ online: false, thermostat: {} }), readCameras: () => cameraRuntime.snapshot(),
+  });
+  try {
+    const home = await Promise.race([
+      homeRuntime.readSnapshot(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('home status blocked on camera I/O')), 100)),
+    ]);
+    assert.equal(home.cameras.C1.online, false);
+    assert.equal(home.cameras.C1.available, false);
+    assert.equal(home.cameras.C1.battery.available, false);
+    assert.equal(home.devices.D11.status, 'offline');
+    assert.equal(probeTimeout, 8_000);
+    release(); await Promise.all(cameraRuntime.telemetryPending.values());
+    const offline = await cameraRuntime.snapshot();
+    assert.equal(offline.C1.online, false);
+    assert.equal(offline.C1.status, 'OFFLINE');
+    assert.equal(offline.C1.privacy.available, false);
+  } finally { release?.(); await cameraRuntime.close(); }
 });
 
 test('refresh camera sovrapposto è singolo; errore non cancella stato valido e popup riusa le clip', async () => {
@@ -184,6 +219,7 @@ test('monitor eventi usa baseline, start_time stabile, alert indipendenti e non 
   });
   runtime.owned.createRuntime = async () => ({ async snapshot() { return { status: 'READY', live: false }; }, async stop() {} });
   try {
+    await runtime.snapshot(); await Promise.all(runtime.telemetryPending.values());
     await runtime.refreshEventMonitor(); assert.equal(runtime.getCameraEventAlerts().C1.active, false);
     now = 2_000; await runtime.refreshEventMonitor(); assert.equal(runtime.getCameraEventAlerts().C1.active, false); assert.equal(runtime.getCameraEventAlerts().C2.active, true);
     const c2Until = runtime.getCameraEventAlerts().C2.until;
@@ -259,6 +295,7 @@ test('Privacy usa il ruolo richiesto, conserva solo il read-back e isola C1/C2/C
   });
   runtime.owned.createRuntime = async () => ({ async snapshot() { return { configured: true, status: 'READY', live: false }; }, async stop() {} });
   try {
+    await runtime.snapshot(); await Promise.all(runtime.telemetryPending.values());
     assert.deepEqual(await runtime.getPrivacyMode('C1'), { available: true, enabled: true });
     assert.deepEqual(await runtime.setPrivacyMode('C1', true), { available: true, enabled: true });
     assert.equal((await runtime.snapshot()).C1.privacy.enabled, true);
@@ -283,6 +320,7 @@ test('Rilevazione usa il master del ruolo richiesto, con read-back e C3 fail-saf
   });
   runtime.owned.createRuntime = async () => ({ async snapshot() { return { configured: true, status: 'READY', live: false }; }, async stop() {} });
   try {
+    await runtime.snapshot(); await Promise.all(runtime.telemetryPending.values());
     assert.deepEqual(await runtime.getDetectionMode('C1'), { available: true, enabled: true });
     assert.deepEqual(await runtime.setDetectionMode('C2', true), { available: true, enabled: true });
     assert.equal((await runtime.snapshot()).C2.detection, true);

@@ -90,7 +90,19 @@ export class HomeStatusRuntime {
     const registry = await this.hardwareStore.read();
     const assignments = await this.roleStore.read(registry.devices.map(device => device.id));
     const signature = JSON.stringify([registry.devices, registry.inventory, assignments]);
-    if (this.cached?.signature === signature && this.now() < this.cached.expiresAt) return structuredClone(this.cached.snapshot);
+    if (this.cached?.signature === signature && this.now() < this.cached.expiresAt) {
+      const snapshot = structuredClone(this.cached.snapshot);
+      if (this.readCameras) {
+        try {
+          snapshot.cameras = await this.readCameras();
+          Object.assign(snapshot.devices, normalizeDeviceStatuses(
+            registry.inventory.filter(item => item.marker === 'D11' || item.marker === 'D12'),
+            { cameras: snapshot.cameras }, this.now(),
+          ));
+        } catch { /* Camera status must never invalidate the cached Home snapshot. */ }
+      }
+      return snapshot;
+    }
     const currentKeys = new Set(registry.devices.map(device => JSON.stringify(device)));
     for (const key of this.runtimes.keys()) if (!currentKeys.has(key)) this.runtimes.delete(key);
     const thermostatRead = this.readDevice('thermostat', this.readThermostat).then(
