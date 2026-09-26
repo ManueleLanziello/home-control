@@ -2,6 +2,7 @@ import { TuyaCloudClient } from '@smarthome/core';
 import { HomeDewinRuntime, isDewinTuyaDevice } from './dewin-runtime.js';
 import { normalizeDeviceStatuses } from './device-status.js';
 import { ZIGBEE_SENSOR_CONFIG } from '../config/zigbee-sensors.js';
+import { NetworkPresenceRuntime } from './network-presence-runtime.js';
 
 // Explicit logical assignments; never infer rooms from aliases or physical IDs.
 export const HOME_ROLES = Object.freeze({
@@ -51,8 +52,10 @@ export function normalizeCiarraState(snapshot, now = Date.now()) {
 }
 
 export class HomeStatusRuntime {
-  constructor({ hardwareStore, roleStore, readThermostat, readHood = null, readZigbeeSensors = null, readZigbeeLedbar = null, createSensorRuntime, readCameras = null, now = Date.now, cacheMs = 30_000, timeoutMs = 12_000 }) {
+  constructor({ hardwareStore, roleStore, readThermostat, readHood = null, readZigbeeSensors = null, readZigbeeLedbar = null, createSensorRuntime, readCameras = null, readPresence = null, now = Date.now, cacheMs = 30_000, timeoutMs = 12_000 }) {
     Object.assign(this, { hardwareStore, roleStore, readThermostat, readHood, readZigbeeSensors, readZigbeeLedbar, readCameras, now, cacheMs, timeoutMs });
+    this.presenceRuntime = new NetworkPresenceRuntime({ now });
+    this.readPresence = readPresence || this.presenceRuntime.readInventory.bind(this.presenceRuntime);
     this.createSensorRuntime = createSensorRuntime || (device => new HomeDewinRuntime({ device, client: new TuyaCloudClient({
       clientId: process.env.TUYA_CLIENT_ID_HOME, clientSecret: process.env.TUYA_CLIENT_SECRET_HOME,
       deviceId: process.env.TUYA_DEWIN_ID?.trim() || device.identity?.tuyaDeviceId || device.identity?.deviceId || device.tuyaDeviceId,
@@ -88,15 +91,21 @@ export class HomeStatusRuntime {
   }
   async refresh(generation = this.generation) {
     const registry = await this.hardwareStore.read();
+    const inventory = registry.inventory || [];
     const assignments = await this.roleStore.read(registry.devices.map(device => device.id));
-    const signature = JSON.stringify([registry.devices, registry.inventory, assignments]);
+    const signature = JSON.stringify([registry.devices, inventory, assignments]);
     if (this.cached?.signature === signature && this.now() < this.cached.expiresAt) {
       const snapshot = structuredClone(this.cached.snapshot);
+      const presence = await this.readPresence(inventory).catch(() => ({}));
+      Object.assign(snapshot.devices, normalizeDeviceStatuses(
+        inventory.filter(item => ['D1', 'D2', 'D7', 'D8'].includes(item.marker)),
+        { presence }, this.now(),
+      ));
       if (this.readCameras) {
         try {
           snapshot.cameras = await this.readCameras();
           Object.assign(snapshot.devices, normalizeDeviceStatuses(
-            registry.inventory.filter(item => item.marker === 'D11' || item.marker === 'D12'),
+            inventory.filter(item => item.marker === 'D11' || item.marker === 'D12'),
             { cameras: snapshot.cameras }, this.now(),
           ));
         } catch { /* Camera status must never invalidate the cached Home snapshot. */ }
@@ -110,7 +119,8 @@ export class HomeStatusRuntime {
     const hoodRead = this.readHood
       ? this.readDevice('hood', this.readHood).then(value => value, () => null)
       : Promise.resolve(null);
-    const inventoryDewinRead = this.readInventoryDewin(registry.inventory).then(value => value, () => null);
+    const inventoryDewinRead = this.readInventoryDewin(inventory).then(value => value, () => null);
+    const presenceRead = this.readPresence(inventory).catch(() => ({}));
     let zigbeeSensors;
     try { zigbeeSensors = this.readZigbeeSensors?.(); } catch { /* MQTT must not block the Home snapshot. */ }
     const entries = await Promise.all(Object.entries(HOME_ROLES).map(async ([id, role]) => {
@@ -164,11 +174,12 @@ export class HomeStatusRuntime {
     let ledbar = null;
     try { ledbar = this.readZigbeeLedbar?.(); } catch { /* MQTT must not block the Home snapshot. */ }
     const inventoryDewin = await inventoryDewinRead;
+    const presence = await presenceRead;
     const snapshot = { updatedAt: new Date(this.now()).toISOString(), sensors, thermostat, hood,
       ledbar: ledbar || { id: 'LB1', name: 'SmartHomeLB1', state: null, brightness: null, online: false, available: false, updatedAt: null },
       lights: Object.fromEntries(Object.entries(values).filter(([id]) => id.startsWith('L'))),
       cameras,
-      devices: normalizeDeviceStatuses(registry.inventory, { selfOnline: true, ledbar, hood, thermostat, cameras, zigbee: zigbeeSensors, dewin: inventoryDewin }, this.now()),
+      devices: normalizeDeviceStatuses(inventory, { selfOnline: true, ledbar, hood, thermostat, cameras, zigbee: zigbeeSensors, dewin: inventoryDewin, presence }, this.now()),
       // S3 alone is the WT200 room reading, not a whole-house average.
       averageTemperature: indoors.length > 1 ? indoors.reduce((a,b)=>a+b,0)/indoors.length : null,
       indoorSensorCount: indoors.length,

@@ -67,6 +67,13 @@ function normalizeInventoryRecord(input) {
     ...(optionalText(input.network?.ipv6) ? { ipv6: optionalText(input.network.ipv6) } : {}),
     ...(optionalText(input.network?.medium) ? { medium: optionalText(input.network.medium) } : {}),
   };
+  const presence = input.presence ? {
+    method: ['icmp', 'tcp'].includes(input.presence.method) ? input.presence.method : (() => { throw new HardwareRegistryError('Metodo presence non valido.', 'INVALID_PRESENCE_METHOD'); })(),
+    ...(Number.isInteger(input.presence.timeoutMs) && input.presence.timeoutMs > 0 ? { timeoutMs: input.presence.timeoutMs } : {}),
+    ...(Number.isInteger(input.presence.failureThreshold) && input.presence.failureThreshold > 0 ? { failureThreshold: input.presence.failureThreshold } : {}),
+    ...(input.presence.method === 'tcp' && Number.isInteger(input.presence.port) && input.presence.port > 0 && input.presence.port < 65536 ? { port: input.presence.port } : {}),
+  } : null;
+  if (presence?.method === 'tcp' && !presence.port) throw new HardwareRegistryError('Porta presence TCP non valida.', 'INVALID_PRESENCE_PORT');
   return {
     marker: requiredText(input.marker, 'marker'),
     name: requiredText(input.name, 'name'),
@@ -76,6 +83,7 @@ function normalizeInventoryRecord(input) {
     ...(optionalText(input.protocol) ? { protocol: optionalText(input.protocol) } : {}),
     ...(Object.keys(identity).length ? { identity } : {}),
     ...(Object.keys(network).length ? { network } : {}),
+    ...(presence ? { presence } : {}),
     ...(optionalText(input.friendlyName) ? { friendlyName: optionalText(input.friendlyName) } : {}),
     ...(optionalText(input.topic) ? { topic: optionalText(input.topic) } : {}),
     presenceEnabled: input.presenceEnabled,

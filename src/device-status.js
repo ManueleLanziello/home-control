@@ -19,6 +19,7 @@ function sourceOnline(marker, sources, now) {
   if (marker === 'D6') return sources.selfOnline === true;
   if (marker === 'D9') return sources.ledbar?.online === true && sources.ledbar?.available === true;
   if (marker === 'D10') return sources.hood?.online === true;
+  if (['D1', 'D2', 'D7', 'D8'].includes(marker)) return sources.presence?.[marker]?.online === true;
   if (marker === 'D11') return sources.cameras?.C1?.online === true && sources.cameras.C1?.available === true;
   if (marker === 'D12') return sources.cameras?.C2?.online === true && sources.cameras.C2?.available === true;
   if (marker === 'D14') return sources.thermostat?.online === true;
@@ -36,9 +37,10 @@ export function normalizeDeviceStatuses(inventory = [], sources = {}, now = Date
     const presenceEnabled = item?.presenceEnabled === true;
     const cameraRole = item.marker === 'D11' ? 'C1' : item.marker === 'D12' ? 'C2' : null;
     const cameraUnknown = cameraRole && sources.cameras?.[cameraRole]?.online == null;
+    const presenceUnknown = ['D1', 'D2', 'D7', 'D8'].includes(item.marker) && sources.presence?.[item.marker]?.online == null;
     const status = !presenceEnabled
       ? item?.status === 'future' ? DEVICE_STATUS.NOT_CONFIGURED : DEVICE_STATUS.DISABLED
-      : cameraUnknown ? DEVICE_STATUS.UNKNOWN
+      : cameraUnknown || presenceUnknown ? DEVICE_STATUS.UNKNOWN
       : sourceOnline(item.marker, sources, now) ? DEVICE_STATUS.ONLINE : DEVICE_STATUS.OFFLINE;
     return [item.marker, { id: item.marker, presenceEnabled, status }];
   }));

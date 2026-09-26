@@ -8,7 +8,8 @@ import { createFloorplanState } from '../public/js/floorplan-state.js';
 const now = Date.parse('2026-09-23T12:00:00.000Z');
 const fresh = new Date(now - 1_000).toISOString();
 const inventory = [
-  { marker: 'D1', presenceEnabled: false, status: 'active' }, { marker: 'D6', presenceEnabled: true, status: 'active' },
+  { marker: 'D1', presenceEnabled: true, status: 'active' }, { marker: 'D2', presenceEnabled: true, status: 'active' }, { marker: 'D6', presenceEnabled: true, status: 'active' },
+  { marker: 'D7', presenceEnabled: true, status: 'active' }, { marker: 'D8', presenceEnabled: true, status: 'active' },
   { marker: 'D9', presenceEnabled: true, status: 'active' }, { marker: 'D10', presenceEnabled: true, status: 'active' },
   { marker: 'D11', presenceEnabled: true, status: 'active' }, { marker: 'D12', presenceEnabled: true, status: 'active' },
   { marker: 'D13', presenceEnabled: false, status: 'future' }, { marker: 'D14', presenceEnabled: true, status: 'active' },
@@ -21,9 +22,9 @@ test('normalizza inventory esplicito e riusa esclusivamente gli snapshot runtime
     selfOnline: true, ledbar: { online: true, available: true }, hood: { online: true },
     cameras: { C1: { online: true, available: true }, C2: { online: false, available: false } }, thermostat: { online: true },
     zigbee: { S1: { online: true, available: true }, S2: { online: false, available: true }, S4: { online: true, available: true } },
-    dewin: { online: true, updatedAt: fresh },
+    dewin: { online: true, updatedAt: fresh }, presence: { D1: { online: true }, D2: { online: false }, D7: { online: true }, D8: { online: true } },
   }, now);
-  assert.equal(statuses.D1.status, 'disabled'); assert.equal(statuses.D6.status, 'online'); assert.equal(statuses.D9.status, 'online');
+  assert.equal(statuses.D1.status, 'online'); assert.equal(statuses.D2.status, 'offline'); assert.equal(statuses.D7.status, 'online'); assert.equal(statuses.D8.status, 'online'); assert.equal(statuses.D6.status, 'online'); assert.equal(statuses.D9.status, 'online');
   assert.equal(statuses.D10.status, 'online'); assert.equal(statuses.D11.status, 'online'); assert.equal(statuses.D12.status, 'offline');
   assert.equal(statuses.D13.status, 'not_configured'); assert.equal(statuses.D14.status, 'online'); assert.equal(statuses.D15.status, 'online');
   assert.equal(statuses.D16.status, 'offline'); assert.equal(statuses.D17.status, 'online'); assert.equal(statuses.D18.status, 'online');
@@ -52,10 +53,13 @@ test('lo snapshot Home pubblica gli stati senza nuove letture per marker', async
     readZigbeeLedbar: () => ({ online: true, available: true }),
     readCameras: async () => ({ C1: { online: true, available: true }, C2: { online: false, available: false } }),
     createSensorRuntime: () => ({ async readSnapshot() { return { online: true, updatedAt: fresh, measurements: {} }; } }),
+    readPresence: async () => ({ D1: { online: true }, D2: { online: true }, D7: { online: true }, D8: { online: false } }),
   });
   const home = await runtime.readSnapshot();
   assert.equal(home.devices.D6.status, 'online');
   assert.equal(home.devices.D10.status, 'online');
   assert.equal(home.devices.D12.status, 'offline');
   assert.equal(home.devices.D18.status, 'online');
+  assert.equal(home.devices.D1.status, 'online');
+  assert.equal(home.devices.D8.status, 'offline');
 });
