@@ -292,14 +292,14 @@ test('il badge eventi mantiene il testo se invariato e lo aggiorna quando cambia
   assert.match(floorplan, /renderCameraText\(events, available \? String\(cameraState\.events\.count\) : '—'\)/);
 });
 
-test('Privacy camera blocca unknown e invia il toggle solo con read-back booleano', async () => {
+test('Privacy camera consente unknown e applica solo il read-back confermato', async () => {
   const floorplan = await readFile(new URL('../public/js/floorplan.js', import.meta.url), 'utf8');
   assert.match(floorplan, /\/api\/cameras\/\' \+ id \+ \'\/privacy/);
-  assert.match(floorplan, /onCameraPrivacyToggle\(camera\.id, !privacy\.enabled\)/);
+  assert.match(floorplan, /enabled === null \? \{ toggle: true \} : \{ enabled \}/);
   assert.match(floorplan, /onCameraPrivacyRead\(camera\.id\)\.then\(privacy => store\.applyCameraPrivacy\(camera\.id, privacy\)\)/);
   assert.match(floorplan, /\.then\(readBack => store\.applyCameraPrivacy\(camera\.id, readBack\)\)/);
-  assert.match(floorplan, /if \(privacyPending\.has\(camera\.id\) \|\| typeof privacy\?\.enabled !== 'boolean'\) return;/);
-  assert.match(floorplan, /privacyPending\.add\(camera\.id\);\s*control\.disabled = true;\s*void onCameraPrivacyToggle\(camera\.id, !privacy\.enabled\)/);
+  assert.match(floorplan, /if \(privacyPending\.has\(camera\.id\)\) return;/);
+  assert.match(floorplan, /privacyPending\.add\(camera\.id\);\s*control\.disabled = true;\s*void onCameraPrivacyToggle\(camera\.id, typeof privacy\?\.enabled === 'boolean' \? !privacy\.enabled : null\)/);
   assert.match(floorplan, /event\.stopPropagation\(\);\s*if \(kind === 'privacy'\)/);
 });
 
@@ -307,8 +307,9 @@ test('Rilevazione camera usa C1b/C2b con read-back e resta fail-safe', async () 
   const floorplan = await readFile(new URL('../public/js/floorplan.js', import.meta.url), 'utf8');
   assert.match(floorplan, /\/api\/cameras\/' \+ id \+ '\/detection/);
   assert.match(floorplan, /onCameraDetectionRead\(camera\.id\)\.then\(detection => store\.applyCameraDetection\(camera\.id, detection\)\)/);
-  assert.match(floorplan, /if \(detectionPending\.has\(camera\.id\) \|\| typeof detection !== 'boolean'\) return;/);
-  assert.match(floorplan, /onCameraDetectionToggle\(camera\.id, !detection\)\s*\.then\(readBack => store\.applyCameraDetection\(camera\.id, readBack\)\)/);
+  assert.match(floorplan, /if \(detectionPending\.has\(camera\.id\)\) return;/);
+  assert.match(floorplan, /onCameraDetectionToggle\(camera\.id, typeof detection === 'boolean' \? !detection : null\)\s*\.then\(readBack => store\.applyCameraDetection\(camera\.id, readBack\)\)/);
+  assert.match(floorplan, /onCameraAlarmToggle\(camera\.id, typeof alarm\?\.enabled === 'boolean' \? !alarm\.enabled : null\)/);
   assert.match(floorplan, /event\.preventDefault\(\);\s*event\.stopPropagation\(\);\s*if \(kind === 'privacy'\)/);
   assert.match(floorplan, /renderCameraIcon\(control, assets, available && value \? onIcon : offIcon/);
 });
@@ -356,7 +357,7 @@ test('controlli camera compatti isolano il click dallo streaming e restano fail-
   assert.match(floorplan, /event\.preventDefault\(\);\s*event\.stopPropagation\(\);\s*if \(kind === 'privacy'\)/);
   assert.match(floorplan, /if \(kind === 'events'\) onCameraEventsSelect/);
   assert.match(floorplan, /if \(kind === 'alarm'\)/);
-  assert.match(floorplan, /onCameraAlarmToggle\(camera\.id, !alarm\.enabled\)/);
+  assert.match(floorplan, /onCameraAlarmToggle\(camera\.id, typeof alarm\?\.enabled === 'boolean' \? !alarm\.enabled : null\)/);
   assert.match(floorplan, /onCameraAlarmRead\(camera\.id\)/);
   assert.match(floorplan, /showCameraEventsPopup/);
   assert.match(floorplan, /placeHtmlOptional\(cameraMapping, marker, control, true/);

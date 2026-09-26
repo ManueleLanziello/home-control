@@ -3,6 +3,7 @@ import { DEWIN_REFRESH_INTERVAL_MS } from './dewin-runtime.js';
 export const DEVICE_STATUS = Object.freeze({
   ONLINE: 'online',
   OFFLINE: 'offline',
+  UNKNOWN: 'unknown',
   DISABLED: 'disabled',
   NOT_CONFIGURED: 'not_configured',
 });
@@ -33,8 +34,11 @@ function sourceOnline(marker, sources, now) {
 export function normalizeDeviceStatuses(inventory = [], sources = {}, now = Date.now()) {
   return Object.fromEntries(inventory.map(item => {
     const presenceEnabled = item?.presenceEnabled === true;
+    const cameraRole = item.marker === 'D11' ? 'C1' : item.marker === 'D12' ? 'C2' : null;
+    const cameraUnknown = cameraRole && sources.cameras?.[cameraRole]?.online == null;
     const status = !presenceEnabled
       ? item?.status === 'future' ? DEVICE_STATUS.NOT_CONFIGURED : DEVICE_STATUS.DISABLED
+      : cameraUnknown ? DEVICE_STATUS.UNKNOWN
       : sourceOnline(item.marker, sources, now) ? DEVICE_STATUS.ONLINE : DEVICE_STATUS.OFFLINE;
     return [item.marker, { id: item.marker, presenceEnabled, status }];
   }));

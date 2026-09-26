@@ -456,12 +456,10 @@ function previewSetpoint() {
 async function loadHomeSnapshot() {
   const requestedAt = Date.now();
   const requestedThermostatRevision = thermostatMutation.revision;
-  let retryDelayMs = 30_000;
   try {
     const response = await fetch(homeControlPath('/api/home/status'), { cache: 'no-store', signal: AbortSignal.timeout(30_000) });
     if (!response.ok) throw new Error('Stato casa non disponibile');
     const home = await response.json();
-    if (Object.values(home.cameras || {}).some(camera => camera?.configured === true && camera.online !== true && camera.status === 'READY')) retryDelayMs = 2_000;
     const acceptThermostat = shouldAcceptThermostatStatus({ requestedRevision: requestedThermostatRevision, currentRevision: thermostatMutation.revision });
     floorplanStore.applyHomeSnapshot(acceptThermostat ? home : { ...home, thermostat: boilerSnapshot }, requestedAt);
     if (acceptThermostat) boilerSnapshot = home.thermostat;
@@ -484,7 +482,7 @@ async function loadHomeSnapshot() {
     average.querySelector('strong').textContent = '— °C';
     average.querySelector('em').textContent = 'Sensori non disponibili';
   } finally {
-    setTimeout(loadHomeSnapshot, retryDelayMs);
+    setTimeout(loadHomeSnapshot, 30_000);
   }
 }
 

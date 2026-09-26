@@ -402,7 +402,7 @@ export function bindWeatherPopupTrigger(element, opener = openWeather) {
 }
 
 export async function initFloorplan({ store = createFloorplanState(), onCameraSelect = showCamera, onCameraEventsSelect = camera => showCameraEventsPopup(camera), onCameraPrivacyToggle = async (id, enabled) => {
-  const response = await fetch(homeControlPath('/api/cameras/' + id + '/privacy'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }) });
+  const response = await fetch(homeControlPath('/api/cameras/' + id + '/privacy'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(enabled === null ? { toggle: true } : { enabled }) });
   if (!response.ok) throw new Error('Comando Privacy non disponibile');
   return response.json();
 }, onCameraPrivacyRead = async id => {
@@ -410,7 +410,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
   if (!response.ok) throw new Error('Privacy non disponibile');
   return response.json();
 }, onCameraDetectionToggle = async (id, enabled) => {
-  const response = await fetch(homeControlPath('/api/cameras/' + id + '/detection'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }) });
+  const response = await fetch(homeControlPath('/api/cameras/' + id + '/detection'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(enabled === null ? { toggle: true } : { enabled }) });
   if (!response.ok) throw new Error('Comando Rilevazione non disponibile');
   return response.json();
 }, onCameraDetectionRead = async id => {
@@ -418,7 +418,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
   if (!response.ok) throw new Error('Rilevazione non disponibile');
   return response.json();
 }, onCameraAlarmToggle = async (id, enabled) => {
-  const response = await fetch(homeControlPath('/api/cameras/' + id + '/alarm'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }) });
+  const response = await fetch(homeControlPath('/api/cameras/' + id + '/alarm'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(enabled === null ? { toggle: true } : { enabled }) });
   if (!response.ok) throw new Error('Comando Allarme non disponibile');
   return response.json();
 }, onCameraAlarmRead = async id => {
@@ -597,10 +597,10 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
           event.stopPropagation();
           if (kind === 'privacy') {
             const privacy = store.snapshot().cameras[camera.id]?.privacy;
-            if (privacyPending.has(camera.id) || typeof privacy?.enabled !== 'boolean') return;
+            if (privacyPending.has(camera.id)) return;
             privacyPending.add(camera.id);
             control.disabled = true;
-            void onCameraPrivacyToggle(camera.id, !privacy.enabled)
+            void onCameraPrivacyToggle(camera.id, typeof privacy?.enabled === 'boolean' ? !privacy.enabled : null)
               .then(readBack => store.applyCameraPrivacy(camera.id, readBack))
               .catch(() => {})
               .finally(() => { privacyPending.delete(camera.id); control.disabled = false; });
@@ -608,10 +608,10 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
           }
           if (kind === 'detection') {
             const detection = store.snapshot().cameras[camera.id]?.detection;
-            if (detectionPending.has(camera.id) || typeof detection !== 'boolean') return;
+            if (detectionPending.has(camera.id)) return;
             detectionPending.add(camera.id);
             control.disabled = true;
-            void onCameraDetectionToggle(camera.id, !detection)
+            void onCameraDetectionToggle(camera.id, typeof detection === 'boolean' ? !detection : null)
               .then(readBack => store.applyCameraDetection(camera.id, readBack))
               .catch(() => {})
               .finally(() => { detectionPending.delete(camera.id); control.disabled = false; });
@@ -619,9 +619,9 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
           }
           if (kind === 'alarm') {
             const alarm = store.snapshot().cameras[camera.id]?.alarm;
-            if (alarmPending.has(camera.id) || typeof alarm?.enabled !== 'boolean') return;
+            if (alarmPending.has(camera.id)) return;
             alarmPending.add(camera.id); control.disabled = true;
-            void onCameraAlarmToggle(camera.id, !alarm.enabled)
+            void onCameraAlarmToggle(camera.id, typeof alarm?.enabled === 'boolean' ? !alarm.enabled : null)
               .then(readBack => store.applyCameraAlarm(camera.id, readBack))
               .catch(() => {})
               .finally(() => { alarmPending.delete(camera.id); control.disabled = false; });

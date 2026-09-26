@@ -215,7 +215,6 @@ export function createHomeControlServer({
   let activeHoodRuntime = hoodRuntime;
   const getHoodRuntime = () => activeHoodRuntime ||= new HomeCiarraRuntime({ adapter: null });
   const cameras = cameraRuntime || new HomeCameraRuntime({ hardwareStore, roleStore, root: ROOT });
-  cameras.startEventMonitor?.();
   const activeWeatherService = weatherService || new WeatherService({ config: WEATHER_CONFIG, logError: message => console.error(message) });
   homeStatus = new HomeStatusRuntime({ hardwareStore, roleStore, createSensorRuntime,
     readZigbeeSensors: zigbeeRuntime ? () => zigbeeRuntime.readSnapshot() : null,
@@ -346,8 +345,8 @@ export function createHomeControlServer({
       if (request.method !== 'PUT') return sendJson(response, 405, { error: 'Metodo non consentito' });
       try {
         const payload = await readJson(request);
-        if (typeof payload?.enabled !== 'boolean') throw new Error('Stato Privacy non valido');
-        const privacy = await cameras.setPrivacyMode(cameraPrivacyMatch[1], payload.enabled);
+        if ((typeof payload?.enabled === 'boolean') === (payload?.toggle === true)) throw new Error('Stato Privacy non valido');
+        const privacy = payload.toggle === true ? await cameras.toggleUnknownControl(cameraPrivacyMatch[1], 'privacy') : await cameras.setPrivacyMode(cameraPrivacyMatch[1], payload.enabled);
         homeStatus.invalidate();
         return sendJson(response, 200, privacy);
       } catch (error) { return sendJson(response, 503, { error: error.message || 'Comando Privacy non disponibile' }); }
@@ -361,8 +360,8 @@ export function createHomeControlServer({
       if (request.method !== 'PUT') return sendJson(response, 405, { error: 'Metodo non consentito' });
       try {
         const payload = await readJson(request);
-        if (typeof payload?.enabled !== 'boolean') throw new Error('Stato Rilevazione non valido');
-        const detection = await cameras.setDetectionMode(cameraDetectionMatch[1], payload.enabled);
+        if ((typeof payload?.enabled === 'boolean') === (payload?.toggle === true)) throw new Error('Stato Rilevazione non valido');
+        const detection = payload.toggle === true ? await cameras.toggleUnknownControl(cameraDetectionMatch[1], 'detection') : await cameras.setDetectionMode(cameraDetectionMatch[1], payload.enabled);
         homeStatus.invalidate();
         return sendJson(response, 200, detection);
       } catch (error) { return sendJson(response, 503, { error: error.message || 'Comando Rilevazione non disponibile' }); }
@@ -376,8 +375,8 @@ export function createHomeControlServer({
       if (request.method !== 'PUT') return sendJson(response, 405, { error: 'Metodo non consentito' });
       try {
         const payload = await readJson(request);
-        if (typeof payload?.enabled !== 'boolean') throw new Error('Stato Allarme non valido');
-        const alarm = await cameras.setAlarmMode(cameraAlarmMatch[1], payload.enabled);
+        if ((typeof payload?.enabled === 'boolean') === (payload?.toggle === true)) throw new Error('Stato Allarme non valido');
+        const alarm = payload.toggle === true ? await cameras.toggleUnknownControl(cameraAlarmMatch[1], 'alarm') : await cameras.setAlarmMode(cameraAlarmMatch[1], payload.enabled);
         homeStatus.invalidate();
         return sendJson(response, 200, alarm);
       } catch (error) { return sendJson(response, 503, { error: error.message || 'Comando Allarme non disponibile' }); }
