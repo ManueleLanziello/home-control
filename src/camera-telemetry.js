@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import path from 'node:path';
+import { writeCameraDiagnostic } from './camera-diagnostics.js';
 import { defaultCameraPython } from '@smarthome/core';
 
 const execFileAsync = promisify(execFile);
@@ -77,7 +78,7 @@ export async function readCameraTelemetry({ ip, root, env = process.env, now = D
     execution.child.stderr.on('data', chunk => {
       pending += chunk.toString();
       const lines = pending.split('\n'); pending = lines.pop();
-      for (const line of lines) if (line.startsWith('[CAM-DIAG]')) console.error(line);
+      for (const line of lines) if (line.startsWith('[CAM-DIAG]')) writeCameraDiagnostic(line);
     });
   }
   const { stdout } = await execution;
