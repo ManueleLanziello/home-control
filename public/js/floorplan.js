@@ -555,6 +555,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     placeHtml(deviceMapping, config.mobileMonitor.marker, mobileMonitor);
     const sensorReadings = new Map();
     const sensorHumidityReadings = new Map();
+    const sensorProbeReadings = new Map();
     const sensorTypography = { fontSize: sensorReadingFontSize(sensorMapping.box(config.sensors.find(sensor => sensor.id === 'S3').reading)) };
     for (const sensor of config.sensors) {
       const zigbee = ['S1', 'S2', 'S4'].includes(sensor.id);
@@ -573,6 +574,13 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
       }
       sensorMapping.overlay.append(text);
       sensorReadings.set(sensor.id, text);
+      if (sensor.probeReading) {
+        const probeBox = sensorMapping.box(sensor.probeReading);
+        const probe = svgElement('text', { x: probeBox.x + probeBox.width / 2, y: probeBox.y + probeBox.height / 2, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': sensorTypography.fontSize, class: 'floorplan-reading' });
+        probe.dataset.sensorProbeReading = sensor.id;
+        sensorMapping.overlay.append(probe);
+        sensorProbeReadings.set(sensor.id, probe);
+      }
       if (sensor.humidityReading) {
         const humidityBox = sensorMapping.box(sensor.humidityReading);
         const humidity = svgElement('text', { x: humidityBox.x + humidityBox.width / 2, y: humidityBox.y + humidityBox.height / 2, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': sensorTypography.fontSize, class: 'floorplan-reading' });
@@ -755,6 +763,11 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
         const value = state.sensors[sensor.id];
         const reading = sensorReadings.get(sensor.id);
         renderFloorplanReading(reading, value, '°C', temperatureReadingColor(value));
+        const probeReading = sensorProbeReadings.get(sensor.id);
+        if (probeReading) {
+          const probe = state.sensorDetails[sensor.id]?.externalProbeTemperature;
+          renderFloorplanReading(probeReading, probe, '°C', temperatureReadingColor(probe));
+        }
         const humidityReading = sensorHumidityReadings.get(sensor.id);
         if (humidityReading) {
           const humidity = state.sensorDetails[sensor.id]?.humidity;

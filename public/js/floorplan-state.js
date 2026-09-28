@@ -88,7 +88,7 @@ export function createFloorplanState() {
       for (const listener of listeners) listener(this.snapshot());
     },
     applyHomeSnapshot(home = {}, requestedAt = Number.POSITIVE_INFINITY) {
-      state.sensorDetails = Object.fromEntries(['S1', 'S2', 'S4'].map(id => [id, structuredClone(home.sensors?.[id] ?? {})]));
+      state.sensorDetails = Object.fromEntries(['S1', 'S2', 'S4', 'S5'].map(id => [id, structuredClone(home.sensors?.[id] ?? {})]));
       for (const id of Object.keys(state.sensors)) state.sensors[id] = home.sensors?.[id]?.available === true && Number.isFinite(home.sensors[id].value) ? home.sensors[id].value : null;
       for (const id of Object.keys(state.lights)) {
         const light = home.lights?.[id];

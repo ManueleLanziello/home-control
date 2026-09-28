@@ -1,5 +1,5 @@
 import { TuyaCloudClient } from '@smarthome/core';
-import { HomeDewinRuntime, isDewinTuyaDevice } from './dewin-runtime.js';
+import { HomeDewinRuntime, isDewinTuyaDevice, DEWIN_REFRESH_INTERVAL_MS } from './dewin-runtime.js';
 import { normalizeDeviceStatuses } from './device-status.js';
 import { ZIGBEE_SENSOR_CONFIG } from '../config/zigbee-sensors.js';
 import { NetworkPresenceRuntime } from './network-presence-runtime.js';
@@ -27,9 +27,9 @@ export function normalizeMobilePresence(inventory = [], presence = {}) {
     };
   });
 }
-function fresh(timestamp, now) {
+function fresh(timestamp, now, maxAgeMs = MAX_AGE_MS) {
   const age = now - Date.parse(timestamp);
-  return Number.isFinite(age) && age >= -5000 && age <= MAX_AGE_MS;
+  return Number.isFinite(age) && age >= -5000 && age <= maxAgeMs;
 }
 export function normalizeThermostat(snapshot, now = Date.now()) {
   const cloudTime = snapshot && Object.hasOwn(snapshot, 'cloudUpdatedAt') ? snapshot.cloudUpdatedAt : snapshot?.updatedAt;
@@ -165,9 +165,14 @@ export class HomeStatusRuntime {
         if (!this.runtimes.has(key)) this.runtimes.set(key, this.createSensorRuntime(device));
         const snapshot = await this.readDevice(key, () => this.runtimes.get(key).readSnapshot());
         const value = finite(snapshot.measurements?.ambientTemperature?.value);
-        const isFresh = fresh(snapshot.updatedAt, this.now());
+        const isFresh = fresh(snapshot.updatedAt, this.now(), DEWIN_REFRESH_INTERVAL_MS);
+        const usable = snapshot.online === true && isFresh;
         const available = snapshot.online === true && isFresh && value !== null;
-        return [id, { ...entry, online: snapshot.online === true && isFresh, available, value: available ? value : null, updatedAt: snapshot.updatedAt ?? null,
+        return [id, { ...entry, source: 'dewin', maxAgeMs: DEWIN_REFRESH_INTERVAL_MS,
+          ambientTemperature: usable ? value : null, temperature: usable ? value : null,
+          externalProbeTemperature: usable ? finite(snapshot.measurements?.externalProbeTemperature?.value) : null,
+          humidity: usable ? finite(snapshot.measurements?.ambientHumidity?.value) : null,
+          online: usable, available, value: available ? value : null, updatedAt: snapshot.updatedAt ?? null,
           reason: !isFresh ? 'stale' : snapshot.online !== true ? 'offline' : value === null ? 'no_data' : null }];
       } catch { return [id, { ...entry, reason: 'unavailable' }]; }
     }));
@@ -179,7 +184,7 @@ export class HomeStatusRuntime {
       if (entry.source === 'zigbee') {
         const age = this.now() - Date.parse(entry.updatedAt);
         if (entry.online && !(age >= 0 && age <= ZIGBEE_SENSOR_CONFIG.freshnessMs)) Object.assign(entry, { available: false, online: false, value: null, reason: 'stale' });
-      } else if (entry.available && !fresh(entry.updatedAt, this.now())) Object.assign(entry, { available: false, online: false, value: null, reason: 'stale' });
+      } else if (entry.online && !fresh(entry.updatedAt, this.now(), entry.maxAgeMs)) Object.assign(entry, { available: false, online: false, value: null, ambientTemperature: null, temperature: null, externalProbeTemperature: null, humidity: null, reason: 'stale' });
     }
     const sensors = Object.fromEntries(['S1','S2','S4','S5'].map(id => [id, values[id]]));
     const room = thermostat.thermostat.currentTemperature;
@@ -201,9 +206,10 @@ export class HomeStatusRuntime {
       averageTemperature: indoors.length > 1 ? indoors.reduce((a,b)=>a+b,0)/indoors.length : null,
       indoorSensorCount: indoors.length,
     };
-    const timestamps = [...Object.values(sensors).filter(sensor => sensor.available && sensor.source !== 'zigbee').map(sensor => sensor.updatedAt), thermostat.online ? thermostat.updatedAt : null, hood.online ? hood.updatedAt : null].filter(Boolean);
+    const timestamps = [...Object.values(sensors).filter(sensor => sensor.available && !['zigbee', 'dewin'].includes(sensor.source)).map(sensor => sensor.updatedAt), thermostat.online ? thermostat.updatedAt : null, hood.online ? hood.updatedAt : null].filter(Boolean);
+    const dewinExpirations = Object.values(sensors).filter(sensor => sensor.source === 'dewin' && sensor.online).map(sensor => Date.parse(sensor.updatedAt) + DEWIN_REFRESH_INTERVAL_MS);
     const zigbeeExpirations = Object.values(sensors).filter(sensor => sensor.source === 'zigbee' && sensor.online).map(sensor => Date.parse(sensor.updatedAt) + ZIGBEE_SENSOR_CONFIG.freshnessMs);
-    const expiresAt = Math.min(this.now() + this.cacheMs, ...timestamps.map(time => Date.parse(time) + MAX_AGE_MS), ...zigbeeExpirations);
+    const expiresAt = Math.min(this.now() + this.cacheMs, ...timestamps.map(time => Date.parse(time) + MAX_AGE_MS), ...zigbeeExpirations, ...dewinExpirations);
     if (generation === this.generation) this.cached = { signature, expiresAt, snapshot };
     return structuredClone(snapshot);
   }

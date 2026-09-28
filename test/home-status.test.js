@@ -11,6 +11,40 @@ const time = Date.parse('2026-09-09T12:00:00Z');
 const stamp = new Date(time).toISOString();
 const wt = () => ({ online: true, updatedAt: stamp, heatingActive: true, thermostat: {currentTemperature:22, setpointTemperature:24, mode:'manual'} });
 const device = id => normalizeHardwareRecord({ id, alias:id, model:'Dewin', protocol:'tuya-cloud', connectionType:'cloud', configurationStatus:'complete', verificationStatus:'verified', identity:{tuyaDeviceId:'physical-'+id}, metadata:{adapter:'dewin-tuya'} });
+
+test('S5 ambient/probe/humidity retain Tuya scaling and stay usable throughout the Dewin cache', async () => {
+  let now = time, reads = 0;
+  const record = device('S5');
+  const runtime = new HomeStatusRuntime({ hardwareStore: { read: async () => ({ devices: [record], inventory: [] }) }, roleStore: { read: async () => ({ S5: 'temperature_giardino' }) }, readPresence: async () => ({}), readThermostat: async () => null, now: () => now,
+    createSensorRuntime: d => new HomeDewinRuntime({ device: d, now: () => new Date(now).toISOString(), nowMs: () => now, client: { readDevice: async () => {
+      reads += 1; return { device: { id: 'physical-S5', online: true }, statuses: [{ code: 'temp_current', value: 225 }, { code: 'temp_current_external', value: 187 }, { code: 'humidity_value', value: 551 }], specification: { status: ['temp_current', 'temp_current_external', 'humidity_value'].map(code => ({ code, values: JSON.stringify({ scale: 1, unit: code === 'humidity_value' ? '%' : '℃' }) })) } };
+    } } }) });
+  const check = async () => {
+    const home = await runtime.readSnapshot(); const s = home.sensors.S5;
+    assert.equal(s.value, 22.5); assert.equal(s.ambientTemperature, 22.5); assert.equal(s.externalProbeTemperature, 18.7); assert.equal(s.humidity, 55.1);
+    const store = createFloorplanState(); store.applyHomeSnapshot(home);
+    assert.equal(store.snapshot().sensors.S5, 22.5); assert.equal(store.snapshot().sensorDetails.S5.externalProbeTemperature, 18.7); assert.equal(store.snapshot().sensorDetails.S5.humidity, 55.1);
+  };
+  await check(); now += 120000; await check(); now = time + 1799999; await check(); assert.equal(reads, 1);
+  now += 1; await check(); assert.equal(reads, 2);
+});
+
+test('HTTP Home status exposes all three S5 readings without Cloud contact', async t => {
+  const record = device('S5');
+  const server = createHomeControlServer({
+    hardwareStore: { read: async () => ({ devices: [record], inventory: [] }) },
+    roleStore: { read: async () => ({ S5: 'temperature_giardino' }) },
+    thermostatRuntime: { readSnapshot: async () => null },
+    cameraRuntime: { snapshot: async () => ({}), close: async () => {} },
+    createSensorRuntime: () => ({ readSnapshot: async () => ({ online: true, updatedAt: new Date().toISOString(), measurements: { ambientTemperature: { value: 22.5 }, externalProbeTemperature: { value: 18.7 }, ambientHumidity: { value: 55.1 } } }) }),
+  });
+  server.listen(0, '127.0.0.1'); await once(server, 'listening');
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  const response = await fetch(`http://127.0.0.1:${server.address().port}/api/home/status`);
+  assert.equal(response.status, 200);
+  const { S5 } = (await response.json()).sensors;
+  assert.equal(S5.ambientTemperature, 22.5); assert.equal(S5.externalProbeTemperature, 18.7); assert.equal(S5.humidity, 55.1);
+});
 function fixture(overrides={}) {
   const devices=['S1','S2','S4','S5'].map(device);
   return { hardwareStore:{async read(){return {devices};}}, roleStore:{async read(){return Object.fromEntries(devices.map(d=>[d.id,HOME_ROLES[d.id]]));}}, readThermostat:async()=>wt(), now:()=>time,
@@ -31,7 +65,7 @@ test('Core Dewin normalization, explicit roles, S3 WT200 and indoor-only average
 test('offline, stale, rejected, nonnumeric readings excluded; WT200 survives sensor failures',async()=>{
  const runtime=new HomeStatusRuntime(fixture({createSensorRuntime:d=>({async readSnapshot(){
   if(d.id==='S1')throw Error('Offline');
-  return {online:d.id!=='S2',updatedAt:d.id==='S4'?new Date(time-100000).toISOString():stamp,measurements:{ambientTemperature:{value:d.id==='S5'?'40':20}}};
+  return {online:d.id!=='S2',updatedAt:d.id==='S4'?new Date(time-1800001).toISOString():stamp,measurements:{ambientTemperature:{value:d.id==='S5'?'40':20}}};
  }})}));
  const h=await runtime.readSnapshot();
  for(const id of ['S1','S2','S4','S5'])assert.equal(h.sensors[id].value,null);
@@ -48,7 +82,7 @@ test('concurrent clients share one read and registry reassignment invalidates ca
 });
 test('cache cannot extend an already old sensor past freshness limit',async()=>{
  let now=time;
- const runtime=new HomeStatusRuntime(fixture({now:()=>now,createSensorRuntime:()=>({async readSnapshot(){return {online:true,updatedAt:new Date(time-85000).toISOString(),measurements:{ambientTemperature:{value:20}}};}})}));
+ const runtime=new HomeStatusRuntime(fixture({now:()=>now,createSensorRuntime:()=>({async readSnapshot(){return {online:true,updatedAt:new Date(time-1795000).toISOString(),measurements:{ambientTemperature:{value:20}}};}})}));
  assert.equal((await runtime.readSnapshot()).sensors.S1.value,20);
  now+=6000;assert.equal((await runtime.readSnapshot()).sensors.S1.value,null);
 });

@@ -30,7 +30,7 @@ export const floorplanConfig = {
   cameraEventLayers: { C1: 'LAYER-C1-ALARM.svg', C2: 'LAYER-C2-ALARM.svg', C3: 'LAYER-C3-ALARM.svg' },
   sensors: ['CUCINA', 'CAMERA', 'SALOTTO', 'CAMERETTA', 'GIARDINO'].map((room, index) => {
     const id = 'S' + (index + 1);
-    return { id, room, marker: labeledMarker(id), reading: labeledMarker('LS' + (index + 1)), humidityReading: ['S1', 'S2', 'S4'].includes(id) ? labeledMarker('LU' + (index + 1)) : null, futureSource: index === 2 ? 'AVATTO' : null };
+    return { id, room, marker: labeledMarker(id), reading: labeledMarker('LS' + (index + 1)), probeReading: id === 'S5' ? labeledMarker('LS25') : null, humidityReading: ['S1', 'S2', 'S4', 'S5'].includes(id) ? labeledMarker('LU' + (index + 1)) : null, futureSource: index === 2 ? 'AVATTO' : null };
   }),
   cameras: [
     { id: 'C1', room: 'TERRAZZO', markerId: 'C1' },

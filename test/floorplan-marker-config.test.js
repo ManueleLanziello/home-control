@@ -35,8 +35,30 @@ async function labelsIn(file) {
 }
 
 function includesLabel(labels, label) {
-  return labels.includes(label) || labels.some((part, index) => part + (labels[index + 1] || '') === label);
+  return labels.some((part, index) => {
+    let text = '';
+    for (let next = index; next < labels.length && label.startsWith(text); next += 1) {
+      text += labels[next];
+      if (text === label) return true;
+    }
+    return false;
+  });
 }
+
+test('S5 uses distinct semantic ambient/probe/humidity markers and existing typography/colors', async () => {
+  const svg = (await labelsIn('LAYER-08-SENSORI.svg')).source;
+  const source = markerSourceFromSvg(svg);
+  const s5 = floorplanConfig.sensors.find(sensor => sensor.id === 'S5');
+  assert.equal(s5.reading.label, 'LS5'); assert.equal(s5.probeReading.label, 'LS25'); assert.equal(s5.humidityReading.label, 'LU5');
+  const markers = ['LS5', 'LS25', 'LU5'].map(label => shapeForLabel(source, label));
+  for (const marker of markers) assert.equal(marker?.localName, 'rect');
+  assert.equal(new Set(markers).size, 3);
+  const floorplan = await readFile(new URL('../public/js/floorplan.js', import.meta.url), 'utf8');
+  assert.match(floorplan, /sensorMapping\.box\(sensor\.probeReading\)/);
+  assert.match(floorplan, /renderFloorplanReading\(probeReading, probe, '°C', temperatureReadingColor\(probe\)\)/);
+  assert.match(floorplan, /renderFloorplanReading\(humidityReading, humidity, '%', humidityReadingColor\(humidity\)\)/);
+  assert.match(floorplan, /probe\.dataset\.sensorProbeReading = sensor\.id/);
+});
 
 function markerSource(parts) {
   const nodes = parts.map(([localName, textContent = '']) => ({ localName, textContent }));
@@ -77,7 +99,7 @@ test('mapping SVG aggiornati usano label semantiche, non geometrie fragili', asy
   assert.deepEqual(floorplanConfig.lights.map(light => light.id), ['L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7', 'L8', 'L9', 'L10', 'L11', 'L12']);
   assert.deepEqual(floorplanConfig.rooms.map(room => room.lightId), ['L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7']);
   assert.deepEqual(floorplanConfig.lights.slice(7).map(light => light.localOnly), [true, true, true, true, true]);
-  assert.deepEqual(floorplanConfig.sensors.map(sensor => [sensor.reading.label, sensor.humidityReading?.label || null]), [['LS1', 'LU1'], ['LS2', 'LU2'], ['LS3', null], ['LS4', 'LU4'], ['LS5', null]]);
+  assert.deepEqual(floorplanConfig.sensors.map(sensor => [sensor.reading.label, sensor.humidityReading?.label || null]), [['LS1', 'LU1'], ['LS2', 'LU2'], ['LS3', null], ['LS4', 'LU4'], ['LS5', 'LU5']]);
   for (const marker of [...floorplanConfig.lights, ...floorplanConfig.sensors].map(item => item.marker).concat(floorplanConfig.boiler.marker, floorplanConfig.boiler.card, floorplanConfig.weather.marker, floorplanConfig.weather.card, floorplanConfig.weather.temperatureLabel, floorplanConfig.clock.marker)) assert.ok(marker.label);
   assert.deepEqual(floorplanConfig.mobileMonitor, { marker: { label: 'DM' }, icons: { phone: 'phone.svg', tablet: 'tablet.svg' } });
 });

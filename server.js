@@ -227,7 +227,7 @@ export function createHomeControlServer({
   });
 
   const unsubscribeZigbee = zigbeeRuntime?.subscribeState(publishLedbarState);
-  const server = http.createServer(async (request, response) => {
+  const handleRequest = async (request, response) => {
     const url = new URL(request.url || '/', 'http://localhost');
     if (url.pathname === '/api/thermostat/events') {
       if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
@@ -451,6 +451,12 @@ export function createHomeControlServer({
           const id = decodeURIComponent(sensorMatch[1]); const previous = registry.devices.find((device) => device.id === id);
           if (!previous || previous.metadata?.adapter !== 'dewin-tuya') return sendJson(response, 404, { error: 'Sensore Dewin non configurato' });
           const next = dewinRecord(await readJson(request), id);
+          if ((previous.identity?.tuyaDeviceId || previous.tuyaDeviceId) === next.identity.tuyaDeviceId
+              && previous.model === next.model && previous.protocol === next.protocol
+              && previous.connectionType === next.connectionType && previous.metadata?.adapter === next.metadata?.adapter) {
+            next.verificationStatus = previous.verificationStatus;
+            next.verifiedAt = previous.verifiedAt;
+          }
           await hardwareStore.write({ ...registry, devices: registry.devices.map((device) => device.id === id ? next : device) });
           homeStatus.invalidate();
           return sendJson(response, 200, { device: { ...next, role: (await roleStore.read(deviceIds))[id] || 'none' } });
@@ -580,6 +586,17 @@ export function createHomeControlServer({
 
     response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
     response.end('Pagina non trovata');
+  };
+  // Serialize the complete hardware/role read-modify-write transaction, including
+  // slow verification. Serializing only file writes permits stale snapshots to win.
+  let hardwareTransactions = Promise.resolve();
+  const server = http.createServer((request, response) => {
+    const pathname = new URL(request.url || '/', 'http://localhost').pathname;
+    const mutation = !['GET', 'HEAD'].includes(request.method) && (pathname.startsWith('/api/hardware/') || pathname === '/api/device-roles');
+    const run = () => handleRequest(request, response);
+    const operation = mutation ? hardwareTransactions.then(run) : run();
+    if (mutation) hardwareTransactions = operation.catch(() => {});
+    void operation.catch(() => { if (!response.headersSent) sendJson(response, 500, { error: 'Operazione non riuscita' }); });
   });
   server.on('close', () => {
     unsubscribeZigbee?.();
