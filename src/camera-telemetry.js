@@ -63,25 +63,44 @@ export function normalizeCameraTelemetry(payload, now = Date.now()) {
   };
 }
 
-export async function readCameraTelemetry({ ip, root, env = process.env, now = Date.now(), timeoutMs = 45_000, diagnostic }) {
+export async function readCameraTelemetry({ ip, root, env = process.env, now = Date.now(), timeoutMs = 45_000, diagnostic, onPartial, execute = execFileAsync }) {
   const dates = recordingDatesForWindow(now);
   const worker = path.join(root, 'src', 'camera-readonly-telemetry.py');
-  const execution = execFileAsync(defaultCameraPython(root, { env }), [worker, '--ip', ip, ...dates.flatMap(date => ['--date', date])], {
+  const execution = execute(defaultCameraPython(root, { env }), [worker, '--ip', ip, ...dates.flatMap(date => ['--date', date])], {
     cwd: root,
     env: diagnostic ? { ...env, CAM_DIAG_ROLE: diagnostic.role, CAM_DIAG_STARTED_AT: String(diagnostic.startedAt) } : env,
     windowsHide: true,
     timeout: timeoutMs,
     maxBuffer: 2 * 1024 * 1024,
   });
-  if (diagnostic) {
-    let pending = '';
-    execution.child.stderr.on('data', chunk => {
+  let partial = {};
+  const normalized = payload => ({ ...normalizeCameraTelemetry(payload, now), recordings: payload.recordings });
+  let pending = '';
+  execution.child.stderr.on('data', chunk => {
       pending += chunk.toString();
       const lines = pending.split('\n'); pending = lines.pop();
-      for (const line of lines) if (line.startsWith('[CAM-DIAG]')) writeCameraDiagnostic(line);
+      for (const line of lines) {
+        if (diagnostic && line.startsWith('[CAM-DIAG]')) writeCameraDiagnostic(line);
+        if (line.startsWith('[CAM-RESULT] ')) {
+          try {
+            const update = JSON.parse(line.slice(13));
+            for (const field of ['battery', 'recordings', 'privacy', 'detection', 'alarm']) {
+              if (Object.hasOwn(update, field)) partial[field] = update[field];
+            }
+            const value = normalized(update);
+            const fields = Object.keys(update).flatMap(field => field === 'recordings' ? ['recordings', 'events'] : [field]);
+            onPartial?.(Object.fromEntries(['telemetryUpdatedAt', ...fields].filter(field => Object.hasOwn(value, field)).map(field => [field, value[field]])));
+          } catch { /* Invalid partial output must not break the final JSON protocol. */ }
+        }
+      }
     });
+  let stdout;
+  try { ({ stdout } = await execution); }
+  catch (error) {
+    if (!Object.keys(partial).length) throw error;
+    if (diagnostic) writeCameraDiagnostic(`[CAM-DIAG] ${diagnostic.role} ${new Date().toISOString()} +${((Date.now() - diagnostic.startedAt) / 1000).toFixed(3)}s telemetry partial ${error?.killed ? 'TIMEOUT' : 'FAIL'}`);
+    return { ...normalized(partial), telemetryOutcome: error?.killed ? 'TIMEOUT' : 'FAIL' };
   }
-  const { stdout } = await execution;
   const payload = JSON.parse(stdout);
-  return { ...normalizeCameraTelemetry(payload, now), recordings: payload.recordings };
+  return normalized(payload);
 }

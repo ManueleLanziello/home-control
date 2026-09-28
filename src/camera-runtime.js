@@ -82,9 +82,8 @@ export class HomeCameraRuntime {
     const diagnostic = this.liveDiagnostics.get(record.id);
     const log = (phase, outcome) => { if (diagnostic) cameraDiagnostic(diagnostic.role, diagnostic.startedAt, phase, outcome); };
     log('telemetry start');
-    try {
-      const value = await this.readTelemetry({ ip: record.connection?.ip, root: this.root, env: this.env, now: this.now(), timeoutMs: this.cameraProbeTimeoutMs, diagnostic });
-      log('telemetry complete');
+    const receivedFields = new Set();
+    const apply = value => {
       const latest = this.telemetryCache.get(record.id);
       const previous = latest?.signature === signature ? latest.value : EMPTY_TELEMETRY();
       // A failed individual getter cannot erase an earlier real value.
@@ -101,6 +100,17 @@ export class HomeCameraRuntime {
         recordings: value.recordings?.available ? value.recordings : previous.recordings }, controlUpdatedAt, expiresAt: this.now() + this.telemetryTtlMs });
       if (diagnostic) diagnostic.telemetryUpdatedAt = value.telemetryUpdatedAt;
       log('telemetry cache updated');
+    };
+    try {
+      const value = await this.readTelemetry({ ip: record.connection?.ip, root: this.root, env: this.env, now: this.now(), timeoutMs: this.cameraProbeTimeoutMs, diagnostic, onPartial: update => {
+        for (const field of Object.keys(update)) if (field !== 'telemetryUpdatedAt') receivedFields.add(field);
+        apply(update);
+      } });
+      const { telemetryOutcome, ...snapshot } = value;
+      // The final document must not reconfirm fields already delivered by their getter.
+      const remaining = Object.fromEntries(Object.entries(snapshot).filter(([field]) => field !== 'telemetryUpdatedAt' && !receivedFields.has(field)));
+      if (Object.keys(remaining).length) apply({ ...remaining, telemetryUpdatedAt: snapshot.telemetryUpdatedAt });
+      log('telemetry complete', telemetryOutcome || 'OK');
     } catch (error) { log('telemetry complete', error?.killed ? 'TIMEOUT' : 'FAIL'); /* Optional telemetry cannot break Live. */ }
   }
 

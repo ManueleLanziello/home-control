@@ -59,6 +59,9 @@ class DiagnosticsTest(unittest.TestCase):
         self.assertNotIn("SECRET", stderr.getvalue())
         self.assertIn("getter getAlarm end", stderr.getvalue())
         self.assertIn("FAIL", stderr.getvalue())
+        partials = [json.loads(line[len("[CAM-RESULT] "):]) for line in stderr.getvalue().splitlines() if line.startswith("[CAM-RESULT] ")]
+        self.assertEqual([next(iter(value)) for value in partials], ["battery", "battery", "recordings", "privacy", "detection"])
+        self.assertEqual(partials[0]["battery"]["percent"], 34)
 
 
 if __name__ == "__main__":

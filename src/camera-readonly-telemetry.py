@@ -77,9 +77,16 @@ def recording_metadata(value: object) -> list[dict[str, object]]:
     return found
 
 
+def partial(field: str, value: object) -> None:
+    # Separate, flushed protocol: stdout remains the existing final JSON document.
+    print("[CAM-RESULT] " + json.dumps({field: value}, ensure_ascii=False), file=sys.stderr, flush=True)
+
+
 def battery(camera: Tapo) -> dict[str, object]:
     status_result = observed_getter("getBatteryStatus", camera.getBatteryStatus)
     diagnostic("battery status received")
+    status = nested(status_result, "battery", "status") or {}
+    partial("battery", {"available": True, "percent": status.get("battery_percent"), "chargingState": status.get("battery_charging")})
     statistic_result = observed_getter("getBatteryStatistic", camera.getBatteryStatistic)
     status = nested(status_result, "battery", "status") or {}
     days = nested(statistic_result, "statistic", "day") or []
@@ -105,12 +112,14 @@ def main() -> int:
         if not args.recordings_only:
             try:
                 result["battery"] = {"available": True, **battery(camera)}
+                partial("battery", result["battery"])
             except Exception:
                 result["battery"] = {"available": False}
         try:
             clips: list[dict[str, object]] = []
             for date in dict.fromkeys(args.date):
                 clips.extend(recording_metadata(observed_getter("getRecordings", camera.getRecordings, date)))
+                partial("recordings", {"available": True, "clips": clips})
             result["recordings"] = {"available": True, "clips": clips}
         except Exception:
             result["recordings"] = {"available": False, "clips": []}
@@ -119,18 +128,21 @@ def main() -> int:
                 privacy = observed_getter("getPrivacyMode", camera.getPrivacyMode)
                 enabled = privacy.get("enabled") if isinstance(privacy, dict) else None
                 result["privacy"] = {"available": enabled in ("on", "off"), "enabled": enabled}
+                partial("privacy", result["privacy"])
             except Exception:
                 result["privacy"] = {"available": False}
             try:
                 detection = observed_getter("getMotionDetection", camera.getMotionDetection)
                 enabled = detection.get("enabled") if isinstance(detection, dict) else None
                 result["detection"] = {"available": enabled in ("on", "off"), "enabled": enabled}
+                partial("detection", result["detection"])
             except Exception:
                 result["detection"] = {"available": False}
             try:
                 alarm = observed_getter("getAlarm", camera.getAlarm)
                 enabled = alarm.get("enabled") if isinstance(alarm, dict) else None
                 result["alarm"] = {"available": enabled in ("on", "off"), "enabled": enabled}
+                partial("alarm", result["alarm"])
             except Exception:
                 result["alarm"] = {"available": False}
         print(json.dumps(result, ensure_ascii=False))
