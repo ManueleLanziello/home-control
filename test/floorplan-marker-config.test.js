@@ -5,9 +5,28 @@ import { readFile } from 'node:fs/promises';
 import { floorplanConfig } from '../public/js/floorplan-config.js';
 import { backgroundPeriod, createFloorplanState } from '../public/js/floorplan-state.js';
 import { createHomeControlServer } from '../server.js';
+import { validateHardwareRegistry } from '../src/hardware-registry.js';
+import { normalizeMobilePresence } from '../src/home-status.js';
 
 globalThis.window = { addEventListener() {} };
 const { cameraBatteryIcon, renderCameraIcon, shapeForLabel, humidityReadingColor, renderFloorplanReading, sensorReadingFontSize, temperatureReadingColor } = await import('../public/js/floorplan.js');
+const { mobileDeviceIcon } = await import('../public/js/floorplan.js');
+
+test('DM personal icons survive registry/Home normalization with unchanged presence and type fallbacks', async () => {
+  const registry = validateHardwareRegistry(JSON.parse(await readFile(new URL('../data/config/hardware.json', import.meta.url), 'utf8')));
+  const expected = { 'MOBILE-GINEVRA': 'gine.svg', 'MOBILE-TABLET-A8': 'remo.svg', 'MOBILE-MELANIA': 'mela.svg', 'MOBILE-MANU': 'manu.svg', 'MOBILE-ALBA': 'alba.svg' };
+  const presence = Object.fromEntries(Object.keys(expected).map(id => [id, { state: 'present', visible: true, lastConfirmedAt: '2026-09-28T00:00:00Z' }]));
+  const mobiles = normalizeMobilePresence(registry.inventory, presence);
+  assert.equal(mobiles.length, 5);
+  for (const mobile of mobiles) {
+    assert.equal(mobile.icon, expected[mobile.id]);
+    assert.equal(mobileDeviceIcon({ ...mobile, alias: 'Changed alias' }), expected[mobile.id]);
+    assert.equal(mobile.visible, true); assert.equal(mobile.presence, 'present');
+    assert.match(await readFile(new URL(`../design/${mobile.icon}`, import.meta.url), 'utf8'), /<svg/);
+  }
+  assert.equal(mobileDeviceIcon({ type: 'phone' }), 'phone.svg');
+  assert.equal(mobileDeviceIcon({ type: 'tablet' }), 'tablet.svg');
+});
 
 async function labelsIn(file) {
   const source = await readFile(new URL(`../design/${file}`, import.meta.url), 'utf8');

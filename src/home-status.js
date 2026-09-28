@@ -20,6 +20,7 @@ export function normalizeMobilePresence(inventory = [], presence = {}) {
       id: item.marker,
       alias: item.name,
       type: item.type || 'phone',
+      ...(item.icon ? { icon: item.icon } : {}),
       presence: ['present', 'unknown', 'absent'].includes(value.state) ? value.state : 'unknown',
       visible: value.visible === true,
       lastConfirmedAt: value.lastConfirmedAt || null,

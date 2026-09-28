@@ -7,6 +7,9 @@ import { showCameraEventsPopup } from './camera-events-popup.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const assetUrl = name => homeControlPath('/design/' + name);
+export function mobileDeviceIcon(mobile) {
+  return mobile.icon || config.mobileMonitor.icons[mobile.type] || config.mobileMonitor.icons.phone;
+}
 let weatherSnapshot = null;
 let renderWeatherSnapshot = () => {};
 
@@ -816,7 +819,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
         row.className = 'floorplan-mobile-monitor-row';
         const icon = document.createElement('img');
         icon.alt = '';
-        icon.src = assetUrl(config.mobileMonitor.icons[mobile.type] || config.mobileMonitor.icons.phone);
+        icon.src = assetUrl(mobileDeviceIcon(mobile));
         const alias = document.createElement('span');
         alias.textContent = mobile.alias || 'Dispositivo mobile';
         row.append(icon, alias);

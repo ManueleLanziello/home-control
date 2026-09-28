@@ -82,6 +82,7 @@ function normalizeInventoryRecord(input) {
     ...(optionalText(input.role) ? { role: optionalText(input.role) } : {}),
     ...(optionalText(input.hostname) ? { hostname: optionalText(input.hostname) } : {}),
     ...(optionalText(input.category) ? { category: optionalText(input.category) } : {}),
+    ...(optionalText(input.icon) ? { icon: optionalText(input.icon) } : {}),
     ...(optionalText(input.protocol) ? { protocol: optionalText(input.protocol) } : {}),
     ...(Object.keys(identity).length ? { identity } : {}),
     ...(Object.keys(network).length ? { network } : {}),
