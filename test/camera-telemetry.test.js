@@ -1,6 +1,23 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFile } from 'node:fs/promises';
+import { cameraDiagnostic } from '../src/camera-diagnostics.js';
 import { countRecentRecordings, normalizeCameraTelemetry, recordingDatesForWindow } from '../src/camera-telemetry.js';
+
+test('diagnostic logging is payload-free and cannot throw into Live', async () => {
+  const original = console.error;
+  const lines = [];
+  try {
+    console.error = line => lines.push(line);
+    cameraDiagnostic('C2', performance.timeOrigin + performance.now(), 'telemetry start');
+    assert.match(lines[0], /^\[CAM-DIAG\] C2 .* telemetry start OK$/);
+    console.error = () => { throw Error('log unavailable'); };
+    assert.doesNotThrow(() => cameraDiagnostic('C1', 0, 'ready'));
+  } finally { console.error = original; }
+  const runtime = await readFile(new URL('../src/camera-runtime.js', import.meta.url), 'utf8');
+  assert.match(runtime, /cameraProbeTimeoutMs = 8_000/);
+  assert.equal((runtime.match(/await this\.readTelemetry\(/g) || []).length, 1);
+});
 
 test('finestra eventi interroga uno o due giorni locali quando attraversa mezzanotte', () => {
   const midday = new Date(2026, 8, 22, 15, 0, 0).getTime();

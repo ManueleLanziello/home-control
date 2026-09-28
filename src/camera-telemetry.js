@@ -62,16 +62,25 @@ export function normalizeCameraTelemetry(payload, now = Date.now()) {
   };
 }
 
-export async function readCameraTelemetry({ ip, root, env = process.env, now = Date.now(), timeoutMs = 45_000 }) {
+export async function readCameraTelemetry({ ip, root, env = process.env, now = Date.now(), timeoutMs = 45_000, diagnostic }) {
   const dates = recordingDatesForWindow(now);
   const worker = path.join(root, 'src', 'camera-readonly-telemetry.py');
-  const { stdout } = await execFileAsync(defaultCameraPython(root, { env }), [worker, '--ip', ip, ...dates.flatMap(date => ['--date', date])], {
+  const execution = execFileAsync(defaultCameraPython(root, { env }), [worker, '--ip', ip, ...dates.flatMap(date => ['--date', date])], {
     cwd: root,
-    env,
+    env: diagnostic ? { ...env, CAM_DIAG_ROLE: diagnostic.role, CAM_DIAG_STARTED_AT: String(diagnostic.startedAt) } : env,
     windowsHide: true,
     timeout: timeoutMs,
     maxBuffer: 2 * 1024 * 1024,
   });
+  if (diagnostic) {
+    let pending = '';
+    execution.child.stderr.on('data', chunk => {
+      pending += chunk.toString();
+      const lines = pending.split('\n'); pending = lines.pop();
+      for (const line of lines) if (line.startsWith('[CAM-DIAG]')) console.error(line);
+    });
+  }
+  const { stdout } = await execution;
   const payload = JSON.parse(stdout);
   return { ...normalizeCameraTelemetry(payload, now), recordings: payload.recordings };
 }

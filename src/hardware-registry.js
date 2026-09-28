@@ -121,14 +121,19 @@ export function defaultHardwareRegistry() {
 }
 
 export class HardwareRegistryStore {
-  constructor({ filePath, defaults = defaultHardwareRegistry(), idFactory = () => crypto.randomUUID() }) {
+  constructor({ filePath, sourceFilePath = null, defaults = defaultHardwareRegistry(), idFactory = () => crypto.randomUUID() }) {
+    if (sourceFilePath && path.resolve(sourceFilePath) === path.resolve(filePath)) throw new HardwareRegistryError('Registro locale e configurazione distribuita devono avere percorsi diversi.');
     this.filePath = filePath;
+    this.sourceFilePath = sourceFilePath;
     this.defaults = validateHardwareRegistry(defaults);
     this.idFactory = idFactory;
     this.writeQueue = Promise.resolve();
+    this.bootstrapPromise = null;
+    this.reconciliation = null;
   }
 
   async read() {
+    if (this.sourceFilePath) await this.bootstrap();
     try {
       return validateHardwareRegistry(JSON.parse(await readFile(this.filePath, 'utf8')));
     } catch (error) {
@@ -139,15 +144,92 @@ export class HardwareRegistryStore {
   }
 
   async write(registry) {
+    if (this.sourceFilePath) await this.bootstrap();
     const validated = validateHardwareRegistry(registry);
     const operation = this.writeQueue.then(async () => {
-      await mkdir(path.dirname(this.filePath), { recursive: true });
-      const temporaryPath = `${this.filePath}.tmp`;
-      await writeFile(temporaryPath, `${JSON.stringify(validated, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
-      await rename(temporaryPath, this.filePath);
+      if (this.reconciliation) {
+        const ids = new Set(validated.devices.map(device => device.id));
+        this.reconciliation.deletedDeviceIds = [...new Set([
+          ...this.reconciliation.deletedDeviceIds,
+          ...this.reconciliation.source.devices.filter(device => !ids.has(device.id)).map(device => device.id),
+        ])].filter(id => !ids.has(id));
+      }
+      await this.persist(validated);
       return validated;
     });
     this.writeQueue = operation.catch(() => {});
     return operation;
   }
+
+  bootstrap() {
+    if (!this.bootstrapPromise) {
+      this.bootstrapPromise = this.reconcile().catch(error => { this.bootstrapPromise = null; throw error; });
+    }
+    return this.bootstrapPromise;
+  }
+
+  async reconcile() {
+    const source = validateHardwareRegistry(JSON.parse(await readFile(this.sourceFilePath, 'utf8')));
+    let saved;
+    try { saved = JSON.parse(await readFile(this.filePath, 'utf8')); }
+    catch (error) { if (error.code !== 'ENOENT') throw error; }
+    const local = saved ? validateHardwareRegistry(saved) : structuredClone(source);
+    const previous = saved?.reconciliation?.source;
+    const baseline = previous ? validateHardwareRegistry(previous) : source;
+    const deleted = new Set(saved?.reconciliation?.deletedDeviceIds || []);
+    const mergeCollection = (incoming, existing, old, key, tombstones = new Set()) => {
+      const result = [];
+      for (const record of incoming) {
+        if (tombstones.has(record[key])) continue;
+        const current = existing.find(item => item[key] === record[key]);
+        const prior = old.find(item => item[key] === record[key]);
+        if (!current) { result.push(structuredClone(record)); continue; }
+        const merged = mergeDistributed(prior || record, record, current);
+        if (key === 'id' && prior && JSON.stringify(technicalIdentity(prior)) !== JSON.stringify(technicalIdentity(record))) {
+          for (const field of ['model', 'protocol', 'connectionType', 'identity', 'connection', 'tuyaDeviceId', 'metadata', 'configurationStatus']) {
+            if (Object.hasOwn(record, field)) merged[field] = structuredClone(record[field]);
+            else delete merged[field];
+          }
+          merged.verificationStatus = 'pending';
+          merged.verifiedAt = null;
+        }
+        result.push(merged);
+      }
+      for (const record of existing) if (!incoming.some(item => item[key] === record[key])) result.push(structuredClone(record));
+      return result;
+    };
+    const registry = validateHardwareRegistry({
+      devices: mergeCollection(source.devices, local.devices, baseline.devices, 'id', deleted),
+      inventory: mergeCollection(source.inventory, local.inventory, baseline.inventory, 'marker'),
+    });
+    this.reconciliation = { source, deletedDeviceIds: [...deleted] };
+    const payload = { ...registry, reconciliation: this.reconciliation };
+    if (JSON.stringify(saved) !== JSON.stringify(payload)) await this.persist(registry);
+  }
+
+  async persist(registry) {
+    await mkdir(path.dirname(this.filePath), { recursive: true });
+    const temporaryPath = `${this.filePath}.${process.pid}.${crypto.randomUUID()}.tmp`;
+    await writeFile(temporaryPath, `${JSON.stringify({ ...registry, ...(this.reconciliation ? { reconciliation: this.reconciliation } : {}) }, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
+    await rename(temporaryPath, this.filePath);
+  }
+}
+
+function technicalIdentity(record) {
+  return [record.model, record.protocol, record.connectionType, record.identity, record.connection, record.tuyaDeviceId, record.metadata?.adapter];
+}
+
+// Three-way merge: distributed changes win only where the local value was not edited.
+function mergeDistributed(previous, incoming, local) {
+  const result = structuredClone(local);
+  for (const key of new Set([...Object.keys(previous), ...Object.keys(incoming)])) {
+    if (['verificationStatus', 'verifiedAt', 'detected'].includes(key)) continue;
+    if (JSON.stringify(local[key]) === JSON.stringify(previous[key])) {
+      if (Object.hasOwn(incoming, key)) result[key] = structuredClone(incoming[key]);
+      else delete result[key];
+    } else if (previous[key] && incoming[key] && local[key] && typeof previous[key] === 'object' && !Array.isArray(previous[key])) {
+      result[key] = mergeDistributed(previous[key], incoming[key], local[key]);
+    }
+  }
+  return result;
 }

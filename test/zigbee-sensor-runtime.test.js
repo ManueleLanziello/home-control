@@ -12,6 +12,7 @@ function fixture() {
   const subscriptions = [];
   let ends = 0;
   client.subscribe = (topics, options, callback) => { subscriptions.push(topics); callback(null); };
+  client.publish = (topic, payload, options, callback) => callback(null);
   client.end = force => { assert.equal(force, true); ends += 1; };
   let connects = 0;
   const runtime = new HomeZigbeeSensorRuntime({ now: () => now, connect: (url, options) => {

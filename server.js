@@ -24,6 +24,7 @@ if (existsSync(ENV_FILE)) loadEnvFile(ENV_FILE);
 const PORT = Number(process.env.HOME_CONTROL_PORT || process.env.PORT || 3001);
 const HOST = process.env.HOME_CONTROL_HOST || '0.0.0.0';
 const HARDWARE_FILE = path.join(ROOT, 'data', 'config', 'hardware.json');
+const LOCAL_HARDWARE_FILE = path.join(ROOT, 'data', 'config', 'hardware-local.json');
 const ROLE_FILE = path.join(ROOT, 'data', 'config', 'device-roles.json');
 
 const STATIC_FILES = new Map([
@@ -173,7 +174,7 @@ function sendCameraRecording(request, response, recording) {
 }
 
 export function createHomeControlServer({
-  hardwareStore = new HardwareRegistryStore({ filePath: HARDWARE_FILE, defaults: defaultHardwareRegistry() }),
+  hardwareStore = new HardwareRegistryStore({ filePath: LOCAL_HARDWARE_FILE, sourceFilePath: HARDWARE_FILE, defaults: defaultHardwareRegistry() }),
   roleStore = new DeviceRoleStore({ filePath: ROLE_FILE }),
   thermostatRuntime = null,
   hoodRuntime = null,
@@ -253,7 +254,11 @@ export function createHomeControlServer({
     }
     if (url.pathname === '/api/home/status') {
       if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
-      try { return sendJson(response, 200, await homeStatus.readSnapshot()); }
+      try {
+        const snapshot = await homeStatus.readSnapshot();
+        cameras.diagnoseHomeStatus?.(snapshot);
+        return sendJson(response, 200, snapshot);
+      }
       catch { return sendJson(response, 503, { error: 'Stato casa non disponibile' }); }
     }
     if (url.pathname === '/api/cameras/event-alerts') {

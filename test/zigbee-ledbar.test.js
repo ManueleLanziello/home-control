@@ -20,6 +20,62 @@ function fixture() {
   return { runtime, client, subscriptions, publishes, message: payload => client.emit('message', 'zigbee2mqtt/SmartHomeLB1', Buffer.from(JSON.stringify(payload))), advance: milliseconds => { now += milliseconds; } };
 }
 
+test('LB1 richiede state/brightness solo dopo subscribe riuscita, una volta per connessione', () => {
+  const f = fixture(); const callbacks = []; const raw = [];
+  f.client.subscribe = (topics, options, callback) => callbacks.push(callback);
+  f.client.publish = (topic, payload, options, callback) => { raw.push([topic, payload, options]); callback(null); };
+  f.runtime.start(); f.client.emit('connect'); f.client.emit('connect');
+  assert.equal(callbacks.length, 1); assert.equal(raw.length, 0);
+  callbacks[0](null); callbacks[0](null);
+  assert.deepEqual(raw, [['zigbee2mqtt/SmartHomeLB1/get', '{"state":"","brightness":""}', { qos: 0 }]]);
+  assert.equal(f.runtime.readLedbarSnapshot().known, false);
+  f.client.emit('close'); f.client.emit('connect');
+  callbacks[0](null); assert.equal(raw.length, 1);
+  callbacks[1](null); assert.equal(raw.length, 2);
+  f.advance(24 * 60 * 60 * 1000);
+  for (let i = 0; i < 10; i += 1) f.runtime.readLedbarSnapshot();
+  assert.equal(raw.length, 2);
+  f.runtime.close();
+});
+
+test('LB1 subscribe fallita/rifiutata o callback obsoleto/shutdown non inviano get', () => {
+  for (const result of [[Error('subscribe failed')], [null, [{ qos: 128 }]]]) {
+    const f = fixture(); f.client.subscribe = (topics, options, callback) => callback(...result);
+    f.runtime.start(); f.client.emit('connect');
+    assert.equal(f.publishes.length, 0); assert.equal(f.runtime.connected, false); f.runtime.close();
+  }
+  const f = fixture(); const callbacks = [];
+  f.client.subscribe = (topics, options, callback) => callbacks.push(callback);
+  f.runtime.start(); f.client.emit('connect'); f.client.emit('offline'); f.client.emit('connect');
+  callbacks[0](null); assert.equal(f.publishes.length, 0);
+  f.runtime.close(); callbacks[1](null); f.client.emit('connect');
+  assert.equal(f.publishes.length, 0);
+});
+
+test('LB1 risposta normale notifica subscriber e freshness non disabilita lo stato conosciuto', async () => {
+  const f = fixture(); const updates = [];
+  f.runtime.subscribeState(() => updates.push(f.runtime.readLedbarSnapshot()));
+  f.runtime.start(); f.client.emit('connect');
+  assert.equal(f.runtime.readLedbarSnapshot().available, false);
+  f.message({ state: 'OFF', brightness: 254 });
+  assert.equal(updates.at(-1).state, 'OFF'); assert.equal(updates.at(-1).brightness, 254);
+  f.advance(120 * 60 * 1000); assert.equal(f.runtime.readLedbarSnapshot().fresh, true);
+  f.advance(1);
+  const stale = f.runtime.readLedbarSnapshot();
+  assert.equal(stale.fresh, false); assert.equal(stale.known, true);
+  assert.equal(stale.available, true); assert.equal(stale.online, true);
+  await f.runtime.setLedbarPower(true);
+  assert.equal(f.runtime.readLedbarSnapshot().state, 'OFF');
+  f.client.emit('offline');
+  assert.equal(f.runtime.readLedbarSnapshot().available, false);
+  assert.equal(f.runtime.readLedbarSnapshot().state, 'OFF'); f.runtime.close();
+});
+
+test('recovery LB1 non introduce timer o polling', async () => {
+  const source = await readFile(new URL('../src/zigbee-sensor-runtime.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /setInterval|setTimeout/);
+});
+
 test('LB1 interpreta MQTT, conserva brightness durante OFF e pubblica i comandi Zigbee2MQTT', async () => {
   const f = fixture(); f.runtime.start(); f.client.emit('connect');
   assert.ok(f.subscriptions[0].includes('zigbee2mqtt/SmartHomeLB1'));
@@ -30,7 +86,9 @@ test('LB1 interpreta MQTT, conserva brightness durante OFF e pubblica i comandi 
   assert.equal(f.runtime.readLedbarSnapshot().state, 'OFF');
   assert.equal(f.runtime.readLedbarSnapshot().brightness, 180);
   await f.runtime.setLedbarPower(true); await f.runtime.setLedbarBrightness(254);
-  assert.deepEqual(f.publishes, [['zigbee2mqtt/SmartHomeLB1/set', { state: 'ON' }], ['zigbee2mqtt/SmartHomeLB1/set', { brightness: 254 }]]);
+  assert.deepEqual(f.publishes.slice(1), [['zigbee2mqtt/SmartHomeLB1/set', { state: 'ON' }], ['zigbee2mqtt/SmartHomeLB1/set', { brightness: 254 }]]);
+  assert.equal(f.runtime.readLedbarSnapshot().state, 'OFF');
+  assert.equal(f.runtime.readLedbarSnapshot().brightness, 180);
   f.runtime.close();
 });
 
@@ -48,10 +106,17 @@ test('API LB1 convalida e inoltra ON/OFF e brightness senza creare un secondo cl
   t.after(() => new Promise(resolve => server.close(resolve)));
   server.listen(0, '127.0.0.1'); await once(server, 'listening');
   const base = `http://127.0.0.1:${server.address().port}`;
+  const events = await fetch(base + '/api/ledbar/events');
+  const reader = events.body.getReader();
+  await reader.read(); // Initial unknown snapshot, not a confirmation from /get.
+  f.message({ state: 'OFF', brightness: 254 });
+  const event = new TextDecoder().decode((await reader.read()).value);
+  assert.match(event, /"state":"OFF"/); assert.match(event, /"brightness":254/);
+  await reader.cancel();
   assert.equal((await fetch(base + '/api/ledbar/power', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on: false }) })).status, 202);
   assert.equal((await fetch(base + '/api/ledbar/brightness', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ brightness: 255 }) })).status, 400);
   assert.equal((await fetch(base + '/api/ledbar/brightness', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ brightness: 0 }) })).status, 202);
-  assert.deepEqual(f.publishes, [['zigbee2mqtt/SmartHomeLB1/set', { state: 'OFF' }], ['zigbee2mqtt/SmartHomeLB1/set', { brightness: 0 }]]);
+  assert.deepEqual(f.publishes.slice(1), [['zigbee2mqtt/SmartHomeLB1/set', { state: 'OFF' }], ['zigbee2mqtt/SmartHomeLB1/set', { brightness: 0 }]]);
 });
 
 test('la scelta del layer LB1 usa le quattro soglie richieste', () => {

@@ -493,7 +493,10 @@ test('camera configuration exposes C1/C2/C3 as local roles and C2 media uses the
   const directory = await mkdtemp(path.join(os.tmpdir(), 'home-camera-api-'));
   const imagePath = path.join(directory, 'c2.jpg'); await writeFile(imagePath, new Uint8Array([0xff, 0xd8, 0xff]));
   const videoPath = path.join(directory, 'recording.mp4'); await writeFile(videoPath, new Uint8Array([0, 1, 2]));
-  const hardwareStore = new HardwareRegistryStore({ filePath: path.join(directory, 'hardware.json'), defaults: defaultHardwareRegistry() });
+  const sourceFilePath = path.join(directory, 'distributed.json');
+  const distributed = JSON.stringify(defaultHardwareRegistry());
+  await writeFile(sourceFilePath, distributed);
+  const hardwareStore = new HardwareRegistryStore({ filePath: path.join(directory, 'hardware.json'), sourceFilePath, defaults: defaultHardwareRegistry() });
   const roleStore = new DeviceRoleStore({ filePath: path.join(directory, 'roles.json') });
   const calls = []; let videoReleases = 0;
   const cameraRuntime = {
@@ -526,6 +529,8 @@ test('camera configuration exposes C1/C2/C3 as local roles and C2 media uses the
     const created = await fetch(`${base}/api/hardware/cameras`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alias: 'Pond', ip: '192.0.2.2', mac: 'aa:bb:cc:dd:ee:02', role: 'camera_pond' }) });
     assert.equal(created.status, 201);
     const listed = await (await fetch(`${base}/api/hardware/cameras`)).json();
+    assert.equal((await fetch(`${base}/api/hardware/cameras/${listed.cameras[0].id}/verify`, { method: 'POST' })).status, 200);
+    assert.equal(await readFile(sourceFilePath, 'utf8'), distributed);
     assert.equal(listed.cameras[0].role, 'camera_pond'); assert.equal(Object.hasOwn(listed, 'shared'), false);
     const media = await fetch(`${base}/api/cameras/C2/image`); assert.equal(media.status, 200);
     assert.deepEqual([...new Uint8Array(await media.arrayBuffer())], [0xff, 0xd8, 0xff]);

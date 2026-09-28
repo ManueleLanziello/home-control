@@ -9,6 +9,8 @@ export class HomeZigbeeSensorRuntime {
     this.client = null;
     this.connected = false;
     this.stopped = false;
+    this.connectionCycle = 0;
+    this.connectionActive = false;
     this.latest = new Map();
     this.ledbar = null;
     this.listeners = new Set();
@@ -30,14 +32,29 @@ export class HomeZigbeeSensorRuntime {
       });
       this.client.on('error', () => {});
       this.client.on('connect', () => {
-        if (this.stopped) return;
-        this.client.subscribe([...this.topics.keys(), this.ledbarTopic].filter(Boolean), { qos: 0 }, error => {
-          if (this.stopped) return;
-          this.connected = !error;
+        if (this.stopped || this.connectionActive) return;
+        this.connectionActive = true;
+        const cycle = ++this.connectionCycle;
+        let completed = false;
+        this.client.subscribe([...this.topics.keys(), this.ledbarTopic].filter(Boolean), { qos: 0 }, (error, granted) => {
+          if (this.stopped || !this.connectionActive || cycle !== this.connectionCycle || completed) return;
+          completed = true;
+          this.connected = !error && !granted?.some(subscription => subscription.qos === 128);
           this.notify();
+          if (this.connected && !this.stopped && cycle === this.connectionCycle && this.config.ledbar?.getTopic) {
+            // One read request per successful subscription; only an incoming state confirms LB1.
+            try {
+              this.client.publish(this.config.ledbar.getTopic, '{"state":"","brightness":""}', { qos: 0 }, () => {});
+            } catch { /* No retry: a failed read must not break sensor handling. */ }
+          }
         });
       });
-      const disconnect = () => { this.connected = false; this.notify(); };
+      const disconnect = () => {
+        this.connectionActive = false;
+        this.connectionCycle += 1;
+        this.connected = false;
+        this.notify();
+      };
       this.client.on('offline', disconnect);
       this.client.on('close', disconnect);
       this.client.on('message', (topic, bytes) => {
@@ -82,8 +99,12 @@ export class HomeZigbeeSensorRuntime {
   readLedbarSnapshot() {
     const snapshot = this.ledbar || { state: null, brightness: null, updatedAt: null };
     const age = this.now() - Date.parse(snapshot.updatedAt);
-    const online = Number.isFinite(age) && age >= 0 && age <= this.config.freshnessMs;
-    return { ...snapshot, id: this.config.ledbar?.id ?? 'LB1', name: this.config.ledbar?.name ?? 'SmartHomeLB1', online, available: this.connected && online };
+    const fresh = Number.isFinite(age) && age >= 0 && age <= this.config.freshnessMs;
+    const known = ['ON', 'OFF'].includes(snapshot.state);
+    // Silence is not evidence of physical disconnection. Keep last-known state usable
+    // while MQTT is connected, exposing snapshot freshness separately.
+    const available = this.connected && known;
+    return { ...snapshot, id: this.config.ledbar?.id ?? 'LB1', name: this.config.ledbar?.name ?? 'SmartHomeLB1', known, fresh, online: available, available };
   }
   publishLedbar(payload) {
     if (!this.client || !this.connected || this.stopped || !this.config.ledbar?.setTopic) return Promise.reject(new Error('LED bar non disponibile'));
@@ -94,6 +115,8 @@ export class HomeZigbeeSensorRuntime {
   close() {
     if (this.stopped) return;
     this.stopped = true;
+    this.connectionActive = false;
+    this.connectionCycle += 1;
     this.connected = false;
     this.notify();
     this.listeners.clear();

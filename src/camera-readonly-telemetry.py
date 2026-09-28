@@ -6,8 +6,29 @@ import argparse
 import json
 import os
 import sys
+import time
 
 from pytapo import Tapo
+
+
+def diagnostic(phase: str, outcome: str = "OK") -> None:
+    role = os.environ.get("CAM_DIAG_ROLE")
+    if role not in ("C1", "C2", "C3"):
+        return
+    started = float(os.environ["CAM_DIAG_STARTED_AT"]) / 1000
+    print(f"[CAM-DIAG] {role} epoch={time.time():.6f} +{time.time() - started:.3f}s {phase} {outcome}", file=sys.stderr, flush=True)
+
+
+def observed_getter(name: str, getter, *args):
+    started = time.perf_counter()
+    diagnostic(f"getter {name} start")
+    try:
+        result = getter(*args)
+    except Exception:
+        diagnostic(f"getter {name} end duration={time.perf_counter() - started:.3f}s", "FAIL")
+        raise
+    diagnostic(f"getter {name} end duration={time.perf_counter() - started:.3f}s")
+    return result
 
 
 def create_camera(ip: str) -> Tapo:
@@ -57,8 +78,9 @@ def recording_metadata(value: object) -> list[dict[str, object]]:
 
 
 def battery(camera: Tapo) -> dict[str, object]:
-    status_result = camera.getBatteryStatus()
-    statistic_result = camera.getBatteryStatistic()
+    status_result = observed_getter("getBatteryStatus", camera.getBatteryStatus)
+    diagnostic("battery status received")
+    statistic_result = observed_getter("getBatteryStatistic", camera.getBatteryStatistic)
     status = nested(status_result, "battery", "status") or {}
     days = nested(statistic_result, "statistic", "day") or []
     latest = days[0] if isinstance(days, list) and days and isinstance(days[0], dict) else {}
@@ -76,7 +98,9 @@ def main() -> int:
     parser.add_argument("--recordings-only", action="store_true")
     args = parser.parse_args()
     try:
+        diagnostic("Tapo session start")
         camera = create_camera(args.ip)
+        diagnostic("Tapo session ready")
         result: dict[str, object] = {}
         if not args.recordings_only:
             try:
@@ -86,25 +110,25 @@ def main() -> int:
         try:
             clips: list[dict[str, object]] = []
             for date in dict.fromkeys(args.date):
-                clips.extend(recording_metadata(camera.getRecordings(date)))
+                clips.extend(recording_metadata(observed_getter("getRecordings", camera.getRecordings, date)))
             result["recordings"] = {"available": True, "clips": clips}
         except Exception:
             result["recordings"] = {"available": False, "clips": []}
         if not args.recordings_only:
             try:
-                privacy = camera.getPrivacyMode()
+                privacy = observed_getter("getPrivacyMode", camera.getPrivacyMode)
                 enabled = privacy.get("enabled") if isinstance(privacy, dict) else None
                 result["privacy"] = {"available": enabled in ("on", "off"), "enabled": enabled}
             except Exception:
                 result["privacy"] = {"available": False}
             try:
-                detection = camera.getMotionDetection()
+                detection = observed_getter("getMotionDetection", camera.getMotionDetection)
                 enabled = detection.get("enabled") if isinstance(detection, dict) else None
                 result["detection"] = {"available": enabled in ("on", "off"), "enabled": enabled}
             except Exception:
                 result["detection"] = {"available": False}
             try:
-                alarm = camera.getAlarm()
+                alarm = observed_getter("getAlarm", camera.getAlarm)
                 enabled = alarm.get("enabled") if isinstance(alarm, dict) else None
                 result["alarm"] = {"available": enabled in ("on", "off"), "enabled": enabled}
             except Exception:

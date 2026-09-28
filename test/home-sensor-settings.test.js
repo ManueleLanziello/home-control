@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { once } from 'node:events';
 import os from 'node:os';
 import path from 'node:path';
@@ -12,8 +12,11 @@ test('persists Dewin sensors and logical Home roles without hardware access', as
   const directory = await mkdtemp(path.join(os.tmpdir(), 'home-sensors-'));
   const hardwarePath = path.join(directory, 'hardware.json');
   const rolesPath = path.join(directory, 'roles.json');
+  const sourceFilePath = path.join(directory, 'distributed.json');
+  const distributed = JSON.stringify(defaultHardwareRegistry());
+  await writeFile(sourceFilePath, distributed);
   const server = createHomeControlServer({
-    hardwareStore: new HardwareRegistryStore({ filePath: hardwarePath, defaults: defaultHardwareRegistry(), idFactory: () => 'unused' }),
+    hardwareStore: new HardwareRegistryStore({ filePath: hardwarePath, sourceFilePath, defaults: defaultHardwareRegistry(), idFactory: () => 'unused' }),
     roleStore: new DeviceRoleStore({ filePath: rolesPath }),
     thermostatRuntime: { async readSnapshot() { return { online: true, updatedAt: new Date().toISOString(), thermostat: { currentTemperature: 22 } }; } },
     verifySensor: async (device) => ({ physicalDeviceId: device.identity.tuyaDeviceId, name: 'Dewin fixture', capabilities: ['ambientTemperature'], verifiedAt: '2026-09-09T12:00:00.000Z' }),
@@ -39,5 +42,8 @@ test('persists Dewin sensors and logical Home roles without hardware access', as
     assert.equal(persisted.devices.length, 3); assert.equal(persisted.devices[0].identity.tuyaDeviceId, 'tuya-one');
     const home = await (await fetch(`${base}/api/home/status`)).json();
     assert.equal(home.sensors.S3.value, 22); assert.equal(home.sensors.S1.value, null);
+    assert.equal((await fetch(`${base}/api/hardware/sensors/${sensor1.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alias: 'Updated', tuyaDeviceId: 'tuya-one' }) })).status, 200);
+    assert.equal((await fetch(`${base}/api/hardware/sensors/${sensor1.id}`, { method: 'DELETE' })).status, 204);
+    assert.equal(await readFile(sourceFilePath, 'utf8'), distributed);
   } finally { server.close(); await once(server, 'close'); await rm(directory, { recursive: true, force: true }); }
 });
