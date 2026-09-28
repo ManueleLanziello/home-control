@@ -87,14 +87,9 @@ def battery(camera: Tapo) -> dict[str, object]:
     diagnostic("battery status received")
     status = nested(status_result, "battery", "status") or {}
     partial("battery", {"available": True, "percent": status.get("battery_percent"), "chargingState": status.get("battery_charging")})
-    statistic_result = observed_getter("getBatteryStatistic", camera.getBatteryStatistic)
-    status = nested(status_result, "battery", "status") or {}
-    days = nested(statistic_result, "statistic", "day") or []
-    latest = days[0] if isinstance(days, list) and days and isinstance(days[0], dict) else {}
     return {
         "percent": status.get("battery_percent"),
         "chargingState": status.get("battery_charging"),
-        "statisticChargingState": latest.get("bat_status"),
     }
 
 
@@ -112,17 +107,8 @@ def main() -> int:
         if not args.recordings_only:
             try:
                 result["battery"] = {"available": True, **battery(camera)}
-                partial("battery", result["battery"])
             except Exception:
                 result["battery"] = {"available": False}
-        try:
-            clips: list[dict[str, object]] = []
-            for date in dict.fromkeys(args.date):
-                clips.extend(recording_metadata(observed_getter("getRecordings", camera.getRecordings, date)))
-                partial("recordings", {"available": True, "clips": clips})
-            result["recordings"] = {"available": True, "clips": clips}
-        except Exception:
-            result["recordings"] = {"available": False, "clips": []}
         if not args.recordings_only:
             try:
                 privacy = observed_getter("getPrivacyMode", camera.getPrivacyMode)
@@ -145,6 +131,22 @@ def main() -> int:
                 partial("alarm", result["alarm"])
             except Exception:
                 result["alarm"] = {"available": False}
+            try:
+                statistic_result = observed_getter("getBatteryStatistic", camera.getBatteryStatistic)
+                days = nested(statistic_result, "statistic", "day") or []
+                latest = days[0] if isinstance(days, list) and days and isinstance(days[0], dict) else {}
+                result["battery"]["statisticChargingState"] = latest.get("bat_status")
+                partial("battery", result["battery"])
+            except Exception:
+                pass  # Statistics failure must not discard the completed battery status.
+        try:
+            clips: list[dict[str, object]] = []
+            for date in dict.fromkeys(args.date):
+                clips.extend(recording_metadata(observed_getter("getRecordings", camera.getRecordings, date)))
+                partial("recordings", {"available": True, "clips": clips})
+            result["recordings"] = {"available": True, "clips": clips}
+        except Exception:
+            result["recordings"] = {"available": False, "clips": []}
         print(json.dumps(result, ensure_ascii=False))
         return 0
     except Exception:

@@ -30,13 +30,15 @@ function executionFixture(updates, payload, fail) {
 
 const successful = [
   { battery: { available: true, percent: 34, chargingState: 'off' } },
-  { recordings: { available: true, clips: [] } },
   { privacy: { available: true, enabled: 'off' } },
   { detection: { available: true, enabled: 'on' } },
+  { alarm: { available: true, enabled: 'off' } },
+  { battery: { available: true, percent: 34, chargingState: 'off', statisticChargingState: 'normal' } },
+  { recordings: { available: true, clips: [] } },
 ];
 
 test('full telemetry keeps final JSON semantics and timeout preserves only completed fields', async () => {
-  for (const count of [1, 2, 4]) {
+  for (const count of [1, 2, 4, 5]) {
     const f = executionFixture(successful.slice(0, count), null, true);
     const progress = [];
     const value = await readCameraTelemetry({ ip: 'fixture', root: '.', timeoutMs: 8000, execute: f.execute, onPartial: x => progress.push(x) });
@@ -44,10 +46,10 @@ test('full telemetry keeps final JSON semantics and timeout preserves only compl
     if (count >= 2) assert.equal(Object.hasOwn(progress[1], 'battery'), false);
     if (count >= 4) assert.equal(Object.hasOwn(progress[3], 'privacy'), false);
     assert.equal(value.battery.percent, 34);
-    assert.equal(value.events.available, count >= 2);
-    assert.equal(value.privacy.enabled, count >= 3 ? false : null);
-    assert.equal(value.detection, count >= 4 ? true : null);
-    assert.equal(value.alarm.enabled, null);
+    assert.equal(value.events.available, false);
+    assert.equal(value.privacy.enabled, count >= 2 ? false : null);
+    assert.equal(value.detection, count >= 3 ? true : null);
+    assert.equal(value.alarm.enabled, count >= 4 ? false : null);
     assert.equal(value.telemetryOutcome, 'TIMEOUT');
   }
   const payload = Object.assign({}, ...successful, { alarm: { available: true, enabled: 'off' } });

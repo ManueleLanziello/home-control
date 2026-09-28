@@ -51,7 +51,7 @@ class DiagnosticsTest(unittest.TestCase):
             stdout, stderr = io.StringIO(), io.StringIO()
             with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
                 self.assertEqual(worker.main(), 0)
-        self.assertEqual(calls, ["Tapo", "battery", "statistic", "recordings", "privacy", "detection", "alarm"])
+        self.assertEqual(calls, ["Tapo", "battery", "privacy", "detection", "alarm", "statistic", "recordings"])
         payload = json.loads(stdout.getvalue())
         self.assertEqual(payload["battery"]["percent"], 34)
         self.assertFalse(payload["alarm"]["available"])
@@ -60,7 +60,7 @@ class DiagnosticsTest(unittest.TestCase):
         self.assertIn("getter getAlarm end", stderr.getvalue())
         self.assertIn("FAIL", stderr.getvalue())
         partials = [json.loads(line[len("[CAM-RESULT] "):]) for line in stderr.getvalue().splitlines() if line.startswith("[CAM-RESULT] ")]
-        self.assertEqual([next(iter(value)) for value in partials], ["battery", "battery", "recordings", "privacy", "detection"])
+        self.assertEqual([next(iter(value)) for value in partials], ["battery", "privacy", "detection", "battery", "recordings"])
         self.assertEqual(partials[0]["battery"]["percent"], 34)
 
 
