@@ -136,3 +136,28 @@ test('MAC normalization accepts separator and case variants', () => {
   assert.equal(normalizeMac('F0:20:ff:04:f0:c9'), MACS.D2);
   assert.equal(normalizeMac('not-a-mac'), null);
 });
+
+test('mobile presence is present on probe or matching neighbor and exposes a ten-minute grace window', async () => {
+  let now = 0;
+  const mobile = { ...item('MOBILE-GINEVRA', 'icmp', '192.0.2.7'), category: 'mobile', identity: { mac: '66:30:6B:C6:BD:66' } };
+  const probes = [true, false, false];
+  const neighbors = ['66:30:6B:C6:BD:66', '66:30:6B:C6:BD:66', null];
+  const runtime = new NetworkPresenceRuntime({ now: () => now, probe: async () => probes.shift(), readNeighbor: async () => neighbors.shift(), networkInterfaces: () => ({}) });
+  const present = await runtime.read(mobile);
+  assert.deepEqual({ state: present.state, visible: present.visible }, { state: 'present', visible: true });
+  now += PRESENCE_CACHE_MS;
+  const grace = await runtime.read(mobile);
+  assert.deepEqual({ state: grace.state, visible: grace.visible }, { state: 'present', visible: true });
+  now += 10 * 60_000;
+  const absent = await runtime.read(mobile);
+  assert.deepEqual({ state: absent.state, visible: absent.visible }, { state: 'absent', visible: false });
+});
+
+test('mobile MAC mismatch is never present and does not inherit grace', async () => {
+  const mobile = { ...item('MOBILE-TABLET-A8', 'icmp', '192.0.2.13'), category: 'mobile', identity: { mac: '9A:54:0E:21:96:28' } };
+  const runtime = new NetworkPresenceRuntime({ probe: async () => true, readNeighbor: async () => MACS.D2, networkInterfaces: () => ({}) });
+  const value = await runtime.read(mobile);
+  assert.equal(value.state, 'absent');
+  assert.equal(value.visible, false);
+  assert.equal(value.identity, 'mismatch');
+});

@@ -118,8 +118,8 @@ test('inventario dispositivi conserva il marker separato dall identita fisica', 
 test('inventory abilita soltanto i nuovi marker LAN richiesti e conserva i MAC confermati', async () => {
   const value = JSON.parse(await readFile(new URL('../data/config/hardware.json', import.meta.url), 'utf8'));
   const inventory = validateHardwareRegistry(value).inventory;
-  assert.equal(inventory.length, 18);
-  assert.deepEqual(inventory.filter(({ presenceEnabled }) => presenceEnabled).map(({ marker }) => marker), ['D1', 'D2', 'D6', 'D7', 'D8', 'D9', 'D10', 'D11', 'D12', 'D14', 'D15', 'D16', 'D17', 'D18']);
+  assert.equal(inventory.length, 23);
+  assert.deepEqual(inventory.filter(({ presenceEnabled }) => presenceEnabled).map(({ marker }) => marker), ['D1', 'D2', 'D6', 'D7', 'D8', 'D9', 'D10', 'D11', 'D12', 'D14', 'D15', 'D16', 'D17', 'D18', 'MOBILE-GINEVRA', 'MOBILE-TABLET-A8', 'MOBILE-MELANIA', 'MOBILE-MANU', 'MOBILE-ALBA']);
   assert.deepEqual(inventory.filter(({ presenceEnabled }) => !presenceEnabled).map(({ marker }) => marker), ['D3', 'D4', 'D5', 'D13']);
   assert.deepEqual(Object.fromEntries(inventory.slice(0, 4).map(({ marker, identity }) => [marker, identity.mac])), {
     D1: '08:8A:F1:31:9E:FF', D2: 'F0:20:FF:04:F0:C9', D3: 'A0:D2:B1:5A:C8:0A', D4: '70:BC:10:4B:AC:C3',
@@ -128,6 +128,10 @@ test('inventory abilita soltanto i nuovi marker LAN richiesti e conserva i MAC c
     D1: { method: 'icmp', timeoutMs: 1500, failureThreshold: 2 }, D2: { method: 'icmp', timeoutMs: 1500, failureThreshold: 2 },
     D7: { method: 'tcp', port: 80, timeoutMs: 1500, failureThreshold: 2 }, D8: { method: 'tcp', port: 80, timeoutMs: 1500, failureThreshold: 2 },
   });
+  assert.deepEqual(inventory.slice(-5).map(({ marker, category, type }) => [marker, category, type]), [
+    ['MOBILE-GINEVRA', 'mobile', 'phone'], ['MOBILE-TABLET-A8', 'mobile', 'tablet'], ['MOBILE-MELANIA', 'mobile', 'phone'], ['MOBILE-MANU', 'mobile', 'phone'],
+    ['MOBILE-ALBA', 'mobile', 'phone'],
+  ]);
 });
 
 test('riconoscimento Dewin Home senza ruoli o stanze hardcoded', () => {

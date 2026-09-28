@@ -7,6 +7,7 @@ const execFileAsync = promisify(execFile);
 export const PRESENCE_CACHE_MS = 30_000;
 export const PRESENCE_FAILURE_THRESHOLD = 2;
 export const PRESENCE_TIMEOUT_MS = 1_500;
+export const MOBILE_PRESENCE_GRACE_MS = 10 * 60_000;
 
 async function probeIcmp({ ip, timeoutMs }) {
   const args = process.platform === 'win32'
@@ -67,12 +68,48 @@ export class NetworkPresenceRuntime {
     return `${item.marker}:${item.network?.ipv4 || ''}:${item.presence?.method || ''}:${item.presence?.port || ''}`;
   }
 
+  async observedMac(item) {
+    const localInterface = localInterfaceForIp(item.network.ipv4, this.networkInterfaces);
+    if (localInterface) return { mac: normalizeMac(localInterface.mac), identity: 'local' };
+    try { return { mac: normalizeMac(await this.readNeighbor(item.network.ipv4)), identity: 'arp' }; }
+    catch { return { mac: null, identity: 'missing' }; }
+  }
+
+  async readMobile(item, key) {
+    const previous = this.cache.get(key)?.value;
+    let reachable = false;
+    try { reachable = await this.probe(item) === true; } catch { /* A failed probe is handled by the grace window. */ }
+    const observed = await this.observedMac(item);
+    const expectedMac = normalizeMac(item.identity?.mac);
+    const checkedAt = new Date(this.now()).toISOString();
+    if (expectedMac && observed.mac && observed.mac !== expectedMac) {
+      const value = { state: 'absent', visible: false, lastConfirmedAt: null, checkedAt, mac: observed.mac, identity: 'mismatch' };
+      this.cache.set(key, { value, expiresAt: this.now() + this.cacheMs });
+      return value;
+    }
+    if (expectedMac && observed.mac === expectedMac && (reachable || observed.identity === 'arp' || observed.identity === 'local')) {
+      const value = { state: 'present', visible: true, lastConfirmedAt: checkedAt, checkedAt, mac: observed.mac, identity: observed.identity };
+      this.cache.set(key, { value, expiresAt: this.now() + this.cacheMs });
+      return value;
+    }
+    const lastConfirmed = Date.parse(previous?.lastConfirmedAt || '');
+    const withinGrace = Number.isFinite(lastConfirmed) && this.now() - lastConfirmed < MOBILE_PRESENCE_GRACE_MS;
+    const value = { state: withinGrace ? 'unknown' : 'absent', visible: withinGrace, lastConfirmedAt: withinGrace ? previous.lastConfirmedAt : null, checkedAt, mac: observed.mac, identity: observed.mac ? 'unconfirmed' : 'missing' };
+    this.cache.set(key, { value, expiresAt: this.now() + this.cacheMs });
+    return value;
+  }
+
   async read(item) {
     if (item?.presenceEnabled !== true || !item.presence?.method || !item.network?.ipv4) return null;
     const key = this.key(item);
     const cached = this.cache.get(key);
     if (cached && this.now() < cached.expiresAt) return cached.value;
     if (this.pending.has(key)) return this.pending.get(key);
+    if (item.category === 'mobile') {
+      const pending = this.readMobile(item, key).finally(() => this.pending.delete(key));
+      this.pending.set(key, pending);
+      return pending;
+    }
     const pending = Promise.resolve(this.probe(item)).then(async reachable => {
       const previous = this.cache.get(key)?.value;
       const threshold = item.presence.failureThreshold ?? this.failureThreshold;

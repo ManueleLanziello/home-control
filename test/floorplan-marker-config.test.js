@@ -48,17 +48,19 @@ function labelStart(nodes, label) {
 }
 
 test('mapping SVG aggiornati usano label semantiche, non geometrie fragili', async () => {
-  const [lights, sensors, boiler, weather, clock] = await Promise.all(['LAYER-07-LUCI.svg', 'LAYER-08-SENSORI.svg', 'LAYER-10-CALDAIA.svg', 'LAYER-13-METEO.svg', 'LAYER-22-OROLOGIO.svg'].map(labelsIn));
+  const [lights, sensors, boiler, weather, clock, devices] = await Promise.all(['LAYER-07-LUCI.svg', 'LAYER-08-SENSORI.svg', 'LAYER-10-CALDAIA.svg', 'LAYER-13-METEO.svg', 'LAYER-22-OROLOGIO.svg', 'LAYER-DISPOSITIVI.svg'].map(labelsIn));
   for (const id of ['L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7', 'L8', 'L9', 'L10', 'L11', 'L12']) assert.equal(includesLabel(lights.labels, id), true, id);
   for (const id of ['S1', 'S2', 'S3', 'S4', 'S5', 'LS1', 'LS2', 'LS3', 'LS4', 'LS5']) assert.equal(includesLabel(sensors.labels, id), true, id);
   for (const id of ['D1', 'QD1']) assert.equal(includesLabel(boiler.labels, id), true, id);
   for (const id of ['M1', 'QM1', 'LM1']) assert.equal(includesLabel(weather.labels, id), true, id);
   assert.equal(includesLabel(clock.labels, 'CLK1'), true);
+  assert.equal(includesLabel(devices.labels, 'DM'), true);
   assert.deepEqual(floorplanConfig.lights.map(light => light.id), ['L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7', 'L8', 'L9', 'L10', 'L11', 'L12']);
   assert.deepEqual(floorplanConfig.rooms.map(room => room.lightId), ['L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7']);
   assert.deepEqual(floorplanConfig.lights.slice(7).map(light => light.localOnly), [true, true, true, true, true]);
   assert.deepEqual(floorplanConfig.sensors.map(sensor => [sensor.reading.label, sensor.humidityReading?.label || null]), [['LS1', 'LU1'], ['LS2', 'LU2'], ['LS3', null], ['LS4', 'LU4'], ['LS5', null]]);
   for (const marker of [...floorplanConfig.lights, ...floorplanConfig.sensors].map(item => item.marker).concat(floorplanConfig.boiler.marker, floorplanConfig.boiler.card, floorplanConfig.weather.marker, floorplanConfig.weather.card, floorplanConfig.weather.temperatureLabel, floorplanConfig.clock.marker)) assert.ok(marker.label);
+  assert.deepEqual(floorplanConfig.mobileMonitor, { marker: { label: 'DM' }, icons: { phone: 'phone.svg', tablet: 'tablet.svg' } });
 });
 
 test('L1-L7 mantengono i layer, L8-L12 sono toggle UI locali', () => {
@@ -76,6 +78,20 @@ test('L1-L7 mantengono i layer, L8-L12 sono toggle UI locali', () => {
   assert.equal(floorplanConfig.rooms.some(room => room.lightId === 'L12'), false);
   assert.deepEqual(floorplanConfig.rooms.at(-1), { lightId: 'L7', on: 'LAYER-11-ON.svg', off: 'LAYER-11-OFF.svg', optional: true });
   assert.doesNotMatch(JSON.stringify(floorplanConfig.rooms), /LAYER-L7-ON\.svg/);
+});
+
+test('DM resta un contenitore fisso e usa esclusivamente le righe mobile configurate', async () => {
+  const [floorplan, css] = await Promise.all([
+    readFile(new URL('../public/js/floorplan.js', import.meta.url), 'utf8'),
+    readFile(new URL('../public/floorplan.css', import.meta.url), 'utf8'),
+  ]);
+  assert.match(floorplan, /placeHtml\(deviceMapping, config\.mobileMonitor\.marker, mobileMonitor\)/);
+  assert.match(floorplan, /mobileMonitor\.replaceChildren\(\)/);
+  assert.match(floorplan, /mobile\.visible !== true \|\| mobile\.presence === 'absent'/);
+  assert.match(css, /\.floorplan-mobile-monitor \{[^}]*container-type: size;[^}]*width: 100%; height: 100%;/);
+  assert.match(css, /\.floorplan-mobile-monitor-row \{[^}]*flex: 0 0 17%;/);
+  assert.match(css, /\.floorplan-mobile-monitor-row img \{[^}]*width: 19%; height: 90%;/);
+  assert.match(css, /\.floorplan-mobile-monitor-row span \{[^}]*5\.5cqh/);
 });
 
 test('L8-L12 usano overlay full-plan indipendenti e conservano lo stato attraverso il cambio base', () => {

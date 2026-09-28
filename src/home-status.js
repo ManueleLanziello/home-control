@@ -13,6 +13,19 @@ export const HOME_ROLES = Object.freeze({
 const MAX_AGE_MS = 90_000;
 const finite = value => Number.isFinite(value) ? value : null;
 const bool = value => typeof value === 'boolean' ? value : null;
+export function normalizeMobilePresence(inventory = [], presence = {}) {
+  return inventory.filter(item => item.category === 'mobile').map(item => {
+    const value = presence[item.marker] || {};
+    return {
+      id: item.marker,
+      alias: item.name,
+      type: item.type || 'phone',
+      presence: ['present', 'unknown', 'absent'].includes(value.state) ? value.state : 'unknown',
+      visible: value.visible === true,
+      lastConfirmedAt: value.lastConfirmedAt || null,
+    };
+  });
+}
 function fresh(timestamp, now) {
   const age = now - Date.parse(timestamp);
   return Number.isFinite(age) && age >= -5000 && age <= MAX_AGE_MS;
@@ -101,6 +114,7 @@ export class HomeStatusRuntime {
         inventory.filter(item => ['D1', 'D2', 'D7', 'D8'].includes(item.marker)),
         { presence }, this.now(),
       ));
+      snapshot.mobileDevices = normalizeMobilePresence(inventory, presence);
       if (this.readCameras) {
         try {
           snapshot.cameras = await this.readCameras();
@@ -175,11 +189,13 @@ export class HomeStatusRuntime {
     try { ledbar = this.readZigbeeLedbar?.(); } catch { /* MQTT must not block the Home snapshot. */ }
     const inventoryDewin = await inventoryDewinRead;
     const presence = await presenceRead;
+    const deviceInventory = inventory.filter(item => item.category !== 'mobile');
     const snapshot = { updatedAt: new Date(this.now()).toISOString(), sensors, thermostat, hood,
       ledbar: ledbar || { id: 'LB1', name: 'SmartHomeLB1', state: null, brightness: null, online: false, available: false, updatedAt: null },
       lights: Object.fromEntries(Object.entries(values).filter(([id]) => id.startsWith('L'))),
       cameras,
-      devices: normalizeDeviceStatuses(inventory, { selfOnline: true, ledbar, hood, thermostat, cameras, zigbee: zigbeeSensors, dewin: inventoryDewin, presence }, this.now()),
+      devices: normalizeDeviceStatuses(deviceInventory, { selfOnline: true, ledbar, hood, thermostat, cameras, zigbee: zigbeeSensors, dewin: inventoryDewin, presence }, this.now()),
+      mobileDevices: normalizeMobilePresence(inventory, presence),
       // S3 alone is the WT200 room reading, not a whole-house average.
       averageTemperature: indoors.length > 1 ? indoors.reduce((a,b)=>a+b,0)/indoors.length : null,
       indoorSensorCount: indoors.length,

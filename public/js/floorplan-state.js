@@ -15,6 +15,7 @@ export function createFloorplanState() {
     hood: { online: false, power: null, fanSpeed: null, light: null, operatingStatus: null, updatedAt: null },
     ledbar: { state: null, brightness: null, online: false, available: false, updatedAt: null },
     devices: {},
+    mobileDevices: [],
   };
   const listeners = new Set();
   const cameraReadBackAt = new Map();
@@ -115,6 +116,7 @@ export function createFloorplanState() {
       applyHood(home.hood);
       if (home.ledbar) state.ledbar = { ...state.ledbar, ...home.ledbar };
       if (home.devices && typeof home.devices === 'object') state.devices = structuredClone(home.devices);
+      state.mobileDevices = Array.isArray(home.mobileDevices) ? structuredClone(home.mobileDevices) : [];
       for (const listener of listeners) listener(this.snapshot());
     },
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },

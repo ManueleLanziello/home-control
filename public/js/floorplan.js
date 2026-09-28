@@ -436,7 +436,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     const response = await fetch(homeControlPath('/api/floorplan/assets'), { cache: 'no-store' });
     if (!response.ok) throw new Error('Elenco asset non disponibile');
     const assets = new Set((await response.json()).assets);
-    const required = [...Object.values(config.backgrounds), ...config.rooms.filter(room => !room.optional).flatMap(room => [room.on, room.off]), ...Object.values(config.mappings).filter(name => name !== config.mappings.clock), ...Object.values(config.ledbar.layers), ...Object.values(config.cameraEventLayers), config.icons.ledbarOn, config.icons.ledbarOff, config.icons.cappaOn, config.icons.cappaOff];
+    const required = [...Object.values(config.backgrounds), ...config.rooms.filter(room => !room.optional).flatMap(room => [room.on, room.off]), ...Object.values(config.mappings).filter(name => name !== config.mappings.clock), ...Object.values(config.ledbar.layers), ...Object.values(config.cameraEventLayers), config.icons.ledbarOn, config.icons.ledbarOff, config.icons.cappaOn, config.icons.cappaOff, ...Object.values(config.mobileMonitor.icons)];
     const missing = required.filter(name => !assets.has(name));
     if (missing.length) throw new Error('Asset planimetria mancanti: ' + missing.join(', '));
     const imageLayers = new Map();
@@ -546,6 +546,10 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
       placeHtml(deviceMapping, device.marker, element);
       deviceMarkers.set(device.id, element);
     }
+    const mobileMonitor = document.createElement('div');
+    mobileMonitor.className = 'floorplan-mobile-monitor';
+    mobileMonitor.setAttribute('aria-label', 'Dispositivi mobili');
+    placeHtml(deviceMapping, config.mobileMonitor.marker, mobileMonitor);
     const sensorReadings = new Map();
     const sensorHumidityReadings = new Map();
     const sensorTypography = { fontSize: sensorReadingFontSize(sensorMapping.box(config.sensors.find(sensor => sensor.id === 'S3').reading)) };
@@ -804,6 +808,19 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
         marker.dataset.deviceStatus = deviceState.status;
         marker.dataset.presenceEnabled = String(deviceState.presenceEnabled === true);
         marker.setAttribute('aria-label', `Stato dispositivo ${device.id}: ${deviceState.status}`);
+      }
+      mobileMonitor.replaceChildren();
+      for (const mobile of state.mobileDevices || []) {
+        if (mobile.visible !== true || mobile.presence === 'absent') continue;
+        const row = document.createElement('div');
+        row.className = 'floorplan-mobile-monitor-row';
+        const icon = document.createElement('img');
+        icon.alt = '';
+        icon.src = assetUrl(config.mobileMonitor.icons[mobile.type] || config.mobileMonitor.icons.phone);
+        const alias = document.createElement('span');
+        alias.textContent = mobile.alias || 'Dispositivo mobile';
+        row.append(icon, alias);
+        mobileMonitor.append(row);
       }
       const ledbarLayer = ledbarLayerFor(ledbar);
       for (const [key, name] of Object.entries(config.ledbar.layers)) imageLayers.get(name).hidden = key !== ledbarLayer;

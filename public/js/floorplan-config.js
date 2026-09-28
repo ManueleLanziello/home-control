@@ -11,6 +11,7 @@ export const floorplanConfig = {
   }).concat({ lightId: 'L7', on: 'LAYER-11-ON.svg', off: 'LAYER-11-OFF.svg', optional: true }),
   mappings: { lights: 'LAYER-07-LUCI.svg', sensors: 'LAYER-08-SENSORI.svg', cameras: 'LAYER-09-CAM.svg', boiler: 'LAYER-10-CALDAIA.svg', cappa: 'LAYER-12-CAPPA.svg', weather: 'LAYER-13-METEO.svg', integration: 'LAYER-16-INTEGRAZIONE.svg', ledbar: 'LAYER-17-LED.svg', devices: 'LAYER-DISPOSITIVI.svg', clock: 'LAYER-22-OROLOGIO.svg' },
   clock: { marker: labeledMarker('CLK1') },
+  mobileMonitor: { marker: labeledMarker('DM'), icons: { phone: 'phone.svg', tablet: 'tablet.svg' } },
   ledbar: {
     id: 'LB1',
     marker: exactShape('path[d^="M2157.5 1888C2157.5 1836.36"]'),
