@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
-import { cameraDiagnostic } from '../src/camera-diagnostics.js';
 import { EventEmitter } from 'node:events';
 import { readCameraTelemetry } from '../src/camera-telemetry.js';
 import { HomeCameraRuntime } from '../src/camera-runtime.js';
@@ -99,16 +98,7 @@ test('last-known alarm is not reconfirmed and final JSON does not retimestamp pr
   assert.equal(cached.controlUpdatedAt.detection, 3000);
 });
 
-test('diagnostic logging is payload-free and cannot throw into Live', async () => {
-  const original = console.error;
-  const lines = [];
-  try {
-    console.error = line => lines.push(line);
-    cameraDiagnostic('C2', performance.timeOrigin + performance.now(), 'telemetry start');
-    assert.match(lines[0], /^\[CAM-DIAG\] C2 .* telemetry start OK$/);
-    console.error = () => { throw Error('log unavailable'); };
-    assert.doesNotThrow(() => cameraDiagnostic('C1', 0, 'ready'));
-  } finally { console.error = original; }
+test('Live retains the 8 second telemetry budget and a single read', async () => {
   const runtime = await readFile(new URL('../src/camera-runtime.js', import.meta.url), 'utf8');
   assert.match(runtime, /cameraProbeTimeoutMs = 8_000/);
   assert.equal((runtime.match(/await this\.readTelemetry\(/g) || []).length, 1);

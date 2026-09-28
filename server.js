@@ -256,7 +256,6 @@ export function createHomeControlServer({
       if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
       try {
         const snapshot = await homeStatus.readSnapshot();
-        cameras.diagnoseHomeStatus?.(snapshot);
         return sendJson(response, 200, snapshot);
       }
       catch { return sendJson(response, 503, { error: 'Stato casa non disponibile' }); }

@@ -7,7 +7,6 @@ import { readCameraAlarm, setCameraAlarm } from './camera-alarm.js';
 import { readCameraEvents, normalizeCameraEvents } from './camera-events.js';
 import { readCameraRecording } from './camera-recording.js';
 import { CameraOperationQueue } from './camera-operation-queue.js';
-import { cameraDiagnostic, cameraDiagnosticStart } from './camera-diagnostics.js';
 
 export const OWNED_CAMERA_ADAPTER = 'tapo-c410-owned';
 export const CAMERA_ROLE_MAP = Object.freeze({ C1: 'camera_terrazzo', C2: 'camera_pond', C3: 'camera_giardino' });
@@ -26,7 +25,6 @@ export class HomeCameraRuntime {
   constructor({ hardwareStore, roleStore, root, env = process.env, readTelemetry = readCameraTelemetry, readDetection = readCameraDetection, setDetection = setCameraDetection, readPrivacy = readCameraPrivacy, setPrivacy = setCameraPrivacy, readAlarm = readCameraAlarm, setAlarm = setCameraAlarm, readEvents = readCameraEvents, readRecording = readCameraRecording, now = Date.now, telemetryTtlMs = CAMERA_TELEMETRY_TTL_MS, cameraProbeTimeoutMs = 8_000, recordingTtlMs = RECORDING_CACHE_TTL_MS }) {
     Object.assign(this, { hardwareStore, roleStore, root, env, readTelemetry, readDetection, setDetection, readPrivacy, setPrivacy, readAlarm, setAlarm, readEvents, readRecording, now, telemetryTtlMs, cameraProbeTimeoutMs, recordingTtlMs });
     this.telemetryCache = new Map();
-    this.liveDiagnostics = new Map();
     this.detectionPending = new Map();
     this.privacyPending = new Map();
     this.alarmPending = new Map();
@@ -79,9 +77,6 @@ export class HomeCameraRuntime {
 
   async refreshTelemetryForLive(record) {
     const signature = `${record.id}:${record.connection?.ip || ''}`;
-    const diagnostic = this.liveDiagnostics.get(record.id);
-    const log = (phase, outcome) => { if (diagnostic) cameraDiagnostic(diagnostic.role, diagnostic.startedAt, phase, outcome); };
-    log('telemetry start');
     const receivedFields = new Set();
     const apply = value => {
       const latest = this.telemetryCache.get(record.id);
@@ -98,11 +93,9 @@ export class HomeCameraRuntime {
         battery: value.battery?.available ? value.battery : previous.battery,
         events: value.events?.available ? value.events : previous.events,
         recordings: value.recordings?.available ? value.recordings : previous.recordings }, controlUpdatedAt, expiresAt: this.now() + this.telemetryTtlMs });
-      if (diagnostic) diagnostic.telemetryUpdatedAt = value.telemetryUpdatedAt;
-      log('telemetry cache updated');
     };
     try {
-      const value = await this.readTelemetry({ ip: record.connection?.ip, root: this.root, env: this.env, now: this.now(), timeoutMs: this.cameraProbeTimeoutMs, diagnostic, onPartial: update => {
+      const value = await this.readTelemetry({ ip: record.connection?.ip, root: this.root, env: this.env, now: this.now(), timeoutMs: this.cameraProbeTimeoutMs, onPartial: update => {
         for (const field of Object.keys(update)) if (field !== 'telemetryUpdatedAt') receivedFields.add(field);
         apply(update);
       } });
@@ -110,17 +103,7 @@ export class HomeCameraRuntime {
       // The final document must not reconfirm fields already delivered by their getter.
       const remaining = Object.fromEntries(Object.entries(snapshot).filter(([field]) => field !== 'telemetryUpdatedAt' && !receivedFields.has(field)));
       if (Object.keys(remaining).length) apply({ ...remaining, telemetryUpdatedAt: snapshot.telemetryUpdatedAt });
-      log('telemetry complete', telemetryOutcome || 'OK');
-    } catch (error) { log('telemetry complete', error?.killed ? 'TIMEOUT' : 'FAIL'); /* Optional telemetry cannot break Live. */ }
-  }
-
-  diagnoseHomeStatus(snapshot) {
-    for (const diagnostic of this.liveDiagnostics.values()) {
-      if (!diagnostic.reported && diagnostic.telemetryUpdatedAt && snapshot.cameras?.[diagnostic.role]?.telemetryUpdatedAt === diagnostic.telemetryUpdatedAt) {
-        diagnostic.reported = true;
-        cameraDiagnostic(diagnostic.role, diagnostic.startedAt, 'home/status first telemetry response');
-      }
-    }
+    } catch { /* Optional telemetry cannot break Live. */ }
   }
 
   async reconcile() {
@@ -161,30 +144,20 @@ export class HomeCameraRuntime {
 
   async imagePath(role) { await this.reconcile(); return this.owned.imagePath(CAMERA_ROLE_MAP[role]); }
   async setLive(role, active) {
-    const receivedAt = cameraDiagnosticStart();
-    cameraDiagnostic(role, receivedAt, active ? 'Live ON received' : 'Live OFF received');
     const { registry, assignments } = await this.reconcile();
     const record = registry.devices.find(device => assignments[device.id] === CAMERA_ROLE_MAP[role] && device.metadata?.adapter === OWNED_CAMERA_ADAPTER);
     if (!record || !this.owned.has(record.id)) throw new Error('Camera non disponibile');
-    if (active) this.liveDiagnostics.set(record.id, { role, startedAt: receivedAt });
-    const diagnostic = this.liveDiagnostics.get(record.id) || { role, startedAt: receivedAt };
-    if (!active) cameraDiagnostic(role, diagnostic.startedAt, 'Live OFF received (session relative)');
     try {
       await this.operations.run(record.id, async () => {
         if (active) {
-          cameraDiagnostic(role, diagnostic.startedAt, 'CameraManager.start begin');
           await this.owned.start(CAMERA_ROLE_MAP[role]);
-          cameraDiagnostic(role, diagnostic.startedAt, 'CameraManager ready observed');
           this.noteContact(record, true);
           await this.refreshTelemetryForLive(record);
         } else {
-          cameraDiagnostic(role, diagnostic.startedAt, 'CameraManager.stop begin');
           await this.owned.stop(CAMERA_ROLE_MAP[role]);
-          cameraDiagnostic(role, diagnostic.startedAt, 'stream worker stopped');
         }
       });
     } catch (error) {
-      cameraDiagnostic(role, diagnostic.startedAt, active ? 'Live start failed' : 'Live stop failed', error?.code === 'TIMEOUT' ? 'TIMEOUT' : 'FAIL');
       if (active) this.noteContact(record, false);
       throw error;
     }

@@ -11,7 +11,7 @@ import unittest
 from unittest.mock import patch
 
 
-class DiagnosticsTest(unittest.TestCase):
+class TelemetryWorkerTest(unittest.TestCase):
     def test_getter_order_json_and_stderr(self):
         calls = []
 
@@ -47,7 +47,7 @@ class DiagnosticsTest(unittest.TestCase):
             spec = importlib.util.spec_from_file_location("telemetry", Path(__file__).resolve().parents[1] / "src/camera-readonly-telemetry.py")
             worker = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(worker)
-        with patch.dict(os.environ, {"TAPO_USERNAME": "SECRET", "TAPO_PASSWORD": "SECRET", "CAM_DIAG_ROLE": "C2", "CAM_DIAG_STARTED_AT": "0"}), patch.object(sys, "argv", ["worker", "--ip", "fixture", "--date", "20260928"]):
+        with patch.dict(os.environ, {"TAPO_USERNAME": "SECRET", "TAPO_PASSWORD": "SECRET"}), patch.object(sys, "argv", ["worker", "--ip", "fixture", "--date", "20260928"]):
             stdout, stderr = io.StringIO(), io.StringIO()
             with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
                 self.assertEqual(worker.main(), 0)
@@ -55,10 +55,7 @@ class DiagnosticsTest(unittest.TestCase):
         payload = json.loads(stdout.getvalue())
         self.assertEqual(payload["battery"]["percent"], 34)
         self.assertFalse(payload["alarm"]["available"])
-        self.assertNotIn("CAM-DIAG", stdout.getvalue())
         self.assertNotIn("SECRET", stderr.getvalue())
-        self.assertIn("getter getAlarm end", stderr.getvalue())
-        self.assertIn("FAIL", stderr.getvalue())
         partials = [json.loads(line[len("[CAM-RESULT] "):]) for line in stderr.getvalue().splitlines() if line.startswith("[CAM-RESULT] ")]
         self.assertEqual([next(iter(value)) for value in partials], ["battery", "privacy", "detection", "battery", "recordings"])
         self.assertEqual(partials[0]["battery"]["percent"], 34)

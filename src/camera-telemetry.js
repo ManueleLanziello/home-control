@@ -1,7 +1,6 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import path from 'node:path';
-import { writeCameraDiagnostic } from './camera-diagnostics.js';
 import { defaultCameraPython } from '@smarthome/core';
 
 const execFileAsync = promisify(execFile);
@@ -63,12 +62,12 @@ export function normalizeCameraTelemetry(payload, now = Date.now()) {
   };
 }
 
-export async function readCameraTelemetry({ ip, root, env = process.env, now = Date.now(), timeoutMs = 45_000, diagnostic, onPartial, execute = execFileAsync }) {
+export async function readCameraTelemetry({ ip, root, env = process.env, now = Date.now(), timeoutMs = 45_000, onPartial, execute = execFileAsync }) {
   const dates = recordingDatesForWindow(now);
   const worker = path.join(root, 'src', 'camera-readonly-telemetry.py');
   const execution = execute(defaultCameraPython(root, { env }), [worker, '--ip', ip, ...dates.flatMap(date => ['--date', date])], {
     cwd: root,
-    env: diagnostic ? { ...env, CAM_DIAG_ROLE: diagnostic.role, CAM_DIAG_STARTED_AT: String(diagnostic.startedAt) } : env,
+    env,
     windowsHide: true,
     timeout: timeoutMs,
     maxBuffer: 2 * 1024 * 1024,
@@ -80,7 +79,6 @@ export async function readCameraTelemetry({ ip, root, env = process.env, now = D
       pending += chunk.toString();
       const lines = pending.split('\n'); pending = lines.pop();
       for (const line of lines) {
-        if (diagnostic && line.startsWith('[CAM-DIAG]')) writeCameraDiagnostic(line);
         if (line.startsWith('[CAM-RESULT] ')) {
           try {
             const update = JSON.parse(line.slice(13));
@@ -98,7 +96,6 @@ export async function readCameraTelemetry({ ip, root, env = process.env, now = D
   try { ({ stdout } = await execution); }
   catch (error) {
     if (!Object.keys(partial).length) throw error;
-    if (diagnostic) writeCameraDiagnostic(`[CAM-DIAG] ${diagnostic.role} ${new Date().toISOString()} +${((Date.now() - diagnostic.startedAt) / 1000).toFixed(3)}s telemetry partial ${error?.killed ? 'TIMEOUT' : 'FAIL'}`);
     return { ...normalized(partial), telemetryOutcome: error?.killed ? 'TIMEOUT' : 'FAIL' };
   }
   const payload = JSON.parse(stdout);
