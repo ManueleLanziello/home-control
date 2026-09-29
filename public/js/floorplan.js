@@ -439,7 +439,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     const response = await fetch(homeControlPath('/api/floorplan/assets'), { cache: 'no-store' });
     if (!response.ok) throw new Error('Elenco asset non disponibile');
     const assets = new Set((await response.json()).assets);
-    const required = [...Object.values(config.backgrounds), ...config.rooms.filter(room => !room.optional).flatMap(room => [room.on, room.off]), ...Object.values(config.mappings).filter(name => name !== config.mappings.clock), ...Object.values(config.ledbar.layers), ...Object.values(config.cameraEventLayers), config.icons.ledbarOn, config.icons.ledbarOff, config.icons.cappaOn, config.icons.cappaOff, ...Object.values(config.mobileMonitor.icons)];
+    const required = [...Object.values(config.backgrounds), ...config.rooms.filter(room => !room.optional).flatMap(room => [room.on, room.off]), ...Object.values(config.mappings).filter(name => name !== config.mappings.clock), ...Object.values(config.ledbar.layers), ...Object.values(config.cameraEventLayers), config.icons.ledbarOn, config.icons.ledbarOff, config.icons.cappaOn, config.icons.cappaOff, config.icons.pondPumpOn, config.icons.pondPumpOff, config.icons.pondHeaterOn, config.icons.pondHeaterOff, config.icons.pondManual, config.icons.pondThermostat, ...Object.values(config.mobileMonitor.icons)];
     const missing = required.filter(name => !assets.has(name));
     if (missing.length) throw new Error('Asset planimetria mancanti: ' + missing.join(', '));
     const imageLayers = new Map();
@@ -497,7 +497,9 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     const ledbarMapping = await loadMapping(config.mappings.ledbar, stage); mappings.push(ledbarMapping);
     const deviceMapping = await loadMapping(config.mappings.devices, stage); mappings.push(deviceMapping);
     const pondMapping = await loadMapping(config.mappings.pond, stage); mappings.push(pondMapping);
-    const { initPondPopup } = await import('./pond-popup.js'); const openPond = initPondPopup();
+    const { createPondControls, initPondPopup, pondRoleState } = await import('./pond-popup.js');
+    const pondControls = createPondControls();
+    const openPond = initPondPopup(pondControls);
     // The decorative clock is isolated: any asset, marker or module failure leaves the Dashboard available.
     try {
       const { createFloorplanClock } = await import('./floorplan-clock.js');
@@ -663,6 +665,33 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     pondIcon.append(createIcon(assets, 'pond.svg', 'P'));
     pondIcon.addEventListener('click', () => { void openPond(); });
     placeHtml(pondMapping, config.pond.marker, pondIcon);
+    const pondMarkers = new Map();
+    for (const [role, marker] of Object.entries(config.pond.controls)) {
+      const element = markerElement(role === 'mode' ? 'Modalità Pond: manuale' : `${role === 'pump' ? 'Pompa Filtro' : 'Riscaldatore'} Pond`, role !== 'mode');
+      element.classList.add('floorplan-marker-pond-control');
+      if (role !== 'mode') element.addEventListener('click', () => { void pondControls.toggle(role); });
+      placeHtml(pondMapping, marker, element, role !== 'mode');
+      pondMarkers.set(role, element);
+    }
+    const renderPondControls = plugs => {
+      for (const role of ['pump', 'heater']) {
+        const current = pondRoleState(plugs, role);
+        const marker = pondMarkers.get(role);
+        marker.disabled = !current.known || pondControls.pending(role);
+        marker.dataset.available = String(current.known);
+        marker.dataset.on = String(current.on);
+        marker.setAttribute('aria-pressed', String(current.on));
+        marker.setAttribute('aria-label', `${role === 'pump' ? 'Pompa Filtro' : 'Riscaldatore'} Pond: ${current.state || 'stato non disponibile'}`);
+        marker.replaceChildren(createIcon(assets, current.known ? (current.on ? (role === 'pump' ? config.icons.pondPumpOn : config.icons.pondHeaterOn) : (role === 'pump' ? config.icons.pondPumpOff : config.icons.pondHeaterOff)) : null, '—'));
+      }
+      const mode = pondMarkers.get('mode');
+      mode.dataset.mode = 'manual';
+      mode.setAttribute('aria-label', 'Modalità Pond: manuale');
+      mode.replaceChildren(createIcon(assets, config.icons.pondManual, 'M'));
+    };
+    pondControls.subscribe(renderPondControls);
+    renderPondControls(pondControls.snapshot());
+    void pondControls.refresh().catch(() => {});
     const mini = document.createElement('div');
     mini.className = 'floorplan-boiler-mini';
     const open = document.createElement('button');

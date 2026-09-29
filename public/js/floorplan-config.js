@@ -22,7 +22,7 @@ export const floorplanConfig = {
     title: exactShape('rect[x="260.5"][y="1039.5"][width="750"][height="130"]'),
     options: exactShape('rect[x="1026.5"][y="1039.5"][width="175"][height="130"]'),
   },
-  icons: { lightOn: 'lampon.svg', lightOff: 'lampoff.svg', ledbarOn: 'ledbaron.svg', ledbarOff: 'ledbaroff.svg', sensor: 'temp.svg', camera: 'cam.svg', privacyOn: 'privacyon.svg', privacyOff: 'privacyoff.svg', detectionOn: 'rilevon.svg', detectionOff: 'rilevoff.svg', alarmOn: 'alarmon.svg', alarmOff: 'alarmoff.svg', batteryEmpty: 'solar-panel-battery-empty.svg', batteryLow: 'solar-panel-battery-low.svg', batteryHalf: 'solar-panel-battery-half.svg', batteryHalf2: 'solar-panel-battery-half2.svg', batteryFull: 'solar-panel-battery-full.svg', batteryCharging: 'solar-panel-battery-charging.svg', boiler: 'boiler.svg', cappaOn: 'CAPPAON.svg', cappaOff: 'CAPPAOFF.svg' },
+  icons: { lightOn: 'lampon.svg', lightOff: 'lampoff.svg', ledbarOn: 'ledbaron.svg', ledbarOff: 'ledbaroff.svg', sensor: 'temp.svg', camera: 'cam.svg', privacyOn: 'privacyon.svg', privacyOff: 'privacyoff.svg', detectionOn: 'rilevon.svg', detectionOff: 'rilevoff.svg', alarmOn: 'alarmon.svg', alarmOff: 'alarmoff.svg', batteryEmpty: 'solar-panel-battery-empty.svg', batteryLow: 'solar-panel-battery-low.svg', batteryHalf: 'solar-panel-battery-half.svg', batteryHalf2: 'solar-panel-battery-half2.svg', batteryFull: 'solar-panel-battery-full.svg', batteryCharging: 'solar-panel-battery-charging.svg', boiler: 'boiler.svg', cappaOn: 'CAPPAON.svg', cappaOff: 'CAPPAOFF.svg', pondPumpOn: 'pumpon.svg', pondPumpOff: 'pumpoff.svg', pondHeaterOn: 'heateron.svg', pondHeaterOff: 'heateroff.svg', pondManual: 'manual.svg', pondThermostat: 'auto.svg' },
   // Semantic labels survive a geometry-only edit of their mapping SVG.
   lights: ['CUCINA', 'CAMERA', 'SALOTTO', 'DISIMPEGNO', 'BAGNO', 'CAMERETTA', 'GAZEBO', 'ESTERNO 8', 'ESTERNO 9', 'ESTERNO 10', 'ESTERNO 11', 'ESTERNO 12'].map((room, index) => ({ id: 'L' + (index + 1), room, marker: labeledMarker('L' + (index + 1)), ...(index >= 7 ? { localOnly: true } : {}) })),
   // These are full-plan graphical effects, not marker-sized light layers.
@@ -45,7 +45,7 @@ export const floorplanConfig = {
   devices: Array.from({ length: 18 }, (_, index) => ({ id: `D${index + 1}`, marker: labeledMarker(String(index + 1)) })),
   boiler: { marker: labeledMarker('D1'), card: labeledMarker('QD1'), target: '.boiler-card', settings: '.boiler-settings-link' },
   cappa: { id: 'K1', marker: marker(0) },
-  pond: { marker: labeledMarker('P1') },
+  pond: { marker: labeledMarker('P1'), controls: { pump: labeledMarker('P1a'), heater: labeledMarker('P1b'), mode: labeledMarker('P1c') } },
   // Semantic SVG labels remain stable when a weather reference is moved in the design.
   weather: {
     marker: labeledMarker('M1'),
