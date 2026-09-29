@@ -21,6 +21,10 @@ test('P105 runtime is shared-core based and preserves polling/read-back semantic
   const state = new Map([['pump', true], ['heater', false]]); const runtime = createPondPlugRuntime({ devices: [plug('pump', '192.0.2.1'), plug('heater', '192.0.2.2')], createClient: device => ({ async getDeviceInfo() { return { device_on: state.get(device.id) }; }, async setDeviceOn(on) { state.set(device.id, on); }, close() {} }), setIntervalFn: () => 1, clearIntervalFn: () => {} });
   await runtime.pollAll(); assert.equal(runtime.snapshot('pump').state, 'ON'); await runtime.setDeviceOn('heater', true); assert.equal(runtime.snapshot('heater').state, 'ON'); runtime.stop();
 });
+test('P105 runtime passes injected credentials only to its client factory', async () => {
+  let options; const runtime = createPondPlugRuntime({ devices: [plug('pump', '192.0.2.1')], username: 'fake-user', password: 'fake-password', createClient: input => { options = input; return { async getDeviceInfo() { return { device_on: false }; }, close() {} }; } });
+  try { await runtime.read('pump'); assert.equal(options.username, 'fake-user'); assert.equal(options.password, 'fake-password'); assert.equal(options.ip, '192.0.2.1'); assert.equal(Object.hasOwn(runtime.deviceList[0], 'password'), false); } finally { runtime.stop(); }
+});
 test('pond safety requires a fresh ON pump and confirms heater OFF before pump OFF', async () => {
   const dir = await mkdtemp(path.join(os.tmpdir(), 'pond-role-')); const ids = ['pump', 'heater']; const roles = new DeviceRoleStore({ filePath: path.join(dir, 'roles.json') });
   const state = new Map([['pump', true], ['heater', true]]); const runtime = createPondPlugRuntime({ devices: [plug('pump', '192.0.2.1'), plug('heater', '192.0.2.2')], createClient: device => ({ async getDeviceInfo() { return { device_on: state.get(device.id) }; }, async setDeviceOn(on) { state.set(device.id, on); }, close() {} }) });

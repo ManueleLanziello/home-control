@@ -235,7 +235,7 @@ export function createHomeControlServer({
   let activePlugRuntime = plugRuntime; let pondController = null; let pondPollingStarted = false;
   const ownerEnabled = () => pondOwner() === 'home';
   const requireOwner = () => requirePondPlugOwner(pondOwner());
-  const getPlugRuntime = async () => { requireOwner(); return activePlugRuntime ||= createPondPlugRuntime({ devices: (await hardwareStore.read()).devices }); };
+  const getPlugRuntime = async () => { requireOwner(); return activePlugRuntime ||= createPondPlugRuntime({ devices: (await hardwareStore.read()).devices, username: process.env.TAPO_USERNAME, password: process.env.TAPO_PASSWORD }); };
   const getPondController = async () => pondController ||= createPondController({ runtime: await getPlugRuntime(), roleStore });
   const startPondRuntime = async () => { if (!ownerEnabled() || pondPollingStarted) return; const runtime = await getPlugRuntime(); const controller = await getPondController(); pondPollingStarted = true; void runtime.startPolling(() => controller.monitor()).catch(() => {}); };
   const reconcilePlugs = async () => { if (!ownerEnabled()) return null; const runtime = await getPlugRuntime(); runtime.reconcileDevices((await hardwareStore.read()).devices.filter(isPondPlug).filter(device => device.verificationStatus === 'verified').map(runtimeDevice)); await startPondRuntime(); return runtime; };

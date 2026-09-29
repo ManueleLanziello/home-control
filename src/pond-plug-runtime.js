@@ -6,6 +6,7 @@ export function runtimeDevice(device) {
   return { id: device.id, fallbackName: device.alias, model: device.model, ip: device.connection?.ip,
     type: 'SMART.TAPOPLUG', protocol: 'tpap', protocolLabel: 'TPAP/SPAKE2+', adapter: POND_PLUG_ADAPTER };
 }
-export function createPondPlugRuntime({ devices = [], createClient = options => new TpapClient(options), ...options } = {}) {
-  return new DeviceManager({ deviceList: devices.filter(isPondPlug).filter(device => device.verificationStatus === 'verified').map(runtimeDevice), createClient, ...options });
+export function createPondPlugRuntime({ devices = [], username, password, createClient = options => new TpapClient(options), ...options } = {}) {
+  const configuredClient = device => createClient({ ...device, username, password });
+  return new DeviceManager({ deviceList: devices.filter(isPondPlug).filter(device => device.verificationStatus === 'verified').map(runtimeDevice), createClient: configuredClient, ...options });
 }
