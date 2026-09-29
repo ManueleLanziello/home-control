@@ -7,4 +7,7 @@ export const ZIGBEE_SENSOR_CONFIG = Object.freeze({
     Object.freeze({ id: 'S4', name: 'SmartHomeS4', topic: 'zigbee2mqtt/SmartHomeS4' }),
   ]),
   ledbar: Object.freeze({ id: 'LB1', name: 'SmartHomeLB1', topic: 'zigbee2mqtt/SmartHomeLB1', setTopic: 'zigbee2mqtt/SmartHomeLB1/set', getTopic: 'zigbee2mqtt/SmartHomeLB1/get' }),
+  lights: Object.freeze([
+    Object.freeze({ id: 'L5', name: 'bagno-L5', topic: 'zigbee2mqtt/bagno-L5', setTopic: 'zigbee2mqtt/bagno-L5/set', getTopic: 'zigbee2mqtt/bagno-L5/get' }),
+  ]),
 });

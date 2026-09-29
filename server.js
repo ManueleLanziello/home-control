@@ -206,11 +206,19 @@ export function createHomeControlServer({
   let homeStatus;
   const thermostatEventClients = new Set();
   const ledbarEventClients = new Set();
+  const lightEventClients = new Set();
   const publishLedbarState = () => {
     homeStatus?.invalidate();
     const payload = `data: ${JSON.stringify(zigbeeRuntime?.readLedbarSnapshot?.() || null)}\n\n`;
     for (const client of ledbarEventClients) {
       try { client.write(payload); } catch { ledbarEventClients.delete(client); }
+    }
+  };
+  const publishLightState = () => {
+    homeStatus?.invalidate();
+    const payload = `data: ${JSON.stringify(zigbeeRuntime?.readLightsSnapshot?.() || {})}\n\n`;
+    for (const client of lightEventClients) {
+      try { client.write(payload); } catch { lightEventClients.delete(client); }
     }
   };
   const publishThermostatState = (snapshot) => {
@@ -244,13 +252,14 @@ export function createHomeControlServer({
   homeStatus = new HomeStatusRuntime({ hardwareStore, roleStore, createSensorRuntime,
     readZigbeeSensors: zigbeeRuntime ? () => zigbeeRuntime.readSnapshot() : null,
     readZigbeeLedbar: zigbeeRuntime ? () => zigbeeRuntime.readLedbarSnapshot() : null,
+    readZigbeeLights: zigbeeRuntime ? () => zigbeeRuntime.readLightsSnapshot() : null,
     readCameras: () => cameras.snapshot(),
     readHood: () => getHoodRuntime().getState(),
     // Retain the existing WT200 configuration path; never use its env ID for Dewin roles.
     readThermostat: () => getThermostatRuntime().readSnapshot(),
   });
 
-  const unsubscribeZigbee = zigbeeRuntime?.subscribeState(publishLedbarState);
+  const unsubscribeZigbee = zigbeeRuntime?.subscribeState(() => { publishLedbarState(); publishLightState(); });
   if (ownerEnabled()) void startPondRuntime();
   const handleRequest = async (request, response) => {
     const url = new URL(request.url || '/', 'http://localhost');
@@ -296,6 +305,22 @@ export function createHomeControlServer({
       ledbarEventClients.add(response);
       request.on('close', () => ledbarEventClients.delete(response));
       return;
+    }
+    if (url.pathname === '/api/lights/events') {
+      if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
+      response.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
+      response.write(`retry: 2000\ndata: ${JSON.stringify(zigbeeRuntime?.readLightsSnapshot?.() || {})}\n\n`);
+      lightEventClients.add(response);
+      request.on('close', () => lightEventClients.delete(response));
+      return;
+    }
+    const lightPowerMatch = /^\/api\/lights\/(L5)\/power$/.exec(url.pathname);
+    if (lightPowerMatch) {
+      if (request.method !== 'PUT') return sendJson(response, 405, { error: 'Metodo non consentito' });
+      const payload = await readJson(request);
+      if (typeof payload?.on !== 'boolean') return sendJson(response, 400, { error: 'Stato luce non valido' });
+      try { return sendJson(response, 202, await zigbeeRuntime?.setLightPower(lightPowerMatch[1], payload.on)); }
+      catch (error) { return sendJson(response, 503, { error: error.message || 'Comando luce non disponibile' }); }
     }
     if (url.pathname === '/api/ledbar/power') {
       if (request.method !== 'PUT') return sendJson(response, 405, { error: 'Metodo non consentito' });
@@ -645,6 +670,7 @@ export function createHomeControlServer({
   });
   server.on('close', () => {
     unsubscribeZigbee?.();
+    for (const client of lightEventClients) { try { client.end(); } catch {} }
     zigbeeRuntime?.close();
     void cameras.close().catch(() => {});
     activePlugRuntime?.stop(); pondPollingStarted = false;

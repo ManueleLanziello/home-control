@@ -449,7 +449,9 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
   const response = await fetch(homeControlPath('/api/cameras/' + id + '/alarm'), { cache: 'no-store' });
   if (!response.ok) throw new Error('Allarme non disponibile');
   return response.json();
-}, onLightToggle = id => store.setLight(id, !store.snapshot().lights[id]), onLedbarPower = on => fetch(homeControlPath('/api/ledbar/power'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on }) }), onLedbarBrightness = brightness => fetch(homeControlPath('/api/ledbar/brightness'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ brightness }) }) } = {}) {
+}, onLightToggle = id => id === 'L5'
+  ? fetch(homeControlPath('/api/lights/L5/power'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on: !store.snapshot().lights[id] }) })
+  : store.setLight(id, !store.snapshot().lights[id]), onLedbarPower = on => fetch(homeControlPath('/api/ledbar/power'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on }) }), onLedbarBrightness = brightness => fetch(homeControlPath('/api/ledbar/brightness'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ brightness }) }) } = {}) {
   const stage = document.querySelector('[data-layered-floorplan]');
   const status = document.querySelector('[data-floorplan-status]');
   if (!stage) return;
@@ -535,8 +537,9 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
       const element = markerElement('Luce ' + light.room, true);
       element.removeAttribute('title');
       element.addEventListener('click', () => {
-        if (store.snapshot().lightSources[light.id] !== 'simulation') return;
-        onLightToggle(light.id);
+        const snapshot = store.snapshot();
+        if (snapshot.lightSources[light.id] !== 'simulation' && !(light.id === 'L5' && snapshot.lightSources[light.id] === 'zigbee' && typeof snapshot.lights[light.id] === 'boolean')) return;
+        void Promise.resolve(onLightToggle(light.id)).catch(() => {});
         switchSound.play();
       });
       element.addEventListener('dragstart', event => event.preventDefault());
@@ -811,7 +814,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
         element.dataset.on = String(on);
         element.setAttribute('aria-pressed', String(on));
         const source = state.lightSources[light.id];
-        element.disabled = source !== 'simulation';
+        element.disabled = source !== 'simulation' && !(light.id === 'L5' && source === 'zigbee' && typeof state.lights[light.id] === 'boolean');
         element.dataset.source = source;
         element.setAttribute('aria-label', 'Luce ' + light.room + ': ' + (state.lights[light.id] === null ? 'non disponibile' : on ? 'ON' : 'OFF') + (source === 'simulation' ? ' · simulata' : ''));
         if (previousLights[light.id] !== on) element.replaceChildren(createIcon(assets, on ? config.icons.lightOn : config.icons.lightOff, '💡'));
@@ -924,6 +927,10 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     if (ledbarEvents) ledbarEvents.onmessage = event => {
       try { store.applyLedbarSnapshot(JSON.parse(event.data)); } catch { /* A malformed event must not break the floorplan. */ }
     };
+    const lightEvents = typeof EventSource === 'function' ? new EventSource(homeControlPath('/api/lights/events')) : null;
+    if (lightEvents) lightEvents.onmessage = event => {
+      try { store.applyZigbeeLightsSnapshot(JSON.parse(event.data)); } catch { /* An invalid light event must not break the floorplan. */ }
+    };
     let cameraAlertTimer;
     const refreshCameraAlerts = async () => {
       try {
@@ -951,7 +958,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     window.addEventListener('pageshow', tick);
     status.hidden = true;
     stage.dataset.ready = 'true';
-    return { store, destroy() { if (activePondControls === pondControls) activePondControls = null; clearTimeout(timer); clearTimeout(ledbarThrottle); clearTimeout(cameraAlertTimer); for (const alertTimer of cameraAlertTimers.values()) clearTimeout(alertTimer); ledbarEvents?.close(); unsubscribe(); document.removeEventListener('visibilitychange', tick); window.removeEventListener('pageshow', tick); floorplanClock?.destroy(); if (renderWeatherSnapshot === renderWeather) renderWeatherSnapshot = () => {}; stage.replaceChildren(); } };
+    return { store, destroy() { if (activePondControls === pondControls) activePondControls = null; clearTimeout(timer); clearTimeout(ledbarThrottle); clearTimeout(cameraAlertTimer); for (const alertTimer of cameraAlertTimers.values()) clearTimeout(alertTimer); ledbarEvents?.close(); lightEvents?.close(); unsubscribe(); document.removeEventListener('visibilitychange', tick); window.removeEventListener('pageshow', tick); floorplanClock?.destroy(); if (renderWeatherSnapshot === renderWeather) renderWeatherSnapshot = () => {}; stage.replaceChildren(); } };
   } catch (error) {
     status.textContent = error.message;
   } finally {

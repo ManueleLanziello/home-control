@@ -66,8 +66,8 @@ export function normalizeCiarraState(snapshot, now = Date.now()) {
 }
 
 export class HomeStatusRuntime {
-  constructor({ hardwareStore, roleStore, readThermostat, readHood = null, readZigbeeSensors = null, readZigbeeLedbar = null, createSensorRuntime, readCameras = null, readPresence = null, now = Date.now, cacheMs = 30_000, timeoutMs = 12_000 }) {
-    Object.assign(this, { hardwareStore, roleStore, readThermostat, readHood, readZigbeeSensors, readZigbeeLedbar, readCameras, now, cacheMs, timeoutMs });
+  constructor({ hardwareStore, roleStore, readThermostat, readHood = null, readZigbeeSensors = null, readZigbeeLedbar = null, readZigbeeLights = null, createSensorRuntime, readCameras = null, readPresence = null, now = Date.now, cacheMs = 30_000, timeoutMs = 12_000 }) {
+    Object.assign(this, { hardwareStore, roleStore, readThermostat, readHood, readZigbeeSensors, readZigbeeLedbar, readZigbeeLights, readCameras, now, cacheMs, timeoutMs });
     this.presenceRuntime = new NetworkPresenceRuntime({ now });
     this.readPresence = readPresence || this.presenceRuntime.readInventory.bind(this.presenceRuntime);
     this.createSensorRuntime = createSensorRuntime || (device => new HomeDewinRuntime({ device, client: new TuyaCloudClient({
@@ -138,6 +138,8 @@ export class HomeStatusRuntime {
     const presenceRead = this.readPresence(inventory).catch(() => ({}));
     let zigbeeSensors;
     try { zigbeeSensors = this.readZigbeeSensors?.(); } catch { /* MQTT must not block the Home snapshot. */ }
+    let zigbeeLights;
+    try { zigbeeLights = this.readZigbeeLights?.(); } catch { /* MQTT must not block the Home snapshot. */ }
     const entries = await Promise.all(Object.entries(HOME_ROLES).map(async ([id, role]) => {
       if (this.readZigbeeSensors && ['S1', 'S2', 'S4'].includes(id)) {
         const sensor = zigbeeSensors?.[id];
@@ -156,6 +158,11 @@ export class HomeStatusRuntime {
       const entry = { configured: devices.length > 0, available: false, online: false, value: null, state: null, alias: device?.alias ?? null, updatedAt: null,
         source: id.startsWith('L') && !devices.length ? 'simulation' : 'hardware',
         reason: devices.length > 1 ? 'ambiguous_role' : device ? 'unsupported_adapter' : 'not_configured' };
+      if (this.readZigbeeLights && id === 'L5') {
+        const light = zigbeeLights?.[id];
+        const available = light?.available === true && ['ON', 'OFF'].includes(light.state);
+        return [id, { ...entry, source: 'zigbee', configured: true, available, online: available, state: available ? light.state : null, value: available ? light.state === 'ON' : null, updatedAt: light?.updatedAt ?? null, reason: available ? null : light?.updatedAt ? 'offline' : 'no_data' }];
+      }
       if (!device) return [id, entry];
       if (device.configurationStatus !== 'complete' || device.verificationStatus !== 'verified') return [id, { ...entry, reason: 'not_verified' }];
       if (!id.startsWith('S') || !isDewinTuyaDevice(device)) return [id, entry];

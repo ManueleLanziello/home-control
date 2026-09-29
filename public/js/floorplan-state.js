@@ -54,6 +54,15 @@ export function createFloorplanState() {
       if (ledbar && typeof ledbar === 'object') state.ledbar = { ...state.ledbar, state: ['ON', 'OFF'].includes(ledbar.state) ? ledbar.state : state.ledbar.state, brightness: Number.isInteger(ledbar.brightness) ? ledbar.brightness : state.ledbar.brightness, online: ledbar.online === true, available: ledbar.available === true, updatedAt: ledbar.updatedAt ?? state.ledbar.updatedAt };
       for (const listener of listeners) listener(this.snapshot());
     },
+    applyZigbeeLightsSnapshot(lights = {}) {
+      for (const [id, light] of Object.entries(lights)) {
+        if (!Object.hasOwn(state.lights, id) || id !== 'L5') continue;
+        state.lightSources[id] = 'zigbee';
+        const available = light?.available === true && (light.state === 'ON' || light.state === 'OFF');
+        state.lights[id] = available ? light.state === 'ON' : null;
+      }
+      for (const listener of listeners) listener(this.snapshot());
+    },
     applyCameraPrivacy(id, privacy) {
       if (typeof privacy?.enabled !== 'boolean') return;
       noteCameraReadBack(id, 'privacy');
@@ -93,9 +102,11 @@ export function createFloorplanState() {
       for (const id of Object.keys(state.lights)) {
         const light = home.lights?.[id];
         if (!light && state.lightSources[id] === 'simulation') continue;
-        state.lightSources[id] = light?.source === 'simulation' ? 'simulation' : light?.available === true ? 'hardware' : 'unavailable';
+        state.lightSources[id] = light?.source === 'simulation' ? 'simulation' : light?.source === 'zigbee' ? 'zigbee' : light?.available === true ? 'hardware' : 'unavailable';
         if (state.lightSources[id] === 'simulation' && state.lights[id] === null) state.lights[id] = false;
-        if (state.lightSources[id] !== 'simulation') state.lights[id] = light?.available === true && typeof light.state === 'boolean' ? light.state : null;
+        if (state.lightSources[id] !== 'simulation') state.lights[id] = light?.available === true
+          ? typeof light.state === 'boolean' ? light.state : light.source === 'zigbee' && ['ON', 'OFF'].includes(light.state) ? light.state === 'ON' : null
+          : null;
       }
       if (home.cameras) state.cameras = Object.fromEntries(Object.entries(home.cameras).map(([id, camera]) => {
         const previousEnabled = state.cameras[id]?.privacy?.enabled;
