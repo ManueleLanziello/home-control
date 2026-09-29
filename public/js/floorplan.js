@@ -12,6 +12,12 @@ export function mobileDeviceIcon(mobile) {
 }
 let weatherSnapshot = null;
 let renderWeatherSnapshot = () => {};
+let activePondControls = null;
+
+export async function refreshPondStatus() {
+  if (!activePondControls) return;
+  await activePondControls.refresh();
+}
 
 // Keep the physical 0..254 Zigbee brightness domain at the UI boundary.
 export function ledbarLayerFor({ state, brightness } = {}) {
@@ -499,6 +505,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     const pondMapping = await loadMapping(config.mappings.pond, stage); mappings.push(pondMapping);
     const { createPondControls, initPondPopup, pondRoleState } = await import('./pond-popup.js');
     const pondControls = createPondControls();
+    activePondControls = pondControls;
     const openPond = initPondPopup(pondControls);
     // The decorative clock is isolated: any asset, marker or module failure leaves the Dashboard available.
     try {
@@ -669,20 +676,22 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     for (const [role, marker] of Object.entries(config.pond.controls)) {
       const element = markerElement(role === 'mode' ? 'Modalità Pond: manuale' : `${role === 'pump' ? 'Pompa Filtro' : 'Riscaldatore'} Pond`, role !== 'mode');
       element.classList.add('floorplan-marker-pond-control');
-      if (role !== 'mode') element.addEventListener('click', () => { void pondControls.toggle(role); });
+      if (role !== 'mode') element.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); void pondControls.toggle(role); });
       placeHtml(pondMapping, marker, element, role !== 'mode');
       pondMarkers.set(role, element);
     }
+    const pondVisualAssets = { pump: config.icons.pondPumpOff, heater: config.icons.pondHeaterOff };
     const renderPondControls = plugs => {
       for (const role of ['pump', 'heater']) {
         const current = pondRoleState(plugs, role);
         const marker = pondMarkers.get(role);
+        if (current.known) pondVisualAssets[role] = current.on ? (role === 'pump' ? config.icons.pondPumpOn : config.icons.pondHeaterOn) : (role === 'pump' ? config.icons.pondPumpOff : config.icons.pondHeaterOff);
         marker.disabled = !current.known || pondControls.pending(role);
         marker.dataset.available = String(current.known);
         marker.dataset.on = String(current.on);
         marker.setAttribute('aria-pressed', String(current.on));
         marker.setAttribute('aria-label', `${role === 'pump' ? 'Pompa Filtro' : 'Riscaldatore'} Pond: ${current.state || 'stato non disponibile'}`);
-        marker.replaceChildren(createIcon(assets, current.known ? (current.on ? (role === 'pump' ? config.icons.pondPumpOn : config.icons.pondHeaterOn) : (role === 'pump' ? config.icons.pondPumpOff : config.icons.pondHeaterOff)) : null, '—'));
+        marker.replaceChildren(createIcon(assets, pondVisualAssets[role], '—'));
       }
       const mode = pondMarkers.get('mode');
       mode.dataset.mode = 'manual';
@@ -928,7 +937,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     window.addEventListener('pageshow', tick);
     status.hidden = true;
     stage.dataset.ready = 'true';
-    return { store, destroy() { clearTimeout(timer); clearTimeout(ledbarThrottle); clearTimeout(cameraAlertTimer); for (const alertTimer of cameraAlertTimers.values()) clearTimeout(alertTimer); ledbarEvents?.close(); unsubscribe(); document.removeEventListener('visibilitychange', tick); window.removeEventListener('pageshow', tick); floorplanClock?.destroy(); if (renderWeatherSnapshot === renderWeather) renderWeatherSnapshot = () => {}; stage.replaceChildren(); } };
+    return { store, destroy() { if (activePondControls === pondControls) activePondControls = null; clearTimeout(timer); clearTimeout(ledbarThrottle); clearTimeout(cameraAlertTimer); for (const alertTimer of cameraAlertTimers.values()) clearTimeout(alertTimer); ledbarEvents?.close(); unsubscribe(); document.removeEventListener('visibilitychange', tick); window.removeEventListener('pageshow', tick); floorplanClock?.destroy(); if (renderWeatherSnapshot === renderWeather) renderWeatherSnapshot = () => {}; stage.replaceChildren(); } };
   } catch (error) {
     status.textContent = error.message;
   } finally {

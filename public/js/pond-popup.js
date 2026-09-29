@@ -59,8 +59,10 @@ export function initPondPopup(controls) {
   document.body.append(dialog);
   dialog.querySelector('button').onclick = () => dialog.close();
   const cards = dialog.querySelector('.pond-cards');
+  const visualAssets = { pump: 'pumpoff.svg', heater: 'heateroff.svg' };
   const renderRole = (role, title, onIcon, offIcon) => {
     const current = pondRoleState(controls.snapshot(), role);
+    if (current.known) visualAssets[role] = current.on ? onIcon : offIcon;
     const card = document.createElement('article');
     card.className = 'pond-card';
     const icon = document.createElement('button');
@@ -68,12 +70,10 @@ export function initPondPopup(controls) {
     icon.className = 'pond-power-icon';
     icon.disabled = !current.known || controls.pending(role);
     icon.setAttribute('aria-label', `${title}: ${current.state || 'stato non disponibile'}`);
-    if (current.known) {
-      const image = document.createElement('img');
-      image.src = designAsset(current.on ? onIcon : offIcon);
-      image.alt = '';
-      icon.append(image);
-    } else icon.textContent = '—';
+    const image = document.createElement('img');
+    image.src = designAsset(visualAssets[role]);
+    image.alt = '';
+    icon.append(image);
     icon.onclick = () => { void controls.toggle(role); };
     const heading = document.createElement('h2'); heading.textContent = title;
     const status = document.createElement('small');

@@ -12,7 +12,7 @@ import {
   runHeatingFastFollow,
   shouldAcceptThermostatStatus,
 } from './thermostat.js';
-import { initFloorplan, updateFloorplanWeather } from './floorplan.js';
+import { initFloorplan, refreshPondStatus, updateFloorplanWeather } from './floorplan.js';
 import { createFloorplanState } from './floorplan-state.js';
 import { renderWt200Schedule, selectWt200PeriodsForDate } from './boiler-schedule.js';
 import { homeControlPath } from '../base-path.js';
@@ -457,6 +457,7 @@ async function loadHomeSnapshot() {
   const requestedAt = Date.now();
   const requestedThermostatRevision = thermostatMutation.revision;
   try {
+    void refreshPondStatus().catch(() => {});
     const response = await fetch(homeControlPath('/api/home/status'), { cache: 'no-store', signal: AbortSignal.timeout(30_000) });
     if (!response.ok) throw new Error('Stato casa non disponibile');
     const home = await response.json();
