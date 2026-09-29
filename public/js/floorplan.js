@@ -715,7 +715,6 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     };
     pondControls.subscribe(renderPondControls);
     renderPondControls(pondControls.snapshot());
-    void pondControls.refresh().catch(() => {});
     const mini = document.createElement('div');
     mini.className = 'floorplan-boiler-mini';
     const open = document.createElement('button');

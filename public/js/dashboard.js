@@ -25,6 +25,7 @@ const WEATHER_REFRESH_MS = 15 * 60_000;
 let boilerSnapshot = null;
 let cappaSnapshot = null;
 const floorplanStore = createFloorplanState();
+let floorplanReady = Promise.resolve();
 let boilerEditor = null;
 let thermostatMutation = createThermostatMutationState();
 let thermostatRefreshPromise = null;
@@ -457,7 +458,8 @@ async function loadHomeSnapshot() {
   const requestedAt = Date.now();
   const requestedThermostatRevision = thermostatMutation.revision;
   try {
-    void refreshPondStatus().catch(() => {});
+    await floorplanReady;
+    await refreshPondStatus().catch(() => {});
     const response = await fetch(homeControlPath('/api/home/status'), { cache: 'no-store', signal: AbortSignal.timeout(30_000) });
     if (!response.ok) throw new Error('Stato casa non disponibile');
     const home = await response.json();
@@ -657,7 +659,7 @@ function renderDashboard() {
   initBoilerModal();
   initCappaModal();
   fitFloorplanToViewport();
-  void initFloorplan({ store: floorplanStore });
+  floorplanReady = initFloorplan({ store: floorplanStore });
   renderExternalLights();
   renderWidgetIcons();
   renderBoiler();
