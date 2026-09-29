@@ -24,6 +24,14 @@ function optionalText(value) {
   return normalized || null;
 }
 
+export function normalizeMac(value) {
+  const mac = String(value || '').trim().replaceAll('-', ':').toUpperCase();
+  if (!/^(?:[0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(mac)) {
+    throw new HardwareRegistryError('Indirizzo MAC non valido.', 'INVALID_MAC');
+  }
+  return mac;
+}
+
 function normalizeConnectionType(value) {
   const connectionType = String(value || '').trim().toLowerCase();
   if (!CONNECTION_TYPES.includes(connectionType)) {
@@ -43,7 +51,7 @@ export function normalizeHardwareRecord(input) {
     ...(input.manufacturer ? { manufacturer: String(input.manufacturer).trim() } : {}),
     ...(input.type ? { type: String(input.type).trim() } : {}),
     // Preserve only runtime identity/adapter selection, never cloud credentials.
-    ...(input.identity?.tuyaDeviceId || input.identity?.mac ? { identity: { ...(input.identity?.tuyaDeviceId ? { tuyaDeviceId: String(input.identity.tuyaDeviceId).trim() } : {}), ...(input.identity?.mac ? { mac: String(input.identity.mac).trim().toUpperCase() } : {}) } } : {}),
+    ...(input.identity?.tuyaDeviceId || input.identity?.mac ? { identity: { ...(input.identity?.tuyaDeviceId ? { tuyaDeviceId: String(input.identity.tuyaDeviceId).trim() } : {}), ...(input.identity?.mac ? { mac: normalizeMac(input.identity.mac) } : {}) } } : {}),
     ...(input.connection?.ip ? { connection: { ip: String(input.connection.ip).trim() } } : {}),
     ...(input.tuyaDeviceId ? { tuyaDeviceId: String(input.tuyaDeviceId).trim() } : {}),
     ...(input.metadata?.adapter ? { metadata: { adapter: String(input.metadata.adapter).trim(), ...(input.metadata?.sourceApp ? { sourceApp: String(input.metadata.sourceApp).trim() } : {}) } } : {}),

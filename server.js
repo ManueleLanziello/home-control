@@ -12,7 +12,7 @@ import { createPondController } from './src/pond-safety.js';
 import { pondPlugOwnership, requirePondPlugOwner } from './src/pond-ownership.js';
 import { HomeCameraRuntime, OWNED_CAMERA_ADAPTER } from './src/camera-runtime.js';
 import { verifyDewinSensor } from './src/dewin-verifier.js';
-import { HardwareRegistryStore, defaultHardwareRegistry } from './src/hardware-registry.js';
+import { HardwareRegistryStore, defaultHardwareRegistry, normalizeMac } from './src/hardware-registry.js';
 import { createHomeWt200Runtime } from './src/wt200-runtime.js';
 import { HomeCiarraRuntime, createHomeCiarraRuntime } from './src/ciarra-runtime.js';
 import { HomeStatusRuntime, HOME_ROLES, normalizeThermostat } from './src/home-status.js';
@@ -147,6 +147,9 @@ function plugRecord(input, id = `pond-plug-${crypto.randomUUID()}`) {
   if (!alias || !ip) throw new Error('Nome e IP presa sono obbligatori.');
   if (String(input?.model || 'P105').trim().toUpperCase() !== 'P105') throw new Error('Modello presa non supportato.');
   return { id, alias, model: 'P105', manufacturer: 'TP-Link Tapo', type: 'Presa smart', protocol: 'tpap', connectionType: 'lan', identity: mac ? { mac } : {}, connection: { ip }, metadata: { adapter: POND_PLUG_ADAPTER }, configurationStatus: 'complete', verificationStatus: 'pending', verifiedAt: null };
+}
+export function matchingMac(expected, detected) {
+  return normalizeMac(expected) === normalizeMac(detected);
 }
 
 function sendCameraRecording(request, response, recording) {
@@ -497,7 +500,7 @@ export function createHomeControlServer({
     const plugVerifyMatch = /^\/api\/hardware\/pond-plugs\/([^/]+)\/verify$/.exec(url.pathname);
     if (plugVerifyMatch) {
       if (request.method !== 'POST') return sendJson(response, 405, { error: 'Metodo non consentito' });
-      try { requireOwner(); const registry = await hardwareStore.read(); const id = decodeURIComponent(plugVerifyMatch[1]); const device = registry.devices.find(item => item.id === id && isPondPlug(item)); if (!device) return sendJson(response, 404, { error: 'Presa Pond non configurata' }); const detected = await verifyPlug({ ip: device.connection?.ip }, { username: process.env.TAPO_USERNAME, password: process.env.TAPO_PASSWORD }); if (detected.model && detected.model.toUpperCase() !== 'P105') throw new Error('Il modello rilevato non è P105.'); if (device.identity?.mac && detected.mac && device.identity.mac.toUpperCase() !== detected.mac.toUpperCase()) throw new Error('MAC rilevato non corrispondente.'); const updated = { ...device, identity: detected.mac ? { ...device.identity, mac: detected.mac } : device.identity, verificationStatus: 'verified', verifiedAt: detected.verifiedAt || new Date().toISOString() }; await hardwareStore.write({ ...registry, devices: registry.devices.map(item => item.id === id ? updated : item) }); await reconcilePlugs(); return sendJson(response, 200, { device: updated, detected }); } catch (error) { return sendJson(response, error.code === 'POND_PLUG_OWNERSHIP_DISABLED' ? 409 : 503, { error: error.message || 'Verifica presa non riuscita' }); }
+      try { requireOwner(); const registry = await hardwareStore.read(); const id = decodeURIComponent(plugVerifyMatch[1]); const device = registry.devices.find(item => item.id === id && isPondPlug(item)); if (!device) return sendJson(response, 404, { error: 'Presa Pond non configurata' }); const detected = await verifyPlug({ ip: device.connection?.ip }, { username: process.env.TAPO_USERNAME, password: process.env.TAPO_PASSWORD }); if (detected.model && detected.model.toUpperCase() !== 'P105') throw new Error('Il modello rilevato non è P105.'); if (device.identity?.mac && (!detected.mac || !matchingMac(device.identity.mac, detected.mac))) throw new Error('MAC rilevato non corrispondente.'); const updated = { ...device, identity: detected.mac ? { ...device.identity, mac: normalizeMac(detected.mac) } : device.identity, verificationStatus: 'verified', verifiedAt: detected.verifiedAt || new Date().toISOString() }; await hardwareStore.write({ ...registry, devices: registry.devices.map(item => item.id === id ? updated : item) }); await reconcilePlugs(); return sendJson(response, 200, { device: updated, detected }); } catch (error) { return sendJson(response, error.code === 'POND_PLUG_OWNERSHIP_DISABLED' ? 409 : 503, { error: error.message || 'Verifica presa non riuscita' }); }
     }
     const plugMatch = /^\/api\/hardware\/pond-plugs(?:\/([^/]+))?$/.exec(url.pathname);
     if (plugMatch) {

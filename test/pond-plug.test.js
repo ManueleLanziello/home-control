@@ -4,10 +4,19 @@ import { DeviceRoleStore } from '../src/device-roles.js';
 import { createPondPlugRuntime, POND_PLUG_ADAPTER } from '../src/pond-plug-runtime.js';
 import { createPondController } from '../src/pond-safety.js';
 import { pondPlugOwnership, requirePondPlugOwner } from '../src/pond-ownership.js';
+import { normalizeMac } from '../src/hardware-registry.js';
+import { matchingMac } from '../server.js';
 import { mkdtemp, rm } from 'node:fs/promises'; import os from 'node:os'; import path from 'node:path';
 
 const plug = (id, ip) => ({ id, alias: id, model: 'P105', protocol: 'tpap', connectionType: 'lan', connection: { ip }, metadata: { adapter: POND_PLUG_ADAPTER }, verificationStatus: 'verified' });
 test('ownership is fail-closed unless explicitly home', () => { assert.equal(pondPlugOwnership(), 'disabled'); assert.equal(pondPlugOwnership('invalid'), 'disabled'); assert.equal(pondPlugOwnership('home'), 'home'); assert.throws(() => requirePondPlugOwner('disabled'), { code: 'POND_PLUG_OWNERSHIP_DISABLED' }); });
+test('P105 verification MAC comparison canonicalizes separators and case but rejects another device', () => {
+  assert.equal(normalizeMac(' 98-03-8e-9c-0c-af '), '98:03:8E:9C:0C:AF');
+  assert.equal(matchingMac('98:03:8E:9C:0C:AF', '98:03:8E:9C:0C:AF'), true);
+  assert.equal(matchingMac('98:03:8E:9C:0C:AF', '98-03-8E-9C-0C-AF'), true);
+  assert.equal(matchingMac('98:03:8E:9C:0C:AF', '98:03:8e:9c:0c:af'), true);
+  assert.equal(matchingMac('98:03:8E:9C:0C:AF', '98:03:8E:9C:0C:B0'), false);
+});
 test('P105 runtime is shared-core based and preserves polling/read-back semantics with fakes', async () => {
   const state = new Map([['pump', true], ['heater', false]]); const runtime = createPondPlugRuntime({ devices: [plug('pump', '192.0.2.1'), plug('heater', '192.0.2.2')], createClient: device => ({ async getDeviceInfo() { return { device_on: state.get(device.id) }; }, async setDeviceOn(on) { state.set(device.id, on); }, close() {} }), setIntervalFn: () => 1, clearIntervalFn: () => {} });
   await runtime.pollAll(); assert.equal(runtime.snapshot('pump').state, 'ON'); await runtime.setDeviceOn('heater', true); assert.equal(runtime.snapshot('heater').state, 'ON'); runtime.stop();
