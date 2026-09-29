@@ -45,6 +45,7 @@ const STATIC_FILES = new Map([
   ['/js/light-sound.js', ['js/light-sound.js', 'text/javascript; charset=utf-8']],
   ['/sounds/switch.ogg', ['sounds/switch.ogg', 'audio/ogg']],
   ['/js/floorplan.js', ['js/floorplan.js', 'text/javascript; charset=utf-8']],
+  ['/js/pond-popup.js', ['js/pond-popup.js', 'text/javascript; charset=utf-8']],
   ['/js/camera-events-popup.js', ['js/camera-events-popup.js', 'text/javascript; charset=utf-8']],
   ['/js/floorplan-clock.js', ['js/floorplan-clock.js', 'text/javascript; charset=utf-8']],
   ['/js/floorplan-config.js', ['js/floorplan-config.js', 'text/javascript; charset=utf-8']],
