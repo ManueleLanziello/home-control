@@ -24,6 +24,15 @@
       <div id="home-diagnostics" class="diagnostics-grid" aria-live="polite"><p class="empty-settings">Caricamento stato…</p></div>
     </section>
 
+    <section class="settings-section" aria-labelledby="pond-plugs-heading">
+      <div class="section-heading"><div><p class="eyebrow">LAGHETTO</p><h2 id="pond-plugs-heading">Prese Smart</h2></div></div>
+      <form id="pond-plug-form" class="sensor-form">
+        <input type="hidden" name="id"><label>Alias<input name="alias" required maxlength="80"></label><label>Modello<select name="model"><option value="P105">TP-Link Tapo P105</option></select></label><label>IP<input name="ip" required inputmode="url"></label><label>MAC (facoltativo)<input name="mac" maxlength="32"></label><button class="primary-link" type="submit">Salva presa</button><button id="pond-plug-cancel" type="button" hidden>Annulla</button>
+      </form>
+      <p class="settings-note">Assegna dinamicamente Pompa e Riscaldatore. La verifica è obbligatoria prima dell’uso operativo.</p>
+      <div id="pond-plug-devices" class="sensor-devices" aria-live="polite"><div class="empty-settings"><strong>Nessuna presa configurata</strong></div></div>
+    </section>
+
     <section class="settings-section" aria-labelledby="devices-heading">
       <div class="section-heading">
         <div>

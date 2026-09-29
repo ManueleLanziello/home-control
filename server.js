@@ -5,7 +5,11 @@ import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { loadEnvFile } from 'node:process';
 import { fileURLToPath } from 'node:url';
-import { DeviceRoleStore, HOME_SENSOR_ROLES } from './src/device-roles.js';
+import { DeviceRoleStore, HOME_SENSOR_ROLES, POND_PLUG_ROLES } from './src/device-roles.js';
+import { verifyTapoP105 } from '@smarthome/core';
+import { createPondPlugRuntime, isPondPlug, POND_PLUG_ADAPTER, runtimeDevice } from './src/pond-plug-runtime.js';
+import { createPondController } from './src/pond-safety.js';
+import { pondPlugOwnership, requirePondPlugOwner } from './src/pond-ownership.js';
 import { HomeCameraRuntime, OWNED_CAMERA_ADAPTER } from './src/camera-runtime.js';
 import { verifyDewinSensor } from './src/dewin-verifier.js';
 import { HardwareRegistryStore, defaultHardwareRegistry } from './src/hardware-registry.js';
@@ -138,6 +142,12 @@ async function sendCameraImage(response, imagePath) {
   response.writeHead(200, { 'Content-Type': 'image/jpeg', 'Content-Length': content.length, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
   response.end(content);
 }
+function plugRecord(input, id = `pond-plug-${crypto.randomUUID()}`) {
+  const alias = String(input?.alias || '').trim(); const ip = String(input?.ip || '').trim(); const mac = String(input?.mac || '').trim();
+  if (!alias || !ip) throw new Error('Nome e IP presa sono obbligatori.');
+  if (String(input?.model || 'P105').trim().toUpperCase() !== 'P105') throw new Error('Modello presa non supportato.');
+  return { id, alias, model: 'P105', manufacturer: 'TP-Link Tapo', type: 'Presa smart', protocol: 'tpap', connectionType: 'lan', identity: mac ? { mac } : {}, connection: { ip }, metadata: { adapter: POND_PLUG_ADAPTER }, configurationStatus: 'complete', verificationStatus: 'pending', verifiedAt: null };
+}
 
 function sendCameraRecording(request, response, recording) {
   let released = false;
@@ -181,6 +191,9 @@ export function createHomeControlServer({
   zigbeeRuntime = null,
   createSensorRuntime,
   verifySensor = verifyDewinSensor,
+  verifyPlug = verifyTapoP105,
+  plugRuntime = null,
+  pondOwner = () => pondPlugOwnership(),
   cameraRuntime = null,
   weatherService = null,
 } = {}) {
@@ -216,6 +229,13 @@ export function createHomeControlServer({
   let activeHoodRuntime = hoodRuntime;
   const getHoodRuntime = () => activeHoodRuntime ||= new HomeCiarraRuntime({ adapter: null });
   const cameras = cameraRuntime || new HomeCameraRuntime({ hardwareStore, roleStore, root: ROOT });
+  let activePlugRuntime = plugRuntime; let pondController = null; let pondPollingStarted = false;
+  const ownerEnabled = () => pondOwner() === 'home';
+  const requireOwner = () => requirePondPlugOwner(pondOwner());
+  const getPlugRuntime = async () => { requireOwner(); return activePlugRuntime ||= createPondPlugRuntime({ devices: (await hardwareStore.read()).devices }); };
+  const getPondController = async () => pondController ||= createPondController({ runtime: await getPlugRuntime(), roleStore });
+  const startPondRuntime = async () => { if (!ownerEnabled() || pondPollingStarted) return; const runtime = await getPlugRuntime(); const controller = await getPondController(); pondPollingStarted = true; void runtime.startPolling(() => controller.monitor()).catch(() => {}); };
+  const reconcilePlugs = async () => { if (!ownerEnabled()) return null; const runtime = await getPlugRuntime(); runtime.reconcileDevices((await hardwareStore.read()).devices.filter(isPondPlug).filter(device => device.verificationStatus === 'verified').map(runtimeDevice)); await startPondRuntime(); return runtime; };
   const activeWeatherService = weatherService || new WeatherService({ config: WEATHER_CONFIG, logError: message => console.error(message) });
   homeStatus = new HomeStatusRuntime({ hardwareStore, roleStore, createSensorRuntime,
     readZigbeeSensors: zigbeeRuntime ? () => zigbeeRuntime.readSnapshot() : null,
@@ -227,6 +247,7 @@ export function createHomeControlServer({
   });
 
   const unsubscribeZigbee = zigbeeRuntime?.subscribeState(publishLedbarState);
+  if (ownerEnabled()) void startPondRuntime();
   const handleRequest = async (request, response) => {
     const url = new URL(request.url || '/', 'http://localhost');
     if (url.pathname === '/api/thermostat/events') {
@@ -473,6 +494,26 @@ export function createHomeControlServer({
         return sendJson(response, 405, { error: 'Metodo non consentito' });
       } catch (error) { return sendJson(response, 400, { error: error.message || 'Configurazione sensore non valida' }); }
     }
+    const plugVerifyMatch = /^\/api\/hardware\/pond-plugs\/([^/]+)\/verify$/.exec(url.pathname);
+    if (plugVerifyMatch) {
+      if (request.method !== 'POST') return sendJson(response, 405, { error: 'Metodo non consentito' });
+      try { requireOwner(); const registry = await hardwareStore.read(); const id = decodeURIComponent(plugVerifyMatch[1]); const device = registry.devices.find(item => item.id === id && isPondPlug(item)); if (!device) return sendJson(response, 404, { error: 'Presa Pond non configurata' }); const detected = await verifyPlug({ ip: device.connection?.ip }, { username: process.env.TAPO_USERNAME, password: process.env.TAPO_PASSWORD }); if (detected.model && detected.model.toUpperCase() !== 'P105') throw new Error('Il modello rilevato non è P105.'); if (device.identity?.mac && detected.mac && device.identity.mac.toUpperCase() !== detected.mac.toUpperCase()) throw new Error('MAC rilevato non corrispondente.'); const updated = { ...device, identity: detected.mac ? { ...device.identity, mac: detected.mac } : device.identity, verificationStatus: 'verified', verifiedAt: detected.verifiedAt || new Date().toISOString() }; await hardwareStore.write({ ...registry, devices: registry.devices.map(item => item.id === id ? updated : item) }); await reconcilePlugs(); return sendJson(response, 200, { device: updated, detected }); } catch (error) { return sendJson(response, error.code === 'POND_PLUG_OWNERSHIP_DISABLED' ? 409 : 503, { error: error.message || 'Verifica presa non riuscita' }); }
+    }
+    const plugMatch = /^\/api\/hardware\/pond-plugs(?:\/([^/]+))?$/.exec(url.pathname);
+    if (plugMatch) {
+      try { const registry = await hardwareStore.read(); const ids = registry.devices.map(device => device.id); const id = plugMatch[1] && decodeURIComponent(plugMatch[1]); const assignments = await roleStore.read(ids);
+        if (request.method === 'GET' && !id) { const runtime = ownerEnabled() ? await getPlugRuntime() : null; return sendJson(response, 200, { ownership: pondOwner(), plugs: registry.devices.filter(isPondPlug).map(device => ({ ...device, role: assignments[device.id] || 'none', runtime: runtime?.hasDevice(device.id) ? runtime.snapshot(device.id) : null })) }); }
+        if (request.method === 'POST' && !id) { const device = plugRecord(await readJson(request)); await hardwareStore.write({ ...registry, devices: [...registry.devices, device] }); await roleStore.write(await roleStore.read([...ids, device.id]), [...ids, device.id]); return sendJson(response, 201, { device: { ...device, role: 'none' } }); }
+        const previous = registry.devices.find(device => device.id === id && isPondPlug(device)); if (!previous) return sendJson(response, 404, { error: 'Presa Pond non configurata' });
+        if (request.method === 'PUT') { const next = plugRecord(await readJson(request), id); if (previous.connection?.ip === next.connection?.ip && previous.identity?.mac === next.identity?.mac) { next.verificationStatus = previous.verificationStatus; next.verifiedAt = previous.verifiedAt; } await hardwareStore.write({ ...registry, devices: registry.devices.map(device => device.id === id ? next : device) }); await reconcilePlugs(); return sendJson(response, 200, { device: { ...next, role: assignments[id] || 'none' } }); }
+        if (request.method === 'DELETE') { if (ownerEnabled() && assignments[id] === 'pump') await (await getPondController()).protectBeforePumpLoss(); const devices = registry.devices.filter(device => device.id !== id); await hardwareStore.write({ ...registry, devices }); await roleStore.write(await roleStore.read(devices.map(d => d.id)), devices.map(d => d.id)); await reconcilePlugs(); return sendJson(response, 204, {}); }
+        return sendJson(response, 405, { error: 'Metodo non consentito' });
+      } catch (error) { return sendJson(response, 400, { error: error.message || 'Configurazione presa non valida' }); }
+    }
+    const pondRoleMatch = /^\/api\/pond\/roles$/.exec(url.pathname);
+    if (pondRoleMatch) { if (request.method !== 'PUT') return sendJson(response, 405, { error: 'Metodo non consentito' }); try { const payload = await readJson(request); const registry = await hardwareStore.read(); const device = registry.devices.find(item => item.id === payload?.deviceId && isPondPlug(item)); if (!device) return sendJson(response, 400, { error: 'Presa Pond non valida' }); const roles = await roleStore.read(registry.devices.map(d => d.id)); if (ownerEnabled()) { const controller = await getPondController(); if (payload.role === 'none' && roles[device.id] === 'pump') await controller.protectBeforePumpLoss(); else if (POND_PLUG_ROLES.includes(payload.role) && await controller.heaterIsOn()) return sendJson(response, 409, { error: 'Cambio ruoli bloccato finché il vero riscaldatore è ON.' }); } return sendJson(response, 200, { assignments: await roleStore.assignPondPlug(device.id, payload.role, registry.devices.map(d => d.id)) }); } catch (error) { return sendJson(response, 400, { error: error.message || 'Ruolo non valido' }); } }
+    const pondCommandMatch = /^\/api\/pond\/(pump|heater)\/power$/.exec(url.pathname);
+    if (pondCommandMatch) { if (request.method !== 'PUT') return sendJson(response, 405, { error: 'Metodo non consentito' }); const payload = await readJson(request); if (typeof payload?.on !== 'boolean') return sendJson(response, 400, { error: 'Stato non valido' }); try { requireOwner(); return sendJson(response, 200, await (await getPondController()).set(pondCommandMatch[1], payload.on)); } catch (error) { return sendJson(response, 409, { error: error.message }); } }
     if (url.pathname === '/api/thermostat') {
       if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
       try {
@@ -592,7 +633,7 @@ export function createHomeControlServer({
   let hardwareTransactions = Promise.resolve();
   const server = http.createServer((request, response) => {
     const pathname = new URL(request.url || '/', 'http://localhost').pathname;
-    const mutation = !['GET', 'HEAD'].includes(request.method) && (pathname.startsWith('/api/hardware/') || pathname === '/api/device-roles');
+    const mutation = !['GET', 'HEAD'].includes(request.method) && (pathname.startsWith('/api/hardware/') || pathname === '/api/device-roles' || pathname.startsWith('/api/pond/'));
     const run = () => handleRequest(request, response);
     const operation = mutation ? hardwareTransactions.then(run) : run();
     if (mutation) hardwareTransactions = operation.catch(() => {});
@@ -602,6 +643,7 @@ export function createHomeControlServer({
     unsubscribeZigbee?.();
     zigbeeRuntime?.close();
     void cameras.close().catch(() => {});
+    activePlugRuntime?.stop(); pondPollingStarted = false;
   });
   return server;
 }

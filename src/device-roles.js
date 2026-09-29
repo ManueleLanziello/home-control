@@ -4,6 +4,7 @@ import path from 'node:path';
 const ROLE_PATTERN = /^[a-z][a-z0-9_-]*$/;
 export const HOME_SENSOR_ROLES = Object.freeze(['temperature_cucina', 'temperature_camera', 'temperature_cameretta', 'temperature_giardino']);
 export const HOME_CAMERA_ROLES = Object.freeze(['camera_terrazzo', 'camera_pond', 'camera_giardino']);
+export const POND_PLUG_ROLES = Object.freeze(['pump', 'heater']);
 
 export class DeviceRoleStore {
   constructor({ filePath }) {
@@ -70,6 +71,26 @@ export class DeviceRoleStore {
     });
     this.writeQueue = operation.catch(() => {});
     return operation;
+  }
+
+  async assignPondPlug(deviceId, role, deviceIds) {
+    if (!POND_PLUG_ROLES.includes(role) && role !== 'none') throw new Error('Ruolo presa Pond non valido.');
+    return this.#assignExclusive(deviceId, role, deviceIds, 'Presa Pond non configurata.');
+  }
+
+  async #assignExclusive(deviceId, role, deviceIds, missing) {
+    const operation = this.writeQueue.then(async () => {
+      const assignments = await this.read(deviceIds);
+      if (!Object.hasOwn(assignments, deviceId)) throw new Error(missing);
+      if (role !== 'none') for (const id of deviceIds) if (id !== deviceId && assignments[id] === role) assignments[id] = assignments[deviceId] === 'none' ? 'none' : assignments[deviceId];
+      assignments[deviceId] = role;
+      const normalized = this.#normalize(assignments, deviceIds);
+      await mkdir(path.dirname(this.filePath), { recursive: true });
+      const temporaryPath = `${this.filePath}.tmp`;
+      await writeFile(temporaryPath, `${JSON.stringify({ version: 1, assignments: normalized }, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
+      await rename(temporaryPath, this.filePath);
+      return normalized;
+    }); this.writeQueue = operation.catch(() => {}); return operation;
   }
 
   #normalize(assignments, deviceIds) {
