@@ -683,10 +683,10 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     boilerIcon.append(createIcon(assets, config.icons.boiler, '♨'));
     boilerIcon.addEventListener('click', openBoiler);
     placeHtml(boilerMapping, config.boiler.marker, boilerIcon);
-    const pondIcon = markerElement('Apri POND', true);
-    pondIcon.append(createIcon(assets, 'pond.svg', 'P'));
-    pondIcon.addEventListener('click', () => { void openPond(); });
-    placeHtml(pondMapping, config.pond.marker, pondIcon);
+    const pondEntry = markerElement('Apri POND', true);
+    pondEntry.append(createIcon(assets, 'pond.svg', 'P'));
+    pondEntry.addEventListener('click', () => { void openPond(); });
+    placeHtml(pondMapping, config.pond.marker, pondEntry);
     const pondMarkers = new Map();
     for (const [role, marker] of Object.entries(config.pond.controls)) {
       const element = markerElement(role === 'mode' ? 'Modalità Pond: manuale' : `${role === 'pump' ? 'Pompa Filtro' : 'Riscaldatore'} Pond`, role !== 'mode');
