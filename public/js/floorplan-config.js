@@ -9,7 +9,7 @@ export const floorplanConfig = {
     const number = String(index + 1).padStart(2, '0');
     return { lightId: 'L' + (index + 1), on: 'LAYER-' + number + '-ON.svg', off: 'LAYER-' + number + '-OFF.svg' };
   }).concat({ lightId: 'L7', on: 'LAYER-11-ON.svg', off: 'LAYER-11-OFF.svg', optional: true }),
-  mappings: { lights: 'LAYER-07-LUCI.svg', sensors: 'LAYER-08-SENSORI.svg', cameras: 'LAYER-09-CAM.svg', boiler: 'LAYER-10-CALDAIA.svg', cappa: 'LAYER-12-CAPPA.svg', weather: 'LAYER-13-METEO.svg', integration: 'LAYER-16-INTEGRAZIONE.svg', ledbar: 'LAYER-17-LED.svg', devices: 'LAYER-DISPOSITIVI.svg', clock: 'LAYER-22-OROLOGIO.svg' },
+  mappings: { lights: 'LAYER-07-LUCI.svg', sensors: 'LAYER-08-SENSORI.svg', cameras: 'LAYER-09-CAM.svg', boiler: 'LAYER-10-CALDAIA.svg', cappa: 'LAYER-12-CAPPA.svg', weather: 'LAYER-13-METEO.svg', integration: 'LAYER-16-INTEGRAZIONE.svg', ledbar: 'LAYER-17-LED.svg', devices: 'LAYER-DISPOSITIVI.svg', clock: 'LAYER-22-OROLOGIO.svg', pond: 'LAYER-POND.svg' },
   clock: { marker: labeledMarker('CLK1') },
   mobileMonitor: { marker: labeledMarker('DM'), icons: { phone: 'phone.svg', tablet: 'tablet.svg' } },
   ledbar: {
@@ -45,6 +45,7 @@ export const floorplanConfig = {
   devices: Array.from({ length: 18 }, (_, index) => ({ id: `D${index + 1}`, marker: labeledMarker(String(index + 1)) })),
   boiler: { marker: labeledMarker('D1'), card: labeledMarker('QD1'), target: '.boiler-card', settings: '.boiler-settings-link' },
   cappa: { id: 'K1', marker: marker(0) },
+  pond: { marker: labeledMarker('P1') },
   // Semantic SVG labels remain stable when a weather reference is moved in the design.
   weather: {
     marker: labeledMarker('M1'),

@@ -496,6 +496,8 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     // LAYER-17 is a hidden geometric source only; it is never a painted stack layer.
     const ledbarMapping = await loadMapping(config.mappings.ledbar, stage); mappings.push(ledbarMapping);
     const deviceMapping = await loadMapping(config.mappings.devices, stage); mappings.push(deviceMapping);
+    const pondMapping = await loadMapping(config.mappings.pond, stage); mappings.push(pondMapping);
+    const { initPondPopup } = await import('./pond-popup.js'); const openPond = initPondPopup();
     // The decorative clock is isolated: any asset, marker or module failure leaves the Dashboard available.
     try {
       const { createFloorplanClock } = await import('./floorplan-clock.js');
@@ -657,6 +659,10 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     boilerIcon.append(createIcon(assets, config.icons.boiler, '♨'));
     boilerIcon.addEventListener('click', openBoiler);
     placeHtml(boilerMapping, config.boiler.marker, boilerIcon);
+    const pondIcon = markerElement('Apri POND', true);
+    pondIcon.append(createIcon(assets, 'pond.svg', 'P'));
+    pondIcon.addEventListener('click', () => { void openPond(); });
+    placeHtml(pondMapping, config.pond.marker, pondIcon);
     const mini = document.createElement('div');
     mini.className = 'floorplan-boiler-mini';
     const open = document.createElement('button');
