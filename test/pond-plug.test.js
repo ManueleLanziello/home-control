@@ -26,4 +26,15 @@ test('pond safety requires a fresh ON pump and confirms heater OFF before pump O
   const state = new Map([['pump', true], ['heater', true]]); const runtime = createPondPlugRuntime({ devices: [plug('pump', '192.0.2.1'), plug('heater', '192.0.2.2')], createClient: device => ({ async getDeviceInfo() { return { device_on: state.get(device.id) }; }, async setDeviceOn(on) { state.set(device.id, on); }, close() {} }) });
   try { await roles.assignPondPlug('pump', 'pump', ids); await roles.assignPondPlug('heater', 'heater', ids); await runtime.pollAll(); const controller = createPondController({ runtime, roleStore: roles }); await controller.set('heater', true); await controller.set('pump', false); assert.equal(state.get('heater'), false); assert.equal(state.get('pump'), false); await assert.rejects(controller.set('heater', true), { code: 'PUMP_REQUIRED' }); } finally { runtime.stop(); await rm(dir, { recursive: true, force: true }); }
 });
+test('safety absorbs DEVICE_BACKOFF, keeps pump unreliable and can protect on a later cycle', async () => {
+  const roles = { async read() { return { pump: 'pump', heater: 'heater' }; } }; let reads = 0; let heaterOn = true;
+  const runtime = { deviceList: [{ id: 'pump' }, { id: 'heater' }], hasDevice: () => true, isFreshAndReliable: () => false,
+    snapshot: id => ({ id, state: id === 'heater' && heaterOn ? 'ON' : 'OFF', online: false }),
+    async withDevices(_ids, operation) { return operation({ async read() { reads += 1; if (reads === 1) { const error = new Error('Nuovo tentativo rinviato dal backoff.'); error.code = 'DEVICE_BACKOFF'; throw error; } return { state: heaterOn ? 'ON' : 'OFF' }; }, async setDeviceOn() { heaterOn = false; return { state: 'OFF' }; } }); } };
+  const controller = createPondController({ runtime, roleStore: roles });
+  assert.deepEqual(await controller.monitor(), { action: 'none', reason: 'DEVICE_BACKOFF' });
+  assert.equal(runtime.isFreshAndReliable('pump'), false);
+  assert.equal((await controller.monitor()).action, 'heater-off');
+  assert.equal(heaterOn, false);
+});
 test('role assignment atomically swaps pond plug roles', async () => { const dir = await mkdtemp(path.join(os.tmpdir(), 'pond-swap-')); const store = new DeviceRoleStore({ filePath: path.join(dir, 'roles.json') }); try { await store.assignPondPlug('a', 'pump', ['a', 'b']); await store.assignPondPlug('b', 'heater', ['a', 'b']); const swapped = await store.assignPondPlug('a', 'heater', ['a', 'b']); assert.deepEqual(swapped, { a: 'heater', b: 'pump' }); } finally { await rm(dir, { recursive: true, force: true }); } });

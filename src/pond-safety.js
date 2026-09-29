@@ -22,11 +22,16 @@ export function createPondController({ runtime, roleStore }) {
     return runtime.setDeviceOn(id, on);
   }
   async function monitor() {
-    const roles = await assignments(); const pump = idFor(roles, 'pump'); const heater = idFor(roles, 'heater');
-    if (!heater || !runtime.hasDevice(heater)) return { action: 'none' };
-    const unsafe = !pump || !runtime.hasDevice(pump) || !runtime.isFreshAndReliable(pump, DEVICE_FRESHNESS_MS) || runtime.snapshot(pump).state !== 'ON';
-    if (!unsafe) return { action: 'none' };
-    return runtime.withDevices([heater], async managed => { const state = await managed.read(heater); return state.state === 'ON' ? { action: 'heater-off', state: await managed.setDeviceOn(heater, false) } : { action: 'none' }; });
+    try {
+      const roles = await assignments(); const pump = idFor(roles, 'pump'); const heater = idFor(roles, 'heater');
+      if (!heater || !runtime.hasDevice(heater)) return { action: 'none' };
+      const unsafe = !pump || !runtime.hasDevice(pump) || !runtime.isFreshAndReliable(pump, DEVICE_FRESHNESS_MS) || runtime.snapshot(pump).state !== 'ON';
+      if (!unsafe) return { action: 'none' };
+      return await runtime.withDevices([heater], async managed => { const state = await managed.read(heater); return state.state === 'ON' ? { action: 'heater-off', state: await managed.setDeviceOn(heater, false) } : { action: 'none' }; });
+    } catch (error) {
+      // A failed safety read (including Core backoff) leaves state unreliable; the next poll retries within Core policy.
+      return { action: 'none', reason: error?.code || 'SAFETY_READ_FAILED' };
+    }
   }
   async function heaterIsOn() {
     const roles = await assignments(); const heater = idFor(roles, 'heater');
