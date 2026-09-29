@@ -60,33 +60,45 @@ export function initPondPopup(controls) {
   dialog.querySelector('button').onclick = () => dialog.close();
   const cards = dialog.querySelector('.pond-cards');
   const visualAssets = { pump: 'pumpoff.svg', heater: 'heateroff.svg' };
-  const renderRole = (role, title, onIcon, offIcon) => {
-    const current = pondRoleState(controls.snapshot(), role);
-    if (current.known) visualAssets[role] = current.on ? onIcon : offIcon;
+  const roleCards = new Map();
+  const createRoleCard = (role, title, onIcon, offIcon) => {
     const card = document.createElement('article');
     card.className = 'pond-card';
     const icon = document.createElement('button');
     icon.type = 'button';
     icon.className = 'pond-power-icon';
-    icon.disabled = !current.known || controls.pending(role);
-    icon.setAttribute('aria-label', `${title}: ${current.state || 'stato non disponibile'}`);
     const image = document.createElement('img');
+    image.dataset.pondIcon = '';
     image.src = designAsset(visualAssets[role]);
     image.alt = '';
     icon.append(image);
     icon.onclick = () => { void controls.toggle(role); };
     const heading = document.createElement('h2'); heading.textContent = title;
     const status = document.createElement('small');
-    status.className = `pond-state pond-state--${current.known ? current.state.toLowerCase() : 'unknown'}`;
-    status.textContent = `STATO: ${current.state || '--'}`;
     card.append(icon, heading, status);
+    roleCards.set(role, { card, icon, image, onIcon, offIcon, title, status });
     return card;
   };
+  const thermostat = document.createElement('article');
+  thermostat.className = 'pond-card';
+  const modeImage = document.createElement('img');
+  modeImage.className = 'pond-mode-icon'; modeImage.src = designAsset('manual.svg'); modeImage.alt = '';
+  thermostat.append(modeImage, Object.assign(document.createElement('h2'), { textContent: 'Termostato' }));
+  const manual = document.createElement('label'); manual.className = 'pond-mode'; manual.append(Object.assign(document.createElement('input'), { type: 'radio', name: 'pond-mode', checked: true }), document.createTextNode(' Manuale'));
+  const automatic = document.createElement('label'); automatic.className = 'pond-mode'; automatic.append(Object.assign(document.createElement('input'), { type: 'radio', name: 'pond-mode', disabled: true }), document.createTextNode(' Termostato'));
+  thermostat.append(manual, automatic);
+  cards.replaceChildren(createRoleCard('pump', 'Pompa Filtro', 'pumpon.svg', 'pumpoff.svg'), createRoleCard('heater', 'Riscaldatore', 'heateron.svg', 'heateroff.svg'), thermostat);
   const render = () => {
-    const thermostat = document.createElement('article');
-    thermostat.className = 'pond-card';
-    thermostat.innerHTML = `<img class="pond-mode-icon" src="${designAsset('manual.svg')}" alt=""><h2>Termostato</h2><label class="pond-mode"><input type="radio" name="pond-mode" checked> Manuale</label><label class="pond-mode"><input type="radio" name="pond-mode" disabled> Termostato</label>`;
-    cards.replaceChildren(renderRole('pump', 'Pompa Filtro', 'pumpon.svg', 'pumpoff.svg'), renderRole('heater', 'Riscaldatore', 'heateron.svg', 'heateroff.svg'), thermostat);
+    for (const [role, entry] of roleCards) {
+      const current = pondRoleState(controls.snapshot(), role);
+      if (current.known) visualAssets[role] = current.on ? entry.onIcon : entry.offIcon;
+      const source = designAsset(visualAssets[role]);
+      if (entry.image.getAttribute('src') !== source) entry.image.src = source;
+      entry.icon.disabled = !current.known || controls.pending(role);
+      entry.icon.setAttribute('aria-label', `${entry.title}: ${current.state || 'stato non disponibile'}`);
+      entry.status.className = `pond-state pond-state--${current.known ? current.state.toLowerCase() : 'unknown'}`;
+      entry.status.textContent = `STATO: ${current.state || '--'}`;
+    }
   };
   controls.subscribe(render);
   render();

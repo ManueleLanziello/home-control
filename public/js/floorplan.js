@@ -190,6 +190,21 @@ function createIcon(assets, asset, fallback, { immediate = false } = {}) {
   return wrapper;
 }
 
+function pondIcon(marker, asset) {
+  let image = marker.querySelector('img[data-pond-icon]');
+  if (!image) {
+    const wrapper = document.createElement('span');
+    wrapper.className = 'floorplan-symbol';
+    image = document.createElement('img');
+    image.dataset.pondIcon = '';
+    image.alt = '';
+    wrapper.append(image);
+    marker.append(wrapper);
+  }
+  const source = assetUrl(asset);
+  if (image.getAttribute('src') !== source) image.src = source;
+}
+
 export function renderCameraIcon(control, assets, asset, fallback) {
   const renderKey = `icon:${asset}`;
   if (control.dataset.renderKey === renderKey) return;
@@ -691,12 +706,12 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
         marker.dataset.on = String(current.on);
         marker.setAttribute('aria-pressed', String(current.on));
         marker.setAttribute('aria-label', `${role === 'pump' ? 'Pompa Filtro' : 'Riscaldatore'} Pond: ${current.state || 'stato non disponibile'}`);
-        marker.replaceChildren(createIcon(assets, pondVisualAssets[role], '—'));
+        pondIcon(marker, pondVisualAssets[role]);
       }
       const mode = pondMarkers.get('mode');
       mode.dataset.mode = 'manual';
       mode.setAttribute('aria-label', 'Modalità Pond: manuale');
-      mode.replaceChildren(createIcon(assets, config.icons.pondManual, 'M'));
+      pondIcon(mode, config.icons.pondManual);
     };
     pondControls.subscribe(renderPondControls);
     renderPondControls(pondControls.snapshot());
