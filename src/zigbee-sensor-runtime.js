@@ -38,20 +38,16 @@ export class HomeZigbeeSensorRuntime {
         this.connectionActive = true;
         const cycle = ++this.connectionCycle;
         let completed = false;
-      this.client.subscribe([...this.topics.keys(), this.ledbarTopic, ...this.lightTopics.keys()].filter(Boolean), { qos: 0 }, (error, granted) => {
+        this.client.subscribe([...this.topics.keys(), this.ledbarTopic, ...this.lightTopics.keys()].filter(Boolean), { qos: 0 }, (error, granted) => {
           if (this.stopped || !this.connectionActive || cycle !== this.connectionCycle || completed) return;
           completed = true;
           this.connected = !error && !granted?.some(subscription => subscription.qos === 128);
           this.notify();
-          if (this.connected && !this.stopped && cycle === this.connectionCycle && this.config.ledbar?.getTopic) {
-            // One read request per successful subscription; only an incoming state confirms LB1.
-            try {
-              this.client.publish(this.config.ledbar.getTopic, '{"state":"","brightness":""}', { qos: 0 }, () => {});
-            } catch { /* No retry: a failed read must not break sensor handling. */ }
-          }
-          for (const light of this.config.lights || []) {
-            if (!this.connected || !light.getTopic) continue;
-            try { this.client.publish(light.getTopic, '{}', { qos: 0 }, () => {}); } catch { /* MQTT failure is reflected by the next snapshot. */ }
+          // One state request per configured actuator and successful subscription.
+          // Incoming MQTT messages remain the sole source of confirmed state.
+          for (const device of [this.config.ledbar, ...(this.config.lights || [])]) {
+            if (!this.connected || !device?.getTopic) continue;
+            try { this.client.publish(device.getTopic, JSON.stringify(device.getPayload || {}), { qos: 0 }, () => {}); } catch { /* No retry: a failed read must not break MQTT handling. */ }
           }
         });
       });

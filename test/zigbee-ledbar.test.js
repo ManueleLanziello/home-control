@@ -21,7 +21,7 @@ function fixture() {
   return { runtime, client, subscriptions, publishes, message: payload => client.emit('message', 'zigbee2mqtt/SmartHomeLB1', Buffer.from(JSON.stringify(payload))), lightMessage: payload => client.emit('message', 'zigbee2mqtt/bagno-L5', Buffer.from(JSON.stringify(payload))), advance: milliseconds => { now += milliseconds; } };
 }
 
-test('LB1 richiede state/brightness solo dopo subscribe riuscita, una volta per connessione', () => {
+test('LB1 e L5 richiedono lo stato solo dopo subscribe riuscita, una volta per connessione', () => {
   const f = fixture(); const callbacks = []; const raw = [];
   f.client.subscribe = (topics, options, callback) => callbacks.push(callback);
   f.client.publish = (topic, payload, options, callback) => { raw.push([topic, payload, options]); callback(null); };
@@ -29,11 +29,17 @@ test('LB1 richiede state/brightness solo dopo subscribe riuscita, una volta per 
   assert.equal(callbacks.length, 1); assert.equal(raw.length, 0);
   callbacks[0](null); callbacks[0](null);
   assert.deepEqual(raw.filter(([topic]) => topic.endsWith('SmartHomeLB1/get')), [['zigbee2mqtt/SmartHomeLB1/get', '{"state":"","brightness":""}', { qos: 0 }]]);
+  assert.deepEqual(raw.filter(([topic]) => topic.endsWith('bagno-L5/get')), [['zigbee2mqtt/bagno-L5/get', '{"state":""}', { qos: 0 }]]);
+  assert.equal(raw.filter(([topic]) => /SmartHomeS[124]\/get$/.test(topic)).length, 0);
   assert.equal(raw.length, 2);
   assert.equal(f.runtime.readLedbarSnapshot().known, false);
   f.client.emit('close'); f.client.emit('connect');
   callbacks[0](null); assert.equal(raw.length, 2);
   callbacks[1](null); assert.equal(raw.length, 4);
+  assert.deepEqual(raw.filter(([topic]) => topic.endsWith('bagno-L5/get')), [
+    ['zigbee2mqtt/bagno-L5/get', '{"state":""}', { qos: 0 }],
+    ['zigbee2mqtt/bagno-L5/get', '{"state":""}', { qos: 0 }],
+  ]);
   f.advance(24 * 60 * 60 * 1000);
   for (let i = 0; i < 10; i += 1) f.runtime.readLedbarSnapshot();
   assert.equal(raw.length, 4);
