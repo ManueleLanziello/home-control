@@ -150,6 +150,7 @@ export class HomeStatusRuntime {
         return [id, { temperature, humidity: finite(sensor?.humidity), battery: finite(sensor?.battery),
           linkQuality: finite(sensor?.linkQuality), name: sensor?.name ?? `SmartHome${id}`,
           model: 'SONOFF SNZB-02P', protocol: 'Zigbee', source: 'zigbee', configured: true,
+          requiresFreshness: true,
           online, available, value: available ? temperature : null,
           updatedAt: sensor?.updatedAt ?? null, reason: available ? null : sensor?.updatedAt ? 'offline' : 'no_data' }];
       }
@@ -161,7 +162,7 @@ export class HomeStatusRuntime {
       if (this.readZigbeeLights && id === 'L5') {
         const light = zigbeeLights?.[id];
         const available = light?.available === true && ['ON', 'OFF'].includes(light.state);
-        return [id, { ...entry, source: 'zigbee', configured: true, available, online: available, state: available ? light.state : null, value: available ? light.state === 'ON' : null, updatedAt: light?.updatedAt ?? null, reason: available ? null : light?.updatedAt ? 'offline' : 'no_data' }];
+        return [id, { ...entry, source: 'zigbee', requiresFreshness: false, configured: true, available, online: available, state: available ? light.state : null, value: available ? light.state === 'ON' : null, updatedAt: light?.updatedAt ?? null, reason: available ? null : light?.updatedAt ? 'offline' : 'no_data' }];
       }
       if (!device) return [id, entry];
       if (device.configurationStatus !== 'complete' || device.verificationStatus !== 'verified') return [id, { ...entry, reason: 'not_verified' }];
@@ -189,6 +190,7 @@ export class HomeStatusRuntime {
     // Another device may have taken time: check freshness again at snapshot publication.
     for (const entry of Object.values(values)) {
       if (entry.source === 'zigbee') {
+        if (!entry.requiresFreshness) continue;
         const age = this.now() - Date.parse(entry.updatedAt);
         if (entry.online && !(age >= 0 && age <= ZIGBEE_SENSOR_CONFIG.freshnessMs)) Object.assign(entry, { available: false, online: false, value: null, reason: 'stale' });
       } else if (entry.online && !fresh(entry.updatedAt, this.now(), entry.maxAgeMs)) Object.assign(entry, { available: false, online: false, value: null, ambientTemperature: null, temperature: null, externalProbeTemperature: null, humidity: null, reason: 'stale' });

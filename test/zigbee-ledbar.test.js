@@ -4,6 +4,7 @@ import { EventEmitter, once } from 'node:events';
 import { readFile } from 'node:fs/promises';
 import { HomeZigbeeSensorRuntime } from '../src/zigbee-sensor-runtime.js';
 import { HomeStatusRuntime } from '../src/home-status.js';
+import { ZIGBEE_SENSOR_CONFIG } from '../config/zigbee-sensors.js';
 import { createHomeControlServer } from '../server.js';
 import { createFloorplanState } from '../public/js/floorplan-state.js';
 
@@ -18,7 +19,7 @@ function fixture() {
   client.publish = (topic, payload, options, callback) => { publishes.push([topic, JSON.parse(payload)]); callback(null); };
   client.end = () => {};
   const runtime = new HomeZigbeeSensorRuntime({ now: () => now, connect: () => client });
-  return { runtime, client, subscriptions, publishes, message: payload => client.emit('message', 'zigbee2mqtt/SmartHomeLB1', Buffer.from(JSON.stringify(payload))), lightMessage: payload => client.emit('message', 'zigbee2mqtt/bagno-L5', Buffer.from(JSON.stringify(payload))), advance: milliseconds => { now += milliseconds; } };
+  return { runtime, client, subscriptions, publishes, now: () => now, message: payload => client.emit('message', 'zigbee2mqtt/SmartHomeLB1', Buffer.from(JSON.stringify(payload))), lightMessage: payload => client.emit('message', 'zigbee2mqtt/bagno-L5', Buffer.from(JSON.stringify(payload))), sensorMessage: (id, payload) => client.emit('message', `zigbee2mqtt/SmartHome${id}`, Buffer.from(JSON.stringify(payload))), advance: milliseconds => { now += milliseconds; } };
 }
 
 test('LB1 e L5 richiedono lo stato solo dopo subscribe riuscita, una volta per connessione', () => {
@@ -121,6 +122,26 @@ test('L5 è esposto nello snapshot Home e gli aggiornamenti MQTT invalidano il v
   assert.equal((await home.readSnapshot()).lights.L5.state, 'ON');
   f.lightMessage({ state: 'OFF' }); home.invalidate();
   assert.equal((await home.readSnapshot()).lights.L5.state, 'OFF');
+  f.runtime.close();
+});
+
+test('L5 attuatore conserva ON e OFF oltre la freshness dei sensori, mentre S1 diventa stale', async () => {
+  const f = fixture(); f.runtime.start(); f.client.emit('connect');
+  const home = new HomeStatusRuntime({ now: f.now, hardwareStore: { async read() { return { devices: [] }; } }, roleStore: { async read() { return {}; } }, readZigbeeSensors: () => f.runtime.readSnapshot(), readZigbeeLights: () => f.runtime.readLightsSnapshot(), readThermostat: async () => ({ online: false, thermostat: {} }), readPresence: async () => ({}) });
+  f.lightMessage({ state: 'ON' }); f.sensorMessage('S1', { temperature: 21.5, humidity: 50 });
+  let snapshot = await home.readSnapshot();
+  assert.equal(snapshot.lights.L5.available, true); assert.equal(snapshot.lights.L5.online, true);
+  assert.equal(snapshot.lights.L5.state, 'ON'); assert.equal(snapshot.lights.L5.value, true);
+  assert.equal(snapshot.sensors.S1.available, true);
+  f.advance(ZIGBEE_SENSOR_CONFIG.freshnessMs + 1); home.invalidate();
+  snapshot = await home.readSnapshot();
+  assert.equal(snapshot.lights.L5.available, true); assert.equal(snapshot.lights.L5.online, true);
+  assert.equal(snapshot.lights.L5.state, 'ON'); assert.equal(snapshot.lights.L5.value, true);
+  assert.equal(snapshot.sensors.S1.available, false); assert.equal(snapshot.sensors.S1.online, false);
+  f.lightMessage({ state: 'OFF' }); home.invalidate(); snapshot = await home.readSnapshot();
+  f.advance(ZIGBEE_SENSOR_CONFIG.freshnessMs + 1); home.invalidate(); snapshot = await home.readSnapshot();
+  assert.equal(snapshot.lights.L5.available, true); assert.equal(snapshot.lights.L5.online, true);
+  assert.equal(snapshot.lights.L5.state, 'OFF'); assert.equal(snapshot.lights.L5.value, false);
   f.runtime.close();
 });
 
