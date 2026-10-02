@@ -449,8 +449,8 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
   const response = await fetch(homeControlPath('/api/cameras/' + id + '/alarm'), { cache: 'no-store' });
   if (!response.ok) throw new Error('Allarme non disponibile');
   return response.json();
-}, onLightToggle = id => id === 'L5'
-  ? fetch(homeControlPath('/api/lights/L5/power'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on: !store.snapshot().lights[id] }) })
+}, onLightToggle = id => store.snapshot().lightSources[id] === 'zigbee'
+  ? fetch(homeControlPath('/api/lights/' + encodeURIComponent(id) + '/power'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on: !store.snapshot().lights[id] }) })
   : store.setLight(id, !store.snapshot().lights[id]), onLedbarPower = on => fetch(homeControlPath('/api/ledbar/power'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on }) }), onLedbarBrightness = brightness => fetch(homeControlPath('/api/ledbar/brightness'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ brightness }) }) } = {}) {
   const stage = document.querySelector('[data-layered-floorplan]');
   const status = document.querySelector('[data-floorplan-status]');
@@ -538,7 +538,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
       element.removeAttribute('title');
       element.addEventListener('click', () => {
         const snapshot = store.snapshot();
-        if (snapshot.lightSources[light.id] !== 'simulation' && !(light.id === 'L5' && snapshot.lightSources[light.id] === 'zigbee' && typeof snapshot.lights[light.id] === 'boolean')) return;
+        if (snapshot.lightSources[light.id] !== 'simulation' && !(snapshot.lightSources[light.id] === 'zigbee' && typeof snapshot.lights[light.id] === 'boolean')) return;
         void Promise.resolve(onLightToggle(light.id)).catch(() => {});
         switchSound.play();
       });
@@ -814,7 +814,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
         element.dataset.on = String(on);
         element.setAttribute('aria-pressed', String(on));
         const source = state.lightSources[light.id];
-        element.disabled = source !== 'simulation' && !(light.id === 'L5' && source === 'zigbee' && typeof state.lights[light.id] === 'boolean');
+        element.disabled = source !== 'simulation' && !(source === 'zigbee' && typeof state.lights[light.id] === 'boolean');
         element.dataset.source = source;
         element.setAttribute('aria-label', 'Luce ' + light.room + ': ' + (state.lights[light.id] === null ? 'non disponibile' : on ? 'ON' : 'OFF') + (source === 'simulation' ? ' · simulata' : ''));
         if (previousLights[light.id] !== on) element.replaceChildren(createIcon(assets, on ? config.icons.lightOn : config.icons.lightOff, '💡'));

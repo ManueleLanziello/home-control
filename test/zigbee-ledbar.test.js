@@ -19,10 +19,10 @@ function fixture() {
   client.publish = (topic, payload, options, callback) => { publishes.push([topic, JSON.parse(payload)]); callback(null); };
   client.end = () => {};
   const runtime = new HomeZigbeeSensorRuntime({ now: () => now, connect: () => client });
-  return { runtime, client, subscriptions, publishes, now: () => now, message: payload => client.emit('message', 'zigbee2mqtt/SmartHomeLB1', Buffer.from(JSON.stringify(payload))), lightMessage: payload => client.emit('message', 'zigbee2mqtt/bagno-L5', Buffer.from(JSON.stringify(payload))), sensorMessage: (id, payload) => client.emit('message', `zigbee2mqtt/SmartHome${id}`, Buffer.from(JSON.stringify(payload))), advance: milliseconds => { now += milliseconds; } };
+  return { runtime, client, subscriptions, publishes, now: () => now, message: payload => client.emit('message', 'zigbee2mqtt/SmartHomeLB1', Buffer.from(JSON.stringify(payload))), lightMessage: payload => client.emit('message', 'zigbee2mqtt/bagno-L5', Buffer.from(JSON.stringify(payload))), l6Message: payload => client.emit('message', 'zigbee2mqtt/cameretta-L6', Buffer.from(JSON.stringify(payload))), sensorMessage: (id, payload) => client.emit('message', `zigbee2mqtt/SmartHome${id}`, Buffer.from(JSON.stringify(payload))), advance: milliseconds => { now += milliseconds; } };
 }
 
-test('LB1 e L5 richiedono lo stato solo dopo subscribe riuscita, una volta per connessione', () => {
+test('LB1, L5 e L6 richiedono lo stato solo dopo subscribe riuscita, una volta per connessione', () => {
   const f = fixture(); const callbacks = []; const raw = [];
   f.client.subscribe = (topics, options, callback) => callbacks.push(callback);
   f.client.publish = (topic, payload, options, callback) => { raw.push([topic, payload, options]); callback(null); };
@@ -31,19 +31,24 @@ test('LB1 e L5 richiedono lo stato solo dopo subscribe riuscita, una volta per c
   callbacks[0](null); callbacks[0](null);
   assert.deepEqual(raw.filter(([topic]) => topic.endsWith('SmartHomeLB1/get')), [['zigbee2mqtt/SmartHomeLB1/get', '{"state":"","brightness":""}', { qos: 0 }]]);
   assert.deepEqual(raw.filter(([topic]) => topic.endsWith('bagno-L5/get')), [['zigbee2mqtt/bagno-L5/get', '{"state":""}', { qos: 0 }]]);
+  assert.deepEqual(raw.filter(([topic]) => topic.endsWith('cameretta-L6/get')), [['zigbee2mqtt/cameretta-L6/get', '{"state":""}', { qos: 0 }]]);
   assert.equal(raw.filter(([topic]) => /SmartHomeS[124]\/get$/.test(topic)).length, 0);
-  assert.equal(raw.length, 2);
+  assert.equal(raw.length, 3);
   assert.equal(f.runtime.readLedbarSnapshot().known, false);
   f.client.emit('close'); f.client.emit('connect');
-  callbacks[0](null); assert.equal(raw.length, 2);
-  callbacks[1](null); assert.equal(raw.length, 4);
+  callbacks[0](null); assert.equal(raw.length, 3);
+  callbacks[1](null); assert.equal(raw.length, 6);
   assert.deepEqual(raw.filter(([topic]) => topic.endsWith('bagno-L5/get')), [
     ['zigbee2mqtt/bagno-L5/get', '{"state":""}', { qos: 0 }],
     ['zigbee2mqtt/bagno-L5/get', '{"state":""}', { qos: 0 }],
   ]);
+  assert.deepEqual(raw.filter(([topic]) => topic.endsWith('cameretta-L6/get')), [
+    ['zigbee2mqtt/cameretta-L6/get', '{"state":""}', { qos: 0 }],
+    ['zigbee2mqtt/cameretta-L6/get', '{"state":""}', { qos: 0 }],
+  ]);
   f.advance(24 * 60 * 60 * 1000);
   for (let i = 0; i < 10; i += 1) f.runtime.readLedbarSnapshot();
-  assert.equal(raw.length, 4);
+  assert.equal(raw.length, 6);
   f.runtime.close();
 });
 
@@ -116,6 +121,16 @@ test('L5 riceve ON/OFF da bagno-L5 e pubblica il toggle sul topic Zigbee corrett
   f.runtime.close();
 });
 
+test('L6 riceve ON/OFF da cameretta-L6 e pubblica il toggle sul topic Zigbee corretto', async () => {
+  const f = fixture(); f.runtime.start(); f.client.emit('connect');
+  assert.ok(f.subscriptions[0].includes('zigbee2mqtt/cameretta-L6'));
+  f.l6Message({ state: 'ON' }); assert.equal(f.runtime.readLightsSnapshot().L6.state, 'ON');
+  await f.runtime.setLightPower('L6', false); f.l6Message({ state: 'OFF' });
+  await f.runtime.setLightPower('L6', true); f.l6Message({ state: 'ON' });
+  assert.deepEqual(f.publishes.filter(([topic]) => topic === 'zigbee2mqtt/cameretta-L6/set'), [['zigbee2mqtt/cameretta-L6/set', { state: 'OFF' }], ['zigbee2mqtt/cameretta-L6/set', { state: 'ON' }]]);
+  assert.equal(f.runtime.readLightsSnapshot().L6.state, 'ON'); f.runtime.close();
+});
+
 test('L5 è esposto nello snapshot Home e gli aggiornamenti MQTT invalidano il valore', async () => {
   const f = fixture(); f.runtime.start(); f.client.emit('connect'); f.lightMessage({ state: 'ON' });
   const home = new HomeStatusRuntime({ now: () => Date.parse('2026-09-19T12:00:00Z'), hardwareStore: { async read() { return { devices: [] }; } }, roleStore: { async read() { return {}; } }, readZigbeeLedbar: () => f.runtime.readLedbarSnapshot(), readZigbeeLights: () => f.runtime.readLightsSnapshot(), readThermostat: async () => ({ online: false, thermostat: {} }) });
@@ -125,18 +140,22 @@ test('L5 è esposto nello snapshot Home e gli aggiornamenti MQTT invalidano il v
   f.runtime.close();
 });
 
-test('L5 attuatore conserva ON e OFF oltre la freshness dei sensori, mentre S1 diventa stale', async () => {
+test('L5 e L6 attuatori conservano ON e OFF oltre la freshness dei sensori, mentre S1 diventa stale', async () => {
   const f = fixture(); f.runtime.start(); f.client.emit('connect');
   const home = new HomeStatusRuntime({ now: f.now, hardwareStore: { async read() { return { devices: [] }; } }, roleStore: { async read() { return {}; } }, readZigbeeSensors: () => f.runtime.readSnapshot(), readZigbeeLights: () => f.runtime.readLightsSnapshot(), readThermostat: async () => ({ online: false, thermostat: {} }), readPresence: async () => ({}) });
-  f.lightMessage({ state: 'ON' }); f.sensorMessage('S1', { temperature: 21.5, humidity: 50 });
+  f.lightMessage({ state: 'ON' }); f.l6Message({ state: 'OFF' }); f.sensorMessage('S1', { temperature: 21.5, humidity: 50 });
   let snapshot = await home.readSnapshot();
   assert.equal(snapshot.lights.L5.available, true); assert.equal(snapshot.lights.L5.online, true);
   assert.equal(snapshot.lights.L5.state, 'ON'); assert.equal(snapshot.lights.L5.value, true);
+  assert.equal(snapshot.lights.L6.available, true); assert.equal(snapshot.lights.L6.online, true);
+  assert.equal(snapshot.lights.L6.state, 'OFF'); assert.equal(snapshot.lights.L6.value, false);
   assert.equal(snapshot.sensors.S1.available, true);
   f.advance(ZIGBEE_SENSOR_CONFIG.freshnessMs + 1); home.invalidate();
   snapshot = await home.readSnapshot();
   assert.equal(snapshot.lights.L5.available, true); assert.equal(snapshot.lights.L5.online, true);
   assert.equal(snapshot.lights.L5.state, 'ON'); assert.equal(snapshot.lights.L5.value, true);
+  assert.equal(snapshot.lights.L6.available, true); assert.equal(snapshot.lights.L6.online, true);
+  assert.equal(snapshot.lights.L6.state, 'OFF'); assert.equal(snapshot.lights.L6.value, false);
   assert.equal(snapshot.sensors.S1.available, false); assert.equal(snapshot.sensors.S1.online, false);
   f.lightMessage({ state: 'OFF' }); home.invalidate(); snapshot = await home.readSnapshot();
   f.advance(ZIGBEE_SENSOR_CONFIG.freshnessMs + 1); home.invalidate(); snapshot = await home.readSnapshot();
@@ -145,14 +164,16 @@ test('L5 attuatore conserva ON e OFF oltre la freshness dei sensori, mentre S1 d
   f.runtime.close();
 });
 
-test('lo store planimetria converte lo stato Zigbee L5 senza alterare le luci simulate', () => {
+test('lo store planimetria converte gli stati Zigbee L5/L6 senza alterare le luci simulate', () => {
   const store = createFloorplanState();
-  store.applyHomeSnapshot({ lights: { L5: { source: 'zigbee', available: true, state: 'ON' } } });
+  store.applyHomeSnapshot({ lights: { L5: { source: 'zigbee', available: true, state: 'ON' }, L6: { source: 'zigbee', available: true, state: 'OFF' } } });
   assert.equal(store.snapshot().lights.L5, true);
+  assert.equal(store.snapshot().lights.L6, false);
   assert.equal(store.snapshot().lightSources.L5, 'zigbee');
+  assert.equal(store.snapshot().lightSources.L6, 'zigbee');
 });
 
-test('API L5 e SSE ricevono feedback fisico senza un secondo client MQTT', async t => {
+test('API L5/L6 e SSE ricevono feedback fisico senza un secondo client MQTT', async t => {
   const f = fixture(); f.runtime.start(); f.client.emit('connect');
   const server = createHomeControlServer({ zigbeeRuntime: f.runtime, hardwareStore: { async read() { return { devices: [] }; } }, roleStore: { async read() { return {}; } }, thermostatRuntime: { async readSnapshot() { return { online: false, thermostat: {} }; } }, cameraRuntime: { snapshot: async () => ({}), close: async () => {} } });
   t.after(() => new Promise(resolve => server.close(resolve)));
@@ -161,9 +182,14 @@ test('API L5 e SSE ricevono feedback fisico senza un secondo client MQTT', async
   const events = await fetch(base + '/api/lights/events'); const reader = events.body.getReader(); await reader.read();
   f.lightMessage({ state: 'ON' });
   const event = new TextDecoder().decode((await reader.read()).value);
-  assert.match(event, /"L5"/); assert.match(event, /"state":"ON"/); await reader.cancel();
+  assert.match(event, /"L5"/); assert.match(event, /"state":"ON"/);
+  f.l6Message({ state: 'OFF' });
+  const l6Event = new TextDecoder().decode((await reader.read()).value);
+  assert.match(l6Event, /"L6"/); assert.match(l6Event, /"state":"OFF"/); await reader.cancel();
   assert.equal((await fetch(base + '/api/lights/L5/power', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on: false }) })).status, 202);
+  assert.equal((await fetch(base + '/api/lights/L6/power', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on: true }) })).status, 202);
   assert.deepEqual(f.publishes.filter(([topic]) => topic === 'zigbee2mqtt/bagno-L5/set'), [['zigbee2mqtt/bagno-L5/set', { state: 'OFF' }]]);
+  assert.deepEqual(f.publishes.filter(([topic]) => topic === 'zigbee2mqtt/cameretta-L6/set'), [['zigbee2mqtt/cameretta-L6/set', { state: 'ON' }]]);
 });
 
 test('LB1 è esposto nello snapshot Home e ogni aggiornamento MQTT invalida lo stato', async () => {

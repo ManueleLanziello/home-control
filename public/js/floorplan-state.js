@@ -56,7 +56,7 @@ export function createFloorplanState() {
     },
     applyZigbeeLightsSnapshot(lights = {}) {
       for (const [id, light] of Object.entries(lights)) {
-        if (!Object.hasOwn(state.lights, id) || id !== 'L5') continue;
+        if (!Object.hasOwn(state.lights, id)) continue;
         state.lightSources[id] = 'zigbee';
         const available = light?.available === true && (light.state === 'ON' || light.state === 'OFF');
         state.lights[id] = available ? light.state === 'ON' : null;

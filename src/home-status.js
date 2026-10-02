@@ -159,7 +159,7 @@ export class HomeStatusRuntime {
       const entry = { configured: devices.length > 0, available: false, online: false, value: null, state: null, alias: device?.alias ?? null, updatedAt: null,
         source: id.startsWith('L') && !devices.length ? 'simulation' : 'hardware',
         reason: devices.length > 1 ? 'ambiguous_role' : device ? 'unsupported_adapter' : 'not_configured' };
-      if (this.readZigbeeLights && id === 'L5') {
+      if (this.readZigbeeLights && Object.hasOwn(zigbeeLights || {}, id)) {
         const light = zigbeeLights?.[id];
         const available = light?.available === true && ['ON', 'OFF'].includes(light.state);
         return [id, { ...entry, source: 'zigbee', requiresFreshness: false, configured: true, available, online: available, state: available ? light.state : null, value: available ? light.state === 'ON' : null, updatedAt: light?.updatedAt ?? null, reason: available ? null : light?.updatedAt ? 'offline' : 'no_data' }];
