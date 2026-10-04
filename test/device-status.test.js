@@ -12,7 +12,7 @@ const inventory = [
   { marker: 'D7', presenceEnabled: true, status: 'active' }, { marker: 'D8', presenceEnabled: true, status: 'active' },
   { marker: 'D9', presenceEnabled: true, status: 'active' }, { marker: 'D10', presenceEnabled: true, status: 'active' },
   { marker: 'D11', presenceEnabled: true, status: 'active' }, { marker: 'D12', presenceEnabled: true, status: 'active' },
-  { marker: 'D13', presenceEnabled: false, status: 'future' }, { marker: 'D14', presenceEnabled: true, status: 'active' },
+  { marker: 'D14', presenceEnabled: true, status: 'active' },
   { marker: 'D15', presenceEnabled: true, status: 'active' }, { marker: 'D16', presenceEnabled: true, status: 'active' },
   { marker: 'D17', presenceEnabled: true, status: 'active' }, { marker: 'D18', presenceEnabled: true, status: 'active', identity: { deviceId: 'dewin-pond' } },
 ];
@@ -26,21 +26,22 @@ test('normalizza inventory esplicito e riusa esclusivamente gli snapshot runtime
   }, now);
   assert.equal(statuses.D1.status, 'online'); assert.equal(statuses.D2.status, 'offline'); assert.equal(statuses.D7.status, 'online'); assert.equal(statuses.D8.status, 'online'); assert.equal(statuses.D6.status, 'online'); assert.equal(statuses.D9.status, 'online');
   assert.equal(statuses.D10.status, 'online'); assert.equal(statuses.D11.status, 'online'); assert.equal(statuses.D12.status, 'offline');
-  assert.equal(statuses.D13.status, 'not_configured'); assert.equal(statuses.D14.status, 'online'); assert.equal(statuses.D15.status, 'online');
+  assert.equal(statuses.D14.status, 'online'); assert.equal(statuses.D15.status, 'online');
   assert.equal(statuses.D16.status, 'offline'); assert.equal(statuses.D17.status, 'online'); assert.equal(statuses.D18.status, 'online');
 });
 
 test('il frontend conserva soltanto il payload normalizzato ricevuto', () => {
   const store = createFloorplanState();
-  const devices = { D6: { id: 'D6', presenceEnabled: true, status: 'online' }, D13: { id: 'D13', presenceEnabled: false, status: 'not_configured' } };
+  const devices = { D6: { id: 'D6', presenceEnabled: true, status: 'online' }, D14: { id: 'D14', presenceEnabled: false, status: 'not_configured' } };
   store.applyHomeSnapshot({ devices });
   assert.deepEqual(store.snapshot().devices, devices);
 });
 
-test('la configurazione usa tutti i marker geometrici D1-D18 per etichetta, mai coordinate', () => {
+test('la configurazione esclude il dispositivo ritirato D13 e usa etichette, mai coordinate', () => {
   assert.equal(floorplanConfig.mappings.devices, 'LAYER-DISPOSITIVI.svg');
-  assert.deepEqual(floorplanConfig.devices.map(device => device.id), Array.from({ length: 18 }, (_, index) => `D${index + 1}`));
-  assert.deepEqual(floorplanConfig.devices.map(device => device.marker.label), Array.from({ length: 18 }, (_, index) => String(index + 1)));
+  const activeMarkers = Array.from({ length: 18 }, (_, index) => index + 1).filter(index => index !== 13);
+  assert.deepEqual(floorplanConfig.devices.map(device => device.id), activeMarkers.map(index => `D${index}`));
+  assert.deepEqual(floorplanConfig.devices.map(device => device.marker.label), activeMarkers.map(String));
 });
 
 test('lo snapshot Home pubblica gli stati senza nuove letture per marker', async () => {

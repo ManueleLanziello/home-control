@@ -39,9 +39,11 @@ export const floorplanConfig = {
     const prefix = id.toLowerCase();
     return { id, room, marker: labeledMarker(markerId), controls: { privacy: labeledMarker(prefix + 'a'), detection: labeledMarker(prefix + 'b'), alarm: labeledMarker(prefix + 'c'), battery: labeledMarker(prefix + 'd'), events: labeledMarker(prefix + 'e') } };
   }),
-  // LAYER-DISPOSITIVI labels its markers 1…18; the inventory prefix is D.
+  // LAYER-DISPOSITIVI labels its markers 1…18 except the retired D13; the inventory prefix is D.
   // Geometry always comes from its SVG; no coordinate or DOM order is copied here.
-  devices: Array.from({ length: 18 }, (_, index) => ({ id: `D${index + 1}`, marker: labeledMarker(String(index + 1)) })),
+  devices: Array.from({ length: 18 }, (_, index) => index + 1)
+    .filter(index => index !== 13)
+    .map(index => ({ id: `D${index}`, marker: labeledMarker(String(index)) })),
   boiler: { marker: labeledMarker('D1'), card: labeledMarker('QD1'), target: '.boiler-card', settings: '.boiler-settings-link' },
   cappa: { id: 'K1', marker: marker(0) },
   pond: { marker: labeledMarker('P1'), controls: { pump: labeledMarker('P1a'), heater: labeledMarker('P1b'), mode: labeledMarker('P1c') } },
