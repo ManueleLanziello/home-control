@@ -677,7 +677,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
       }
       cameraControls.set(camera.id, controls);
     }
-    for (const camera of config.cameras.filter(camera => camera.id !== 'C3')) {
+    for (const camera of config.cameras) {
       void onCameraPrivacyRead(camera.id).then(privacy => store.applyCameraPrivacy(camera.id, privacy)).catch(() => {});
       void onCameraDetectionRead(camera.id).then(detection => store.applyCameraDetection(camera.id, detection)).catch(() => {});
       void onCameraAlarmRead(camera.id).then(alarm => store.applyCameraAlarm(camera.id, alarm)).catch(() => {});

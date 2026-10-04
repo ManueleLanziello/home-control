@@ -9,7 +9,7 @@ import { readCameraRecording } from './camera-recording.js';
 import { CameraOperationQueue } from './camera-operation-queue.js';
 
 export const OWNED_CAMERA_ADAPTER = 'tapo-c410-owned';
-export const CAMERA_ROLE_MAP = Object.freeze({ C1: 'camera_terrazzo', C2: 'camera_pond', C3: 'camera_giardino' });
+export const CAMERA_ROLE_MAP = Object.freeze({ C1: 'camera_terrazzo', C2: 'camera_pond' });
 const RECORDING_CACHE_TTL_MS = 3 * 60_000;
 const EMPTY_TELEMETRY = () => ({
   battery: { available: false, percent: null, charging: null },
@@ -137,9 +137,9 @@ export class HomeCameraRuntime {
 
   async snapshot() {
     const { registry, assignments } = await this.reconcile();
-    const [C1, C2, C3] = await Promise.all(['C1', 'C2', 'C3'].map(role => this.ownedState(role, registry, assignments)));
+    const [C1, C2] = await Promise.all(['C1', 'C2'].map(role => this.ownedState(role, registry, assignments)));
     const alerts = this.getCameraEventAlerts();
-    return { C1: { ...C1, recentEventAlert: alerts.C1 }, C2: { ...C2, recentEventAlert: alerts.C2 }, C3: { ...C3, recentEventAlert: alerts.C3 } };
+    return { C1: { ...C1, recentEventAlert: alerts.C1 }, C2: { ...C2, recentEventAlert: alerts.C2 } };
   }
 
   async imagePath(role) { await this.reconcile(); return this.owned.imagePath(CAMERA_ROLE_MAP[role]); }
@@ -329,7 +329,7 @@ export class HomeCameraRuntime {
   }
   getCameraEventAlerts() {
     const now = this.now();
-    return Object.fromEntries(['C1', 'C2', 'C3'].map(role => {
+    return Object.fromEntries(Object.keys(CAMERA_ROLE_MAP).map(role => {
       const state = this.eventMonitorState.get(role);
       const active = state?.alertUntil > now && Boolean(state?.alertVersion);
       return [role, { active, version: active ? state.alertVersion : null, until: active ? state.alertUntil : null }];

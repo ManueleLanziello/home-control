@@ -339,7 +339,6 @@ test('video evento valida l ID, deduplica la preparazione e pulisce la cache tem
     assert.equal(first.path, 'temporary.mp4'); assert.equal(second.path, 'temporary.mp4'); await first.release(); await second.release();
     assert.deepEqual(calls.map(({ ip, startTime: start, endTime: end }) => ({ ip, start, end })), [{ ip: '192.0.2.1', start: startTime, end: endTime }]);
     await assert.rejects(runtime.getCameraEventVideo('C1', '1-2'), /Registrazione non disponibile/);
-    await assert.rejects(runtime.getCameraEventVideo('C3', event.id), /Camera non disponibile/);
     await new Promise(resolve => setTimeout(resolve, 25)); assert.equal(cleanups, 1);
   } finally { await runtime.close(); }
 });
@@ -435,7 +434,7 @@ test('GET bootstrap riusa i controlli appena letti dal worker telemetria', async
   } finally { await runtime.close(); }
 });
 
-test('Privacy usa il ruolo richiesto, conserva solo il read-back e isola C1/C2/C3', async () => {
+test('Privacy usa il ruolo richiesto, conserva solo il read-back e isola C1/C2', async () => {
   const records = [
     camera('c1', 'Terrazzo', '192.0.2.1', 'AA:BB:CC:DD:EE:01'),
     camera('c2', 'Pond', '192.0.2.2', 'AA:BB:CC:DD:EE:02'),
@@ -460,12 +459,11 @@ test('Privacy usa il ruolo richiesto, conserva solo il read-back e isola C1/C2/C
     assert.deepEqual(await runtime.getPrivacyMode('C1'), { available: true, enabled: true });
     assert.equal((await runtime.snapshot()).C1.privacy.enabled, true);
     await assert.rejects(runtime.setPrivacyMode('C2', false), /fixture failure/);
-    await assert.rejects(runtime.setPrivacyMode('C3', true), /Camera non disponibile/);
     assert.deepEqual(calls, [['192.0.2.1', true], ['192.0.2.2', false]]);
   } finally { await runtime.close(); }
 });
 
-test('Rilevazione usa il master del ruolo richiesto, con read-back e C3 fail-safe', async () => {
+test('Rilevazione usa il master del ruolo richiesto, con read-back C1/C2', async () => {
   const records = [
     camera('c1', 'Terrazzo', '192.0.2.1', 'AA:BB:CC:DD:EE:01'),
     camera('c2', 'Pond', '192.0.2.2', 'AA:BB:CC:DD:EE:02'),
@@ -484,12 +482,11 @@ test('Rilevazione usa il master del ruolo richiesto, con read-back e C3 fail-saf
     assert.deepEqual(await runtime.getDetectionMode('C1'), { available: false, enabled: null });
     assert.deepEqual(await runtime.setDetectionMode('C2', true), { available: true, enabled: true });
     assert.equal((await runtime.snapshot()).C2.detection, true);
-    await assert.rejects(runtime.getDetectionMode('C3'), /Camera non disponibile/);
     assert.deepEqual(calls, [['set', '192.0.2.2', true]]);
   } finally { await runtime.close(); }
 });
 
-test('camera configuration exposes C1/C2/C3 as local roles and C2 media uses the local runtime', async () => {
+test('camera configuration exposes C1/C2 as local roles and C2 media uses the local runtime', async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'home-camera-api-'));
   const imagePath = path.join(directory, 'c2.jpg'); await writeFile(imagePath, new Uint8Array([0xff, 0xd8, 0xff]));
   const videoPath = path.join(directory, 'recording.mp4'); await writeFile(videoPath, new Uint8Array([0, 1, 2]));
@@ -503,20 +500,19 @@ test('camera configuration exposes C1/C2/C3 as local roles and C2 media uses the
     async snapshot() { return {
       C1: { role: 'C1', configured: false, sourceType: 'owned', available: false },
       C2: { role: 'C2', configured: true, sourceType: 'owned', available: true, alias: 'Pond', model: 'C410' },
-      C3: { role: 'C3', configured: false, sourceType: 'owned', available: false },
     }; },
     async imagePath(role) { calls.push(['image', role]); return role === 'C2' ? imagePath : null; },
     async setLive(role, active) { calls.push(['live', role, active]); return { role, active, sourceType: 'owned' }; },
     async getPrivacyMode(role) { calls.push(['privacy-read', role]); return { available: true, enabled: false }; },
     async setPrivacyMode(role, enabled) { calls.push(['privacy', role, enabled]); return { available: true, enabled }; },
-    async getDetectionMode(role) { calls.push(['detection-read', role]); if (role === 'C3') throw new Error('Camera non disponibile'); return { available: true, enabled: role === 'C1' }; },
-    async setDetectionMode(role, enabled) { calls.push(['detection', role, enabled]); if (role === 'C3') throw new Error('Camera non disponibile'); return { available: true, enabled }; },
-    async getAlarmMode(role) { calls.push(['alarm-read', role]); if (role === 'C3') throw new Error('Camera non disponibile'); return { available: true, enabled: role === 'C1' }; },
-    async setAlarmMode(role, enabled) { calls.push(['alarm', role, enabled]); if (role === 'C3') throw new Error('Camera non disponibile'); return { available: true, enabled }; },
-    async toggleUnknownControl(role, kind) { calls.push(['toggle', role, kind]); if (role === 'C3') throw new Error('Camera non disponibile'); return { available: true, enabled: true }; },
-    async getCameraEvents(role, hours) { calls.push(['events', role, hours]); if (role === 'C3') throw new Error('Camera non disponibile'); return { camera: role, hours, available: true, events: [] }; },
-    async getCameraEventVideo(role, eventId) { calls.push(['video', role, eventId]); if (role === 'C3' || eventId !== '1-2') throw new Error('Registrazione non disponibile'); return { path: videoPath, size: 3, async release() { videoReleases++; } }; },
-    getCameraEventAlerts() { return { C1: { active: true, version: '123', until: 15_000 }, C2: { active: false, version: null, until: null }, C3: { active: false, version: null, until: null } }; },
+    async getDetectionMode(role) { calls.push(['detection-read', role]); return { available: true, enabled: role === 'C1' }; },
+    async setDetectionMode(role, enabled) { calls.push(['detection', role, enabled]); return { available: true, enabled }; },
+    async getAlarmMode(role) { calls.push(['alarm-read', role]); return { available: true, enabled: role === 'C1' }; },
+    async setAlarmMode(role, enabled) { calls.push(['alarm', role, enabled]); return { available: true, enabled }; },
+    async toggleUnknownControl(role, kind) { calls.push(['toggle', role, kind]); return { available: true, enabled: true }; },
+    async getCameraEvents(role, hours) { calls.push(['events', role, hours]); return { camera: role, hours, available: true, events: [] }; },
+    async getCameraEventVideo(role, eventId) { calls.push(['video', role, eventId]); if (eventId !== '1-2') throw new Error('Registrazione non disponibile'); return { path: videoPath, size: 3, async release() { videoReleases++; } }; },
+    getCameraEventAlerts() { return { C1: { active: true, version: '123', until: 15_000 }, C2: { active: false, version: null, until: null } }; },
     async verify() { return { model: 'C410' }; }, async close() {},
   };
   const server = createHomeControlServer({ hardwareStore, roleStore, cameraRuntime,
@@ -525,7 +521,7 @@ test('camera configuration exposes C1/C2/C3 as local roles and C2 media uses the
   server.listen(0, '127.0.0.1'); await once(server, 'listening');
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
-    assert.deepEqual(HOME_CAMERA_ROLES, ['camera_terrazzo', 'camera_pond', 'camera_giardino']);
+    assert.deepEqual(HOME_CAMERA_ROLES, ['camera_terrazzo', 'camera_pond']);
     const created = await fetch(`${base}/api/hardware/cameras`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alias: 'Pond', ip: '192.0.2.2', mac: 'aa:bb:cc:dd:ee:02', role: 'camera_pond' }) });
     assert.equal(created.status, 201);
     const listed = await (await fetch(`${base}/api/hardware/cameras`)).json();
@@ -553,19 +549,13 @@ test('camera configuration exposes C1/C2/C3 as local roles and C2 media uses the
     const detectionRead = await fetch(`${base}/api/cameras/C1/detection`);
     assert.equal(detectionRead.status, 200); assert.deepEqual(await detectionRead.json(), { available: true, enabled: true });
     assert.deepEqual(calls.at(-1), ['detection-read', 'C1']);
-    const detectionC3 = await fetch(`${base}/api/cameras/C3/detection`);
-    assert.equal(detectionC3.status, 503);
     const alarm = await fetch(`${base}/api/cameras/C1/alarm`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: false }) });
     assert.equal(alarm.status, 200); assert.deepEqual(await alarm.json(), { available: true, enabled: false });
     assert.deepEqual(calls.at(-1), ['alarm', 'C1', false]);
     const alarmRead = await fetch(`${base}/api/cameras/C2/alarm`);
     assert.equal(alarmRead.status, 200); assert.deepEqual(await alarmRead.json(), { available: true, enabled: false });
-    const alarmC3 = await fetch(`${base}/api/cameras/C3/alarm`);
-    assert.equal(alarmC3.status, 503);
     const events = await fetch(`${base}/api/cameras/C2/events?hours=12`);
     assert.equal(events.status, 200); assert.deepEqual((await events.json()).events, []);
-    const eventsC3 = await fetch(`${base}/api/cameras/C3/events?hours=12`);
-    assert.equal(eventsC3.status, 503);
     const video = await fetch(`${base}/api/cameras/C2/events/1-2/video`);
     assert.equal(video.status, 200); assert.equal(video.headers.get('content-type'), 'video/mp4'); assert.equal(video.headers.get('accept-ranges'), 'bytes'); assert.deepEqual([...new Uint8Array(await video.arrayBuffer())], [0, 1, 2]);
     const firstRange = await fetch(`${base}/api/cameras/C2/events/1-2/video`, { headers: { Range: 'bytes=0-1' } });
@@ -574,11 +564,9 @@ test('camera configuration exposes C1/C2/C3 as local roles and C2 media uses the
     assert.equal(secondRange.status, 206); assert.equal(secondRange.headers.get('content-range'), 'bytes 2-2/3'); assert.deepEqual([...new Uint8Array(await secondRange.arrayBuffer())], [2]);
     const invalidRange = await fetch(`${base}/api/cameras/C2/events/1-2/video`, { headers: { Range: 'bytes=7-8' } }); assert.equal(invalidRange.status, 416);
     assert.equal(videoReleases, 4);
-    const unavailableVideo = await fetch(`${base}/api/cameras/C3/events/1-2/video`);
-    assert.equal(unavailableVideo.status, 503);
     const eventAlerts = await fetch(`${base}/api/cameras/event-alerts`);
     assert.equal(eventAlerts.status, 200);
-    assert.deepEqual(await eventAlerts.json(), { alerts: { C1: { active: true, version: '123', until: 15_000 }, C2: { active: false, version: null, until: null }, C3: { active: false, version: null, until: null } } });
+    assert.deepEqual(await eventAlerts.json(), { alerts: { C1: { active: true, version: '123', until: 15_000 }, C2: { active: false, version: null, until: null } } });
     const home = await (await fetch(`${base}/api/home/status`)).json();
     assert.equal(home.cameras.C2.sourceType, 'owned'); assert.equal(home.cameras.C1.role, 'C1');
   } finally { server.close(); await once(server, 'close'); await rm(directory, { recursive: true, force: true }); }

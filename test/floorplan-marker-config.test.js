@@ -193,11 +193,9 @@ test('il resolver associa correttamente marker e label anche quando le label son
 test('il resolver dei main camera usa la posizione della label, non l ordine dei path', () => {
   const nodes = [
     { localName: 'path', getBBox: () => ({ x: 0, y: 0, width: 10, height: 10 }) },
-    { localName: 'path', getBBox: () => ({ x: 100, y: 0, width: 10, height: 10 }) },
     { localName: 'path', getBBox: () => ({ x: 200, y: 0, width: 10, height: 10 }) },
     { localName: 'text', textContent: 'C1', getBBox: () => ({ x: 0, y: 0, width: 10, height: 10 }) },
     { localName: 'text', textContent: 'C2', getBBox: () => ({ x: 200, y: 0, width: 10, height: 10 }) },
-    { localName: 'text', textContent: 'C3', getBBox: () => ({ x: 100, y: 0, width: 10, height: 10 }) },
   ];
   for (const [index, node] of nodes.entries()) {
     node.previousElementSibling = nodes[index - 1] || null;
@@ -206,8 +204,7 @@ test('il resolver dei main camera usa la posizione della label, non l ordine dei
   const source = { querySelectorAll: selector => nodes.filter(node => node.localName === selector) };
   const paths = nodes.filter(node => node.localName === 'path');
   assert.equal(shapeForLabel(source, 'C1'), paths[0]);
-  assert.equal(shapeForLabel(source, 'C2'), paths[2]);
-  assert.equal(shapeForLabel(source, 'C3'), paths[1]);
+  assert.equal(shapeForLabel(source, 'C2'), paths[1]);
 });
 
 test('LAYER-13 associa LM1 al rettangolino immediatamente precedente, non al contenitore', async () => {
@@ -240,13 +237,12 @@ test('gli altri marker semantici restano risolvibili nelle rispettive geometrie'
   }
 });
 
-test('LAYER-09 mantiene le identità C1/C2/C3 sulle rispettive posizioni grafiche e controlli', async () => {
+test('LAYER-09 mantiene le identità C1/C2 sulle rispettive posizioni grafiche e controlli', async () => {
   const { source: svg } = await labelsIn('LAYER-09-CAM.svg');
   const source = markerSourceFromSvg(svg);
   assert.deepEqual(floorplanConfig.cameras.map(({ id, room, marker, controls }) => ({ id, room, marker: marker.label, controls: Object.fromEntries(Object.entries(controls).map(([kind, control]) => [kind, control.label])) })), [
     { id: 'C1', room: 'TERRAZZO', marker: 'C1', controls: { privacy: 'c1a', detection: 'c1b', alarm: 'c1c', battery: 'c1d', events: 'c1e' } },
     { id: 'C2', room: 'POND', marker: 'C2', controls: { privacy: 'c2a', detection: 'c2b', alarm: 'c2c', battery: 'c2d', events: 'c2e' } },
-    { id: 'C3', room: 'GIARDINO', marker: 'C3', controls: { privacy: 'c3a', detection: 'c3b', alarm: 'c3c', battery: 'c3d', events: 'c3e' } },
   ]);
   for (const camera of floorplanConfig.cameras) {
     assert.deepEqual(Object.keys(camera.controls), ['privacy', 'detection', 'alarm', 'battery', 'events']);
@@ -383,9 +379,8 @@ test('snapshot Privacy conserva l’ultimo read-back booleano ma accetta nuovi b
 test('snapshot Rilevazione conserva l’ultimo master booleano e rispetta C2', () => {
   const store = createFloorplanState();
   store.applyCameraDetection('C2', { available: true, enabled: true });
-  store.applyHomeSnapshot({ cameras: { C2: { detection: null }, C3: { detection: null } } });
+  store.applyHomeSnapshot({ cameras: { C2: { detection: null } } });
   assert.equal(store.snapshot().cameras.C2.detection, true);
-  assert.equal(store.snapshot().cameras.C3.detection, null);
   store.applyHomeSnapshot({ cameras: { C2: { detection: false } } });
   assert.equal(store.snapshot().cameras.C2.detection, false);
 });

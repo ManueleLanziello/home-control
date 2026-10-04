@@ -82,7 +82,7 @@ export function createFloorplanState() {
       for (const listener of listeners) listener(this.snapshot());
     },
     applyCameraEventAlerts(alerts = {}) {
-      for (const id of ['C1', 'C2', 'C3']) {
+      for (const { id } of floorplanConfig.cameras) {
         const alert = alerts[id];
         state.cameras[id] = { ...(state.cameras[id] || {}), recentEventAlert: {
           active: alert?.active === true,

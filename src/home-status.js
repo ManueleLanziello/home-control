@@ -8,7 +8,7 @@ import { NetworkPresenceRuntime } from './network-presence-runtime.js';
 export const HOME_ROLES = Object.freeze({
   S1: 'temperature_cucina', S2: 'temperature_camera', S4: 'temperature_cameretta', S5: 'temperature_giardino',
   L1: 'light_cucina', L2: 'light_camera', L3: 'light_salotto', L4: 'light_disimpegno', L5: 'light_bagno', L6: 'light_cameretta', L7: 'light_gazebo',
-  C1: 'camera_terrazzo', C2: 'camera_pond', C3: 'camera_giardino',
+  C1: 'camera_terrazzo', C2: 'camera_pond',
 });
 const MAX_AGE_MS = 90_000;
 const finite = value => Number.isFinite(value) ? value : null;

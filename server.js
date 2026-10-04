@@ -371,7 +371,7 @@ export function createHomeControlServer({
       const entries = await readdir(path.join(ROOT, 'design'), { withFileTypes: true }).catch(() => []);
       return sendJson(response, 200, { assets: entries.filter(entry => entry.isFile() && /^[a-zA-Z0-9_-]+\.svg$/.test(entry.name)).map(entry => entry.name) });
     }
-    const cameraImageMatch = /^\/api\/cameras\/(C[123])\/image$/.exec(url.pathname);
+    const cameraImageMatch = /^\/api\/cameras\/(C[12])\/image$/.exec(url.pathname);
     if (cameraImageMatch) {
       if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
       const role = cameraImageMatch[1];
@@ -379,18 +379,18 @@ export function createHomeControlServer({
         return sendCameraImage(response, await cameras.imagePath(role));
       } catch { return sendJson(response, 503, { error: 'Immagine camera non disponibile' }); }
     }
-    const cameraStatusMatch = /^\/api\/cameras\/(C[123])\/status$/.exec(url.pathname);
+    const cameraStatusMatch = /^\/api\/cameras\/(C[12])\/status$/.exec(url.pathname);
     if (cameraStatusMatch) {
       if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
       return sendJson(response, 200, (await cameras.snapshot())[cameraStatusMatch[1]]);
     }
-    const cameraLiveMatch = /^\/api\/cameras\/(C[123])\/live$/.exec(url.pathname);
+    const cameraLiveMatch = /^\/api\/cameras\/(C[12])\/live$/.exec(url.pathname);
     if (cameraLiveMatch) {
       if (request.method !== 'PUT') return sendJson(response, 405, { error: 'Metodo non consentito' });
       try { const payload = await readJson(request); if (typeof payload?.active !== 'boolean') throw new Error('Stato camera non valido'); return sendJson(response, 200, await cameras.setLive(cameraLiveMatch[1], payload.active)); }
       catch (error) { return sendJson(response, 503, { error: error.message || 'Comando camera non disponibile' }); }
     }
-    const cameraPrivacyMatch = /^\/api\/cameras\/(C[123])\/privacy$/.exec(url.pathname);
+    const cameraPrivacyMatch = /^\/api\/cameras\/(C[12])\/privacy$/.exec(url.pathname);
     if (cameraPrivacyMatch) {
       if (request.method === 'GET') {
         try { return sendJson(response, 200, await cameras.getPrivacyMode(cameraPrivacyMatch[1])); }
@@ -405,7 +405,7 @@ export function createHomeControlServer({
         return sendJson(response, 200, privacy);
       } catch (error) { return sendJson(response, 503, { error: error.message || 'Comando Privacy non disponibile' }); }
     }
-    const cameraDetectionMatch = /^\/api\/cameras\/(C[123])\/detection$/.exec(url.pathname);
+    const cameraDetectionMatch = /^\/api\/cameras\/(C[12])\/detection$/.exec(url.pathname);
     if (cameraDetectionMatch) {
       if (request.method === 'GET') {
         try { return sendJson(response, 200, await cameras.getDetectionMode(cameraDetectionMatch[1])); }
@@ -420,7 +420,7 @@ export function createHomeControlServer({
         return sendJson(response, 200, detection);
       } catch (error) { return sendJson(response, 503, { error: error.message || 'Comando Rilevazione non disponibile' }); }
     }
-    const cameraAlarmMatch = /^\/api\/cameras\/(C[123])\/alarm$/.exec(url.pathname);
+    const cameraAlarmMatch = /^\/api\/cameras\/(C[12])\/alarm$/.exec(url.pathname);
     if (cameraAlarmMatch) {
       if (request.method === 'GET') {
         try { return sendJson(response, 200, await cameras.getAlarmMode(cameraAlarmMatch[1])); }
@@ -435,13 +435,13 @@ export function createHomeControlServer({
         return sendJson(response, 200, alarm);
       } catch (error) { return sendJson(response, 503, { error: error.message || 'Comando Allarme non disponibile' }); }
     }
-    const cameraEventVideoMatch = /^\/api\/cameras\/(C[123])\/events\/(\d+-\d+)\/video$/.exec(url.pathname);
+    const cameraEventVideoMatch = /^\/api\/cameras\/(C[12])\/events\/(\d+-\d+)\/video$/.exec(url.pathname);
     if (cameraEventVideoMatch) {
       if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
       try { return sendCameraRecording(request, response, await cameras.getCameraEventVideo(cameraEventVideoMatch[1], cameraEventVideoMatch[2])); }
       catch (error) { return sendJson(response, 503, { error: error.message || 'Video non disponibile' }); }
     }
-    const cameraEventsMatch = /^\/api\/cameras\/(C[123])\/events$/.exec(url.pathname);
+    const cameraEventsMatch = /^\/api\/cameras\/(C[12])\/events$/.exec(url.pathname);
     if (cameraEventsMatch) {
       if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
       const hours = Number(url.searchParams.get('hours') || 12);

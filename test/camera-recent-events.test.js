@@ -13,7 +13,8 @@ test('layer alert usa SVG preparati, pulsazione morbida e reduced-motion senza a
   const [config, css, floorplan] = await Promise.all([
     readFile(new URL('../public/js/floorplan-config.js', import.meta.url), 'utf8'), readFile(new URL('../public/floorplan.css', import.meta.url), 'utf8'), readFile(new URL('../public/js/floorplan.js', import.meta.url), 'utf8'),
   ]);
-  for (const name of ['LAYER-C1-ALARM.svg', 'LAYER-C2-ALARM.svg', 'LAYER-C3-ALARM.svg']) assert.match(config, new RegExp(name));
+  for (const name of ['LAYER-C1-ALARM.svg', 'LAYER-C2-ALARM.svg']) assert.match(config, new RegExp(name));
+  assert.doesNotMatch(config, /LAYER-C3-ALARM\.svg/);
   assert.match(css, /floorplan-camera-event-pulse 1s ease-in-out infinite/); assert.match(css, /50% \{ opacity: \.05; \}/); assert.match(css, /prefers-reduced-motion: reduce/);
   assert.match(floorplan, /api\/cameras\/event-alerts/); assert.match(floorplan, /15_000/);
 });

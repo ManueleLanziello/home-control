@@ -27,7 +27,7 @@ export const floorplanConfig = {
   lights: ['CUCINA', 'CAMERA', 'SALOTTO', 'DISIMPEGNO', 'BAGNO', 'CAMERETTA', 'GAZEBO', 'ESTERNO 8', 'ESTERNO 9', 'ESTERNO 10', 'ESTERNO 11', 'ESTERNO 12'].map((room, index) => ({ id: 'L' + (index + 1), room, marker: labeledMarker('L' + (index + 1)), ...(index >= 7 ? { localOnly: true } : {}) })),
   // These are full-plan graphical effects, not marker-sized light layers.
   externalLightOverlays: Object.fromEntries(['L8', 'L9', 'L10', 'L11', 'L12'].map(id => [id, 'LAYER-' + id + '-ON.svg'])),
-  cameraEventLayers: { C1: 'LAYER-C1-ALARM.svg', C2: 'LAYER-C2-ALARM.svg', C3: 'LAYER-C3-ALARM.svg' },
+  cameraEventLayers: { C1: 'LAYER-C1-ALARM.svg', C2: 'LAYER-C2-ALARM.svg' },
   sensors: ['CUCINA', 'CAMERA', 'SALOTTO', 'CAMERETTA', 'GIARDINO'].map((room, index) => {
     const id = 'S' + (index + 1);
     return { id, room, marker: labeledMarker(id), reading: labeledMarker('LS' + (index + 1)), probeReading: id === 'S5' ? labeledMarker('LS25') : null, humidityReading: ['S1', 'S2', 'S4', 'S5'].includes(id) ? labeledMarker('LU' + (index + 1)) : null, futureSource: index === 2 ? 'AVATTO' : null };
@@ -35,7 +35,6 @@ export const floorplanConfig = {
   cameras: [
     { id: 'C1', room: 'TERRAZZO', markerId: 'C1' },
     { id: 'C2', room: 'POND', markerId: 'C2' },
-    { id: 'C3', room: 'GIARDINO', markerId: 'C3' },
   ].map(({ id, room, markerId }) => {
     const prefix = id.toLowerCase();
     return { id, room, marker: labeledMarker(markerId), controls: { privacy: labeledMarker(prefix + 'a'), detection: labeledMarker(prefix + 'b'), alarm: labeledMarker(prefix + 'c'), battery: labeledMarker(prefix + 'd'), events: labeledMarker(prefix + 'e') } };
