@@ -1,7 +1,7 @@
 import { switchSound } from './light-sound.js';
 import { homeControlPath } from '../base-path.js';
 import { floorplanConfig as config } from './floorplan-config.js';
-import { backgroundPeriod, createFloorplanState } from './floorplan-state.js';
+import { floorplanBackground, createFloorplanState } from './floorplan-state.js';
 import { bindSensorPopupTrigger, showSensorPopup, updateSensorPopup } from './sensor-popup.js';
 import { showCameraEventsPopup } from './camera-events-popup.js';
 
@@ -12,6 +12,7 @@ export function mobileDeviceIcon(mobile) {
 }
 let weatherSnapshot = null;
 let renderWeatherSnapshot = () => {};
+let updateFloorplanBackground = () => {};
 let activePondControls = null;
 
 export async function refreshPondStatus() {
@@ -30,6 +31,7 @@ export function ledbarLayerFor({ state, brightness } = {}) {
 export function updateFloorplanWeather(snapshot) {
   weatherSnapshot = snapshot;
   renderWeatherSnapshot(snapshot);
+  updateFloorplanBackground();
 }
 const svgElement = (tag, attributes = {}) => {
   const element = document.createElementNS(SVG_NS, tag);
@@ -499,14 +501,17 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
       imageLayers.set(name, image);
       image.src = assetUrl(name);
     })));
-    const background = imageLayers.get(config.backgrounds.day);
+    const background = imageLayers.get(config.backgrounds['sereno-giorno']);
     stage.style.setProperty('--floorplan-ratio', background.naturalWidth + ' / ' + background.naturalHeight);
     stage.style.setProperty('--floorplan-width-ratio', String(background.naturalWidth / background.naturalHeight));
+    let activeBackground = 'sereno-giorno';
     const updateBackground = () => {
-      const period = backgroundPeriod();
-      stage.dataset.period = period;
-      for (const [key, name] of Object.entries(config.backgrounds)) imageLayers.get(name).hidden = key !== period;
+      const nextBackground = floorplanBackground(weatherSnapshot);
+      if (nextBackground && imageLayers.has(config.backgrounds[nextBackground])) activeBackground = nextBackground;
+      stage.dataset.background = activeBackground;
+      for (const [key, name] of Object.entries(config.backgrounds)) imageLayers.get(name).hidden = key !== activeBackground;
     };
+    updateFloorplanBackground = updateBackground;
     updateBackground();
     imageLayers.get(config.mappings.integration).hidden = false;
     const lightMapping = await loadMapping(config.mappings.lights, stage); mappings.push(lightMapping);
@@ -946,19 +951,18 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     const tick = () => {
       clearTimeout(timer);
       updateBackground();
-      const now = new Date();
-      const next = new Date(now);
-      if (now.getHours() < 7) next.setHours(7, 0, 0, 0);
-      else if (now.getHours() < 19) next.setHours(19, 0, 0, 0);
-      else { next.setDate(next.getDate() + 1); next.setHours(7, 0, 0, 0); }
-      timer = setTimeout(tick, Math.min(60_000, Math.max(1, next - now)));
+      const now = Date.now();
+      const boundaries = [weatherSnapshot?.today?.sunrise, weatherSnapshot?.today?.sunset]
+        .map(value => Date.parse(value))
+        .filter(value => Number.isFinite(value) && value > now);
+      timer = setTimeout(tick, boundaries.length ? Math.max(1, Math.min(...boundaries) - now) : 60_000);
     };
     tick();
     document.addEventListener('visibilitychange', tick);
     window.addEventListener('pageshow', tick);
     status.hidden = true;
     stage.dataset.ready = 'true';
-    return { store, destroy() { if (activePondControls === pondControls) activePondControls = null; clearTimeout(timer); clearTimeout(ledbarThrottle); clearTimeout(cameraAlertTimer); for (const alertTimer of cameraAlertTimers.values()) clearTimeout(alertTimer); ledbarEvents?.close(); lightEvents?.close(); unsubscribe(); document.removeEventListener('visibilitychange', tick); window.removeEventListener('pageshow', tick); floorplanClock?.destroy(); if (renderWeatherSnapshot === renderWeather) renderWeatherSnapshot = () => {}; stage.replaceChildren(); } };
+    return { store, destroy() { if (activePondControls === pondControls) activePondControls = null; clearTimeout(timer); clearTimeout(ledbarThrottle); clearTimeout(cameraAlertTimer); for (const alertTimer of cameraAlertTimers.values()) clearTimeout(alertTimer); ledbarEvents?.close(); lightEvents?.close(); unsubscribe(); document.removeEventListener('visibilitychange', tick); window.removeEventListener('pageshow', tick); floorplanClock?.destroy(); if (renderWeatherSnapshot === renderWeather) renderWeatherSnapshot = () => {}; if (updateFloorplanBackground === updateBackground) updateFloorplanBackground = () => {}; stage.replaceChildren(); } };
   } catch (error) {
     status.textContent = error.message;
   } finally {

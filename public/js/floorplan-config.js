@@ -4,7 +4,13 @@ const reading = index => marker(index, 'rect[stroke="#000000"]');
 const exactShape = selector => ({ selector });
 const labeledMarker = label => ({ label });
 export const floorplanConfig = {
-  backgrounds: { day: 'LAYER-00-GIORNO.svg', night: 'LAYER-00-NOTTE.svg' },
+  backgrounds: {
+    'sereno-giorno': 'LAYER-SERENO-GIORNO.svg', 'sereno-notte': 'LAYER-SERENO-NOTTE.svg',
+    'coperto-giorno': 'LAYER-COPERTO-GIORNO.svg', 'coperto-notte': 'LAYER-COPERTO-NOTTE.svg',
+    'pioggia-giorno': 'LAYER-PIOGGIA-GIORNO.svg', 'pioggia-notte': 'LAYER-PIOGGIA-NOTTE.svg',
+    'neve-giorno': 'LAYER-NEVE-GIORNO.svg', 'neve-notte': 'LAYER-NEVE-NOTTE.svg',
+    'ghiacciato-giorno': 'LAYER-GHIACCIATO-GIORNO.svg', 'ghiacciato-notte': 'LAYER-GHIACCIATO-NOTTE.svg',
+  },
   rooms: Array.from({ length: 6 }, (_, index) => {
     const number = String(index + 1).padStart(2, '0');
     return { lightId: 'L' + (index + 1), on: 'LAYER-' + number + '-ON.svg', off: 'LAYER-' + number + '-OFF.svg' };

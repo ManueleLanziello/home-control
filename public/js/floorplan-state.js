@@ -1,7 +1,29 @@
 import { floorplanConfig } from './floorplan-config.js';
 
-export function backgroundPeriod(now = new Date()) {
-  return now.getHours() >= 7 && now.getHours() < 19 ? 'day' : 'night';
+const SNOW_CATEGORIES = new Set(['snow', 'extreme-snow']);
+const RAIN_CATEGORIES = new Set(['drizzle', 'extreme-drizzle', 'rain', 'extreme-rain', 'thunderstorms', 'thunderstorms-rain']);
+const CLOUDY_CATEGORIES = new Set(['partly-cloudy', 'cloudy', 'fog']);
+
+export function floorplanWeatherCategory(current = {}) {
+  const category = current?.category;
+  if (SNOW_CATEGORIES.has(category)) return 'neve';
+  if (RAIN_CATEGORIES.has(category)) return 'pioggia';
+  if (Number.isFinite(current?.temperature) && current.temperature < 2) return 'ghiacciato';
+  return CLOUDY_CATEGORIES.has(category) ? 'coperto' : 'sereno';
+}
+
+export function floorplanDayPeriod(snapshot = {}, now = new Date()) {
+  const sunrise = Date.parse(snapshot?.today?.sunrise);
+  const sunset = Date.parse(snapshot?.today?.sunset);
+  if (!Number.isFinite(sunrise) || !Number.isFinite(sunset) || sunrise >= sunset) return null;
+  const currentTime = now.getTime();
+  return currentTime >= sunrise && currentTime < sunset ? 'giorno' : 'notte';
+}
+
+export function floorplanBackground(snapshot = {}, now = new Date()) {
+  const period = floorplanDayPeriod(snapshot, now);
+  if (!period) return null;
+  return `${floorplanWeatherCategory(snapshot?.current)}-${period}`;
 }
 
 export function createFloorplanState() {

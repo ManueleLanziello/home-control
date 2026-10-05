@@ -70,6 +70,8 @@ export function parseOpenMeteo(payload, config, updatedAt = new Date().toISOStri
   const currentRainProbability = optionalNumber(at(hourly.precipitation_probability, currentHourlyIndex));
   const dailyForecast = daily.time.slice(0, 5).map((date, index) => weatherValue(at(daily.weather_code, index), {
     date,
+    sunrise: typeof at(daily.sunrise, index) === 'string' ? at(daily.sunrise, index) : null,
+    sunset: typeof at(daily.sunset, index) === 'string' ? at(daily.sunset, index) : null,
     minTemperature: optionalNumber(at(daily.temperature_2m_min, index)),
     maxTemperature: optionalNumber(at(daily.temperature_2m_max, index)),
     rainProbability: optionalNumber(at(daily.precipitation_probability_max, index)), isDay: true,
@@ -122,7 +124,7 @@ export class WeatherService {
     url.searchParams.set('longitude', String(this.config.longitude));
     url.searchParams.set('current', 'temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,is_day,wind_speed_10m,wind_direction_10m,precipitation');
     url.searchParams.set('hourly', 'temperature_2m,weather_code,is_day,precipitation_probability,precipitation');
-    url.searchParams.set('daily', 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max');
+    url.searchParams.set('daily', 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset');
     url.searchParams.set('timezone', this.config.timezone);
     url.searchParams.set('forecast_days', '5');
     return url;

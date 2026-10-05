@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { readFile } from 'node:fs/promises';
 import { floorplanConfig } from '../public/js/floorplan-config.js';
-import { backgroundPeriod, createFloorplanState } from '../public/js/floorplan-state.js';
+import { createFloorplanState } from '../public/js/floorplan-state.js';
 import { createHomeControlServer } from '../server.js';
 import { validateHardwareRegistry } from '../src/hardware-registry.js';
 import { normalizeMobilePresence } from '../src/home-status.js';
@@ -145,8 +145,6 @@ test('L8-L12 usano overlay full-plan indipendenti e conservano lo stato attraver
   store.setLight('L11', true);
   const beforeBaseChange = store.snapshot().lights;
   assert.deepEqual(beforeBaseChange, { L1: false, L2: false, L3: false, L4: false, L5: false, L6: false, L7: false, L8: true, L9: false, L10: true, L11: true, L12: false });
-  assert.equal(backgroundPeriod(new Date(2026, 8, 22, 12)), 'day');
-  assert.equal(backgroundPeriod(new Date(2026, 8, 22, 22)), 'night');
   assert.deepEqual(store.snapshot().lights, beforeBaseChange);
 });
 
@@ -174,7 +172,7 @@ test('gli overlay L8-L12 sono serviti come SVG e il bootstrap li tratta come gra
   assert.match(floorplan, /if \(externalLightId && !assets\.has\(name\)\)/);
   assert.match(floorplan, /if \(externalLightId\) \{\s*console\.warn\('Overlay luce esterna non caricabile: ' \+ name\);\s*resolve\(\);/);
   assert.match(floorplan, /for \(const \[lightId, name\] of Object\.entries\(config\.externalLightOverlays\)\) \{\s*if \(imageLayers\.has\(name\)\) imageLayers\.get\(name\)\.hidden = state\.lights\[lightId\] !== true;/);
-  assert.match(floorplan, /for \(const \[key, name\] of Object\.entries\(config\.backgrounds\)\) imageLayers\.get\(name\)\.hidden = key !== period/);
+  assert.match(floorplan, /for \(const \[key, name\] of Object\.entries\(config\.backgrounds\)\) imageLayers\.get\(name\)\.hidden = key !== activeBackground/);
   assert.match(css, /\.floorplan-external-light-overlay \{ pointer-events: none; \}/);
 });
 

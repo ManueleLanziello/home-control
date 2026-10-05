@@ -11,7 +11,7 @@ const config = { ...WEATHER_CONFIG, refreshIntervalMs: 900_000, staleAfterMs: 1_
 const payload = () => ({
   current: { time: '2026-09-15T11:00', temperature_2m: 21.4, apparent_temperature: 20.9, relative_humidity_2m: 58, weather_code: 2, is_day: 1, wind_speed_10m: 12.3, wind_direction_10m: 225, precipitation: 0 },
   hourly: { time: ['2026-09-15T10:00', '2026-09-15T11:00', '2026-09-15T12:00', '2026-09-15T13:00'], temperature_2m: [20, 21.4, 22, 23], weather_code: [1, 2, 61, 3], is_day: [1, 1, 1, 1], precipitation_probability: [0, 10, 60, 20], precipitation: [0, 0, 0.2, 0] },
-  daily: { time: ['2026-09-15', '2026-09-16', '2026-09-17', '2026-09-18', '2026-09-19'], weather_code: [2, 61, 71, 95, 0], temperature_2m_min: [14, 13, 11, 12, 15], temperature_2m_max: [23, 20, 18, 19, 24], precipitation_probability_max: [60, 80, 70, 50, 10] },
+  daily: { time: ['2026-09-15', '2026-09-16', '2026-09-17', '2026-09-18', '2026-09-19'], sunrise: ['2026-09-15T06:45', '2026-09-16T06:46', '2026-09-17T06:47', '2026-09-18T06:48', '2026-09-19T06:49'], sunset: ['2026-09-15T19:20', '2026-09-16T19:18', '2026-09-17T19:16', '2026-09-18T19:14', '2026-09-19T19:12'], weather_code: [2, 61, 71, 95, 0], temperature_2m_min: [14, 13, 11, 12, 15], temperature_2m_max: [23, 20, 18, 19, 24], precipitation_probability_max: [60, 80, 70, 50, 10] },
 });
 
 test('mappa centralizzata WMO verso i tredici stati semantici METEO', () => {
@@ -35,6 +35,8 @@ test('normalizza current, resto della giornata e previsione giornaliera Open-Met
   assert.equal(weather.current.humidity, 58);
   assert.equal(weather.current.rainProbability, 10);
   assert.equal(weather.today.rainProbability, 60);
+  assert.equal(weather.today.sunrise, '2026-09-15T06:45');
+  assert.equal(weather.today.sunset, '2026-09-15T19:20');
   assert.equal(weather.today.maxTemperature, 23);
   assert.equal(weather.hourly.length, 2);
   assert.equal(weather.hourly[0].icon, 'rain.svg');
