@@ -25,8 +25,8 @@ export const floorplanConfig = {
     layers: { off: 'LAYER-18-OFF.svg', low: 'LAYER-19-ON-25.svg', medium: 'LAYER-20-ON-75.svg', high: 'LAYER-21-ON-100.svg' },
   },
   integration: {
-    title: exactShape('rect[x="260.5"][y="1039.5"][width="750"][height="130"]'),
-    options: exactShape('rect[x="1026.5"][y="1039.5"][width="175"][height="130"]'),
+    title: exactShape('#integration-title'),
+    options: exactShape('#integration-options'),
   },
   icons: { lightOn: 'lampon.svg', lightOff: 'lampoff.svg', ledbarOn: 'ledbaron.svg', ledbarOff: 'ledbaroff.svg', sensor: 'temp.svg', camera: 'cam.svg', privacyOn: 'privacyon.svg', privacyOff: 'privacyoff.svg', detectionOn: 'rilevon.svg', detectionOff: 'rilevoff.svg', alarmOn: 'alarmon.svg', alarmOff: 'alarmoff.svg', batteryEmpty: 'solar-panel-battery-empty.svg', batteryLow: 'solar-panel-battery-low.svg', batteryHalf: 'solar-panel-battery-half.svg', batteryHalf2: 'solar-panel-battery-half2.svg', batteryFull: 'solar-panel-battery-full.svg', batteryCharging: 'solar-panel-battery-charging.svg', boiler: 'boiler.svg', cappaOn: 'CAPPAON.svg', cappaOff: 'CAPPAOFF.svg', pondPumpOn: 'pumpon.svg', pondPumpOff: 'pumpoff.svg', pondHeaterOn: 'heateron.svg', pondHeaterOff: 'heateroff.svg', pondManual: 'manual.svg', pondThermostat: 'auto.svg' },
   // Semantic labels survive a geometry-only edit of their mapping SVG.

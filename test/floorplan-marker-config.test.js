@@ -235,6 +235,16 @@ test('gli altri marker semantici restano risolvibili nelle rispettive geometrie'
   }
 });
 
+test('LAYER-16 espone marker semantici sulle nuove posizioni di integrazione', async () => {
+  const svg = await readFile(new URL('../design/LAYER-16-INTEGRAZIONE.svg', import.meta.url), 'utf8');
+  assert.match(svg, /<rect id="integration-title" x="181\.5" y="1098\.5" width="750" height="201"/);
+  assert.match(svg, /<rect id="integration-options" x="947\.5" y="1098\.5" width="201" height="201"/);
+  assert.equal(floorplanConfig.integration.title.selector, '#integration-title');
+  assert.equal(floorplanConfig.integration.options.selector, '#integration-options');
+  assert.doesNotMatch(svg, /x="260\.5" y="1039\.5" width="750" height="130"/);
+  assert.doesNotMatch(svg, /x="1026\.5" y="1039\.5" width="175" height="130"/);
+});
+
 test('LAYER-09 mantiene le identità C1/C2 sulle rispettive posizioni grafiche e controlli', async () => {
   const { source: svg } = await labelsIn('LAYER-09-CAM.svg');
   const source = markerSourceFromSvg(svg);
