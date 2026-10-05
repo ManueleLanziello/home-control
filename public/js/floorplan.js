@@ -14,6 +14,14 @@ let weatherSnapshot = null;
 let renderWeatherSnapshot = () => {};
 let updateFloorplanBackground = () => {};
 let activePondControls = null;
+const WEATHER_FACT_GRAPHICS = Object.freeze({
+  'umidity.svg': { width: 38, height: 58.593 },
+  'wind.svg': { width: 53, height: 62 },
+  'rain.svg': { width: 80, height: 78 },
+});
+const WEATHER_FACT_CANVAS_SIZE = 128;
+const WEATHER_FACT_BASE_CANVAS_HEIGHT_RATIO = .5 * .66;
+const WEATHER_FACT_VISIBLE_SCALE = 2.5;
 
 export async function refreshPondStatus() {
   if (!activePondControls) return;
@@ -35,16 +43,28 @@ export function updateFloorplanWeather(snapshot) {
 }
 
 export function weatherMinicardDimensions(currentBox, factsBox) {
+  const icons = Object.fromEntries(Object.entries(WEATHER_FACT_GRAPHICS).map(([asset, graphic]) => {
+    const graphicWidthRatio = graphic.width / WEATHER_FACT_CANVAS_SIZE;
+    const graphicHeightRatio = graphic.height / WEATHER_FACT_CANVAS_SIZE;
+    const visibleHeightRatio = WEATHER_FACT_BASE_CANVAS_HEIGHT_RATIO * graphicHeightRatio * WEATHER_FACT_VISIBLE_SCALE;
+    return [asset, {
+      graphicWidthRatio,
+      graphicHeightRatio,
+      visibleHeightRatio,
+      visibleHeight: factsBox.height * visibleHeightRatio,
+      canvasHeight: factsBox.height * visibleHeightRatio / graphicHeightRatio,
+    }];
+  }));
   return {
     current: {
       paddingY: currentBox.height * .065,
-      temperature: currentBox.height * .127,
-      condition: currentBox.height * .092,
+      temperature: currentBox.height * .127 * 1.3,
+      condition: currentBox.height * .092 * 1.3,
       apparentTemperature: currentBox.height * .07,
     },
     facts: {
-      iconHeight: factsBox.height * .5 * .66,
-      labelSize: factsBox.height * .5 * .305,
+      icons,
+      labelSize: factsBox.height * .5 * .305 * 1.5,
     },
   };
 }
@@ -779,7 +799,6 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     weatherCurrentCard.style.setProperty('--weather-current-temperature-size', `${weatherDimensions.current.temperature}px`);
     weatherCurrentCard.style.setProperty('--weather-current-condition-size', `${weatherDimensions.current.condition}px`);
     weatherCurrentCard.style.setProperty('--weather-current-apparent-size', `${weatherDimensions.current.apparentTemperature}px`);
-    weatherCard.style.setProperty('--weather-fact-icon-height', `${weatherDimensions.facts.iconHeight}px`);
     weatherCard.style.setProperty('--weather-fact-label-size', `${weatherDimensions.facts.labelSize}px`);
     const weatherMarker = markerElement('Apri METEO OGGI', true);
     weatherMarker.classList.add('floorplan-marker-weather');
@@ -819,6 +838,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
       for (const [index, [icon, valueText]] of [['umidity.svg', weatherPercent(current?.humidity)], ['wind.svg', `${weatherNumber(current?.windSpeed)} km/h`], ['rain.svg', weatherPercent(snapshot?.today?.rainProbability)]].entries()) {
         const iconImage = weatherImage(assets, icon, 'floorplan-weather-fact-icon');
         iconImage.style.setProperty('--weather-fact-column', String(index + 1));
+        iconImage.style.setProperty('--weather-fact-icon-height', `${weatherDimensions.facts.icons[icon].canvasHeight}px`);
         const label = document.createElement('span'); label.className = 'floorplan-weather-fact-label'; label.style.setProperty('--weather-fact-column', String(index + 1)); label.textContent = valueText;
         facts.append(iconImage, label);
       }

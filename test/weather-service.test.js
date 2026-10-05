@@ -131,16 +131,35 @@ test('M1/QM1/LM1 sono identificati da label stabili e ne leggono la geometria da
   assert.doesNotMatch(JSON.stringify(floorplanConfig.weather), /\[d|\[x=|\[y=/);
 });
 
-test('la minicard scala i contenuti sulle altezze reali LM1 e QM1', async () => {
+test('la minicard compensa individualmente i canvas delle icone e scala sui bbox SVG', async () => {
   globalThis.window = globalThis.window || { addEventListener() {} };
   const { weatherMinicardDimensions } = await import('../public/js/floorplan.js');
-  const dimensions = weatherMinicardDimensions({ width: 854, height: 455 }, { width: 866, height: 222 });
-  assert.equal(dimensions.current.paddingY / 455, .065);
-  assert.equal(dimensions.current.temperature / 455, .127);
-  assert.equal(dimensions.current.condition / 455, .092);
-  assert.equal(dimensions.current.apparentTemperature / 455, .07);
-  assert.equal(dimensions.facts.iconHeight / (222 / 2), .66);
-  assert.equal(dimensions.facts.labelSize / (222 / 2), .305);
+  const dimensions = weatherMinicardDimensions({ width: 741, height: 478 }, { width: 741, height: 188 });
+  const icons = dimensions.facts.icons;
+  const closeTo = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-12, `${actual} ≠ ${expected}`);
+  assert.equal(icons['umidity.svg'].graphicWidthRatio, 38 / 128);
+  assert.equal(icons['umidity.svg'].graphicHeightRatio, 58.593 / 128);
+  assert.equal(icons['wind.svg'].graphicWidthRatio, 53 / 128);
+  assert.equal(icons['wind.svg'].graphicHeightRatio, 62 / 128);
+  assert.equal(icons['rain.svg'].graphicWidthRatio, 80 / 128);
+  assert.equal(icons['rain.svg'].graphicHeightRatio, 78 / 128);
+  assert.notEqual(icons['umidity.svg'].visibleHeightRatio, icons['wind.svg'].visibleHeightRatio);
+  assert.notEqual(icons['wind.svg'].visibleHeightRatio, icons['rain.svg'].visibleHeightRatio);
+  for (const icon of Object.values(icons)) closeTo(icon.canvasHeight / 188, .825);
+  closeTo(dimensions.current.paddingY / 478, .065);
+  closeTo(dimensions.current.temperature / 478, .127 * 1.3);
+  closeTo(dimensions.current.condition / 478, .092 * 1.3);
+  closeTo(dimensions.current.apparentTemperature / 478, .07);
+  closeTo(dimensions.facts.labelSize / 188, .5 * .305 * 1.5);
+  const larger = weatherMinicardDimensions({ width: 741 * 1.2, height: 478 * 1.2 }, { width: 741 * 1.2, height: 188 * 1.2 });
+  for (const asset of Object.keys(icons)) {
+    closeTo(larger.facts.icons[asset].visibleHeight / icons[asset].visibleHeight, 1.2);
+    closeTo(larger.facts.icons[asset].canvasHeight / icons[asset].canvasHeight, 1.2);
+  }
+  closeTo(larger.current.temperature / dimensions.current.temperature, 1.2);
+  closeTo(larger.current.condition / dimensions.current.condition, 1.2);
+  closeTo(larger.current.apparentTemperature / dimensions.current.apparentTemperature, 1.2);
+  closeTo(larger.facts.labelSize / dimensions.facts.labelSize, 1.2);
 });
 
 test('probabilità giornaliera 0 resta un dato valido e il dato assente resta non disponibile', () => {
