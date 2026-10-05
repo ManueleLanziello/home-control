@@ -89,7 +89,7 @@ test('il rendering METEO usa cloudy come fallback e non referenzia più il set l
 test('M1/QM1/LM1 sono identificati da label stabili e ne leggono la geometria dal layer', async () => {
   assert.deepEqual(floorplanConfig.weather.marker, { label: 'M1' });
   assert.deepEqual(floorplanConfig.weather.card, { label: 'QM1' });
-  assert.deepEqual(floorplanConfig.weather.temperatureLabel, { label: 'LM1' });
+  assert.deepEqual(floorplanConfig.weather.currentCard, { label: 'LM1' });
   const [floorplan, layer13] = await Promise.all([readFile(new URL('../public/js/floorplan.js', import.meta.url), 'utf8'), readFile(new URL('../design/LAYER-13-METEO.svg', import.meta.url), 'utf8')]);
   const css = await readFile(new URL('../public/floorplan.css', import.meta.url), 'utf8');
   assert.match(floorplan, /loadMapping\(config\.mappings\.weather/);
@@ -100,17 +100,22 @@ test('M1/QM1/LM1 sono identificati da label stabili e ne leggono la geometria da
   assert.match(floorplan, /const bounds = shape\.getBBox\(\)/);
   assert.match(floorplan, /bindWeatherPopupTrigger\(weatherMarker\)/);
   assert.match(floorplan, /bindWeatherPopupTrigger\(weatherCard\)/);
+  assert.match(floorplan, /bindWeatherPopupTrigger\(weatherCurrentCard\)/);
   assert.doesNotMatch(floorplan, /weatherCard\.append\(headline, range, facts\)/);
   assert.match(floorplan, /\[\['umidity\.svg', weatherPercent/);
   assert.match(floorplan, /\['wind\.svg', `\$\{weatherNumber\(current\?\.windSpeed\)\} km\/h`\]/);
   assert.match(floorplan, /\['rain\.svg', weatherPercent/);
   assert.match(floorplan, /weatherPercent\(snapshot\?\.today\?\.rainProbability\)/);
-  assert.match(floorplan, /weatherTemperatureReading\.textContent = Number\.isFinite\(current\?\.temperature\) \? current\.temperature\.toFixed\(1\) \+ ' °C'/);
-  assert.match(floorplan, /class: 'floorplan-reading'/);
+  assert.match(floorplan, /weatherCurrentCard\.replaceChildren\(weatherCurrentDetails\)/);
+  assert.match(floorplan, /const condition = document\.createElement\('span'\); condition\.textContent = current\?\.condition/);
+  assert.match(floorplan, /const apparentTemperature = document\.createElement\('small'\); apparentTemperature\.textContent = `Percepita \$\{weatherTemperature\(current\?\.apparentTemperature\)\}`/);
   assert.match(floorplan, /floorplan-weather-card/);
+  assert.match(floorplan, /floorplan-weather-current/);
   assert.match(floorplan, /weather-dialog/);
   assert.match(css, /\.floorplan-mapping-source \{ visibility: hidden; \}/);
   assert.match(css, /\.floorplan-marker-weather > img \{ width: 100%; height: 100%; object-fit: contain; \}/);
+  assert.match(css, /\.floorplan-weather-card, \.floorplan-weather-current/);
+  assert.match(css, /\.floorplan-weather-current-details/);
   assert.match(css, /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
   assert.match(css, /font-size: 46px; font-weight: 700/);
   assert.match(css, /grid-template-rows: minmax\(0, 2fr\) minmax\(0, 1fr\)/);

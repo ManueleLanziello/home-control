@@ -57,6 +57,6 @@ export const floorplanConfig = {
   weather: {
     marker: labeledMarker('M1'),
     card: labeledMarker('QM1'),
-    temperatureLabel: labeledMarker('LM1'),
+    currentCard: labeledMarker('LM1'),
   },
 };

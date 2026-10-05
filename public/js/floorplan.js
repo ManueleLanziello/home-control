@@ -745,10 +745,6 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     cappa.classList.add('floorplan-marker-cappa');
     cappa.addEventListener('click', openCappa);
     placeHtml(cappaMapping, config.cappa.marker, cappa);
-    const weatherMarker = markerElement('Apri METEO OGGI', true);
-    weatherMarker.classList.add('floorplan-marker-weather');
-    bindWeatherPopupTrigger(weatherMarker);
-    placeHtml(weatherMapping, config.weather.marker, weatherMarker);
     const weatherCard = document.createElement('article');
     weatherCard.className = 'floorplan-weather-card';
     weatherCard.setAttribute('aria-label', 'Apri METEO OGGI');
@@ -756,10 +752,17 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     weatherCard.setAttribute('role', 'button');
     bindWeatherPopupTrigger(weatherCard);
     placeHtml(weatherMapping, config.weather.card, weatherCard);
-    const weatherTemperatureBox = weatherMapping.box(config.weather.temperatureLabel);
-    const weatherTemperatureReading = svgElement('text', { x: weatherTemperatureBox.x + weatherTemperatureBox.width / 2, y: weatherTemperatureBox.y + weatherTemperatureBox.height / 2, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': weatherTemperatureBox.height * .34, class: 'floorplan-reading' });
-    weatherTemperatureReading.dataset.weatherTemperature = '';
-    weatherMapping.overlay.append(weatherTemperatureReading);
+    const weatherCurrentCard = document.createElement('article');
+    weatherCurrentCard.className = 'floorplan-weather-current';
+    weatherCurrentCard.setAttribute('aria-label', 'Apri METEO OGGI');
+    weatherCurrentCard.tabIndex = 0;
+    weatherCurrentCard.setAttribute('role', 'button');
+    bindWeatherPopupTrigger(weatherCurrentCard);
+    placeHtml(weatherMapping, config.weather.currentCard, weatherCurrentCard);
+    const weatherMarker = markerElement('Apri METEO OGGI', true);
+    weatherMarker.classList.add('floorplan-marker-weather');
+    bindWeatherPopupTrigger(weatherMarker);
+    placeHtml(weatherMapping, config.weather.marker, weatherMarker);
     const integrationTitle = document.createElement('div');
     integrationTitle.className = 'floorplan-integration-title';
     integrationTitle.setAttribute('aria-label', 'Home Control');
@@ -780,13 +783,21 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
       weatherMarker.replaceChildren(weatherImage(assets, current?.icon || 'cloudy.svg'));
       weatherMarker.dataset.available = String(Boolean(current));
       weatherMarker.setAttribute('aria-label', current ? `Apri METEO OGGI · ${current.condition}, ${weatherTemperature(current.temperature)}` : 'Apri METEO OGGI · dati non disponibili');
+      weatherCurrentCard.dataset.available = String(Boolean(current));
+      weatherCurrentCard.setAttribute('aria-label', weatherMarker.getAttribute('aria-label'));
+      const weatherCurrentDetails = document.createElement('div');
+      weatherCurrentDetails.className = 'floorplan-weather-current-details';
+      const temperature = document.createElement('strong'); temperature.textContent = weatherTemperature(current?.temperature);
+      const condition = document.createElement('span'); condition.textContent = current?.condition || 'Condizioni non disponibili';
+      const apparentTemperature = document.createElement('small'); apparentTemperature.textContent = `Percepita ${weatherTemperature(current?.apparentTemperature)}`;
+      weatherCurrentDetails.append(temperature, condition, apparentTemperature);
+      weatherCurrentCard.replaceChildren(weatherCurrentDetails);
       weatherCard.replaceChildren();
       const facts = document.createElement('div'); facts.className = 'floorplan-weather-facts';
       for (const [icon, valueText] of [['umidity.svg', weatherPercent(current?.humidity)], ['wind.svg', `${weatherNumber(current?.windSpeed)} km/h`], ['rain.svg', weatherPercent(snapshot?.today?.rainProbability)]]) {
         const fact = document.createElement('span'); fact.append(weatherImage(assets, icon), document.createTextNode(valueText)); facts.append(fact);
       }
       weatherCard.append(facts);
-      weatherTemperatureReading.textContent = Number.isFinite(current?.temperature) ? current.temperature.toFixed(1) + ' °C' : '— °C';
       updateWeatherDialog(snapshot);
     };
     renderWeatherSnapshot = renderWeather;

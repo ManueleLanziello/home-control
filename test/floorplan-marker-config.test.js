@@ -100,7 +100,7 @@ test('mapping SVG aggiornati usano label semantiche, non geometrie fragili', asy
   assert.deepEqual(floorplanConfig.rooms.map(room => room.lightId), ['L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7']);
   assert.deepEqual(floorplanConfig.lights.slice(7).map(light => light.localOnly), [true, true, true, true, true]);
   assert.deepEqual(floorplanConfig.sensors.map(sensor => [sensor.reading.label, sensor.humidityReading?.label || null]), [['LS1', 'LU1'], ['LS2', 'LU2'], ['LS3', null], ['LS4', 'LU4'], ['LS5', 'LU5']]);
-  for (const marker of [...floorplanConfig.lights, ...floorplanConfig.sensors].map(item => item.marker).concat(floorplanConfig.boiler.marker, floorplanConfig.boiler.card, floorplanConfig.weather.marker, floorplanConfig.weather.card, floorplanConfig.weather.temperatureLabel, floorplanConfig.clock.marker)) assert.ok(marker.label);
+  for (const marker of [...floorplanConfig.lights, ...floorplanConfig.sensors].map(item => item.marker).concat(floorplanConfig.boiler.marker, floorplanConfig.boiler.card, floorplanConfig.weather.marker, floorplanConfig.weather.card, floorplanConfig.weather.currentCard, floorplanConfig.clock.marker)) assert.ok(marker.label);
   assert.deepEqual(floorplanConfig.mobileMonitor, { marker: { label: 'DM' }, icons: { phone: 'phone.svg', tablet: 'tablet.svg' } });
 });
 
@@ -476,5 +476,5 @@ test('lo spostamento di coordinate non cambia l identità label-based dei marker
   const { source } = await labelsIn('LAYER-13-METEO.svg');
   const moved = source.replace(/M467\.5 3301/, 'M999.5 999').replace(/x="402\.5" y="3504\.5"/, 'x="999.5" y="999.5"');
   for (const label of ['M1', 'QM1', 'LM1']) assert.match(moved, new RegExp(`>${label}</text>`));
-  assert.deepEqual(floorplanConfig.weather, { marker: { label: 'M1' }, card: { label: 'QM1' }, temperatureLabel: { label: 'LM1' } });
+  assert.deepEqual(floorplanConfig.weather, { marker: { label: 'M1' }, card: { label: 'QM1' }, currentCard: { label: 'LM1' } });
 });
