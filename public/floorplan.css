@@ -72,10 +72,10 @@ button.floorplan-marker { pointer-events: auto; cursor: pointer; }
 .floorplan-marker-weather[data-available="false"] { opacity: .55; }
 .floorplan-weather-card, .floorplan-weather-current { box-sizing: border-box; width: 100%; height: 100%; border: 4px solid #5194ae; border-radius: 28px; color: #e5f7ff; background: rgb(5 11 18 / 72%); font-family: system-ui, sans-serif; overflow: hidden; pointer-events: auto; cursor: pointer; }
 .floorplan-weather-card { display: grid; place-items: center; padding: 0; }
-.floorplan-weather-current { padding: var(--weather-current-padding-y) 4% var(--weather-current-padding-y) 61%; }
+.floorplan-weather-current { padding: var(--weather-current-padding-y) var(--weather-current-padding-right) var(--weather-current-padding-y) var(--weather-current-text-left); }
 .floorplan-weather-current-details { display: grid; grid-template-rows: repeat(3, minmax(0, 1fr)); align-items: center; width: 100%; height: 100%; min-width: 0; text-align: left; }
 .floorplan-weather-current-details strong { font-size: var(--weather-current-temperature-size); line-height: 1; white-space: nowrap; }
-.floorplan-weather-current-details span { font-size: var(--weather-current-condition-size); line-height: 1.05; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.floorplan-weather-current-details span { font-size: var(--weather-current-condition-size); line-height: 1.05; white-space: nowrap; }
 .floorplan-weather-current-details small { color: #d7edf7; font-size: var(--weather-current-apparent-size); line-height: 1.05; white-space: nowrap; }
 .floorplan-mobile-monitor { container-type: size; box-sizing: border-box; display: flex; flex-direction: column; gap: 1.5%; width: 100%; height: 100%; padding: 4% 5%; border: 4px solid #5194ae; border-radius: 28px; color: #e5f7ff; background: rgb(5 11 18 / 72%); font-family: system-ui, sans-serif; overflow-x: hidden; overflow-y: auto; scrollbar-width: thin; scrollbar-color: transparent transparent; }
 .floorplan-mobile-monitor-row { box-sizing: border-box; display: flex; flex: 0 0 17%; align-items: center; gap: 5%; min-width: 0; }

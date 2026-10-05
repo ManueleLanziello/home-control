@@ -42,7 +42,7 @@ export function updateFloorplanWeather(snapshot) {
   updateFloorplanBackground();
 }
 
-export function weatherMinicardDimensions(currentBox, factsBox) {
+export function weatherMinicardDimensions(currentBox, factsBox, iconBox) {
   const icons = Object.fromEntries(Object.entries(WEATHER_FACT_GRAPHICS).map(([asset, graphic]) => {
     const graphicWidthRatio = graphic.width / WEATHER_FACT_CANVAS_SIZE;
     const graphicHeightRatio = graphic.height / WEATHER_FACT_CANVAS_SIZE;
@@ -55,11 +55,18 @@ export function weatherMinicardDimensions(currentBox, factsBox) {
       canvasHeight: factsBox.height * visibleHeightRatio / graphicHeightRatio,
     }];
   }));
+  const iconRight = Number.isFinite(iconBox?.x) && Number.isFinite(iconBox?.width) ? iconBox.x + iconBox.width : currentBox.x;
+  const textLeft = Math.max(0, iconRight - currentBox.x + currentBox.width * .025);
+  const paddingRight = currentBox.width * .04;
   return {
     current: {
       paddingY: currentBox.height * .065,
+      textLeft,
+      paddingRight,
+      availableWidth: Math.max(0, currentBox.width - textLeft - paddingRight),
       temperature: currentBox.height * .127 * 1.3,
       condition: currentBox.height * .092 * 1.3 * .70,
+      conditionMin: currentBox.height * .04,
       apparentTemperature: currentBox.height * .07,
     },
     facts: {
@@ -67,6 +74,21 @@ export function weatherMinicardDimensions(currentBox, factsBox) {
       labelSize: factsBox.height * .5 * .305 * 1.5 * .80,
     },
   };
+}
+
+export function fitWeatherConditionFontSize(text, { maxFontSize, minFontSize, availableWidth, measureText }) {
+  if (!text || !Number.isFinite(maxFontSize) || !Number.isFinite(availableWidth) || typeof measureText !== 'function') return maxFontSize;
+  const textWidth = measureText(text, maxFontSize);
+  if (!Number.isFinite(textWidth) || textWidth <= availableWidth) return maxFontSize;
+  return Math.max(minFontSize, Math.min(maxFontSize, maxFontSize * (availableWidth * .97 / textWidth)));
+}
+
+function renderedTextWidth(element, text, fontSize) {
+  const context = document.createElement('canvas').getContext('2d');
+  if (!context) return NaN;
+  const style = getComputedStyle(element);
+  context.font = `${style.fontWeight} ${fontSize}px ${style.fontFamily}`;
+  return context.measureText(text).width;
 }
 const svgElement = (tag, attributes = {}) => {
   const element = document.createElementNS(SVG_NS, tag);
@@ -790,8 +812,11 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     weatherCurrentCard.setAttribute('role', 'button');
     bindWeatherPopupTrigger(weatherCurrentCard);
     const weatherCurrentBox = placeHtml(weatherMapping, config.weather.currentCard, weatherCurrentCard);
-    const weatherDimensions = weatherMinicardDimensions(weatherCurrentBox, weatherCardBox);
+    const weatherIconBox = weatherMapping.box(config.weather.marker);
+    const weatherDimensions = weatherMinicardDimensions(weatherCurrentBox, weatherCardBox, weatherIconBox);
     weatherCurrentCard.style.setProperty('--weather-current-padding-y', `${weatherDimensions.current.paddingY}px`);
+    weatherCurrentCard.style.setProperty('--weather-current-text-left', `${weatherDimensions.current.textLeft}px`);
+    weatherCurrentCard.style.setProperty('--weather-current-padding-right', `${weatherDimensions.current.paddingRight}px`);
     weatherCurrentCard.style.setProperty('--weather-current-temperature-size', `${weatherDimensions.current.temperature}px`);
     weatherCurrentCard.style.setProperty('--weather-current-condition-size', `${weatherDimensions.current.condition}px`);
     weatherCurrentCard.style.setProperty('--weather-current-apparent-size', `${weatherDimensions.current.apparentTemperature}px`);
@@ -829,6 +854,12 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
       const apparentTemperature = document.createElement('small'); apparentTemperature.textContent = `Percepita ${weatherTemperature(current?.apparentTemperature)}`;
       weatherCurrentDetails.append(temperature, condition, apparentTemperature);
       weatherCurrentCard.replaceChildren(weatherCurrentDetails);
+      condition.style.fontSize = `${fitWeatherConditionFontSize(condition.textContent, {
+        maxFontSize: weatherDimensions.current.condition,
+        minFontSize: weatherDimensions.current.conditionMin,
+        availableWidth: weatherDimensions.current.availableWidth,
+        measureText: (text, fontSize) => renderedTextWidth(condition, text, fontSize),
+      })}px`;
       weatherCard.replaceChildren();
       const facts = document.createElement('div'); facts.className = 'floorplan-weather-facts';
       for (const [index, [icon, valueText]] of [['umidity.svg', weatherPercent(current?.humidity)], ['wind.svg', `${weatherNumber(current?.windSpeed)} km/h`], ['rain.svg', weatherPercent(snapshot?.today?.rainProbability)]].entries()) {

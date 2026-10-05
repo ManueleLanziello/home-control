@@ -148,8 +148,11 @@ test('M1/QM1/LM1 sono identificati da label stabili e ne leggono la geometria da
 
 test('la minicard compensa individualmente i canvas delle icone e scala sui bbox SVG', async () => {
   globalThis.window = globalThis.window || { addEventListener() {} };
-  const { weatherMinicardDimensions } = await import('../public/js/floorplan.js');
-  const dimensions = weatherMinicardDimensions({ width: 741, height: 478 }, { width: 741, height: 188 });
+  const { weatherMinicardDimensions, fitWeatherConditionFontSize } = await import('../public/js/floorplan.js');
+  const currentBox = { x: 215.5, width: 854, height: 455 };
+  const factsBox = { width: 866, height: 222 };
+  const iconBox = { x: 215.5, width: 455 };
+  const dimensions = weatherMinicardDimensions(currentBox, factsBox, iconBox);
   const icons = dimensions.facts.icons;
   const closeTo = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-12, `${actual} ≠ ${expected}`);
   assert.equal(icons['umidity.svg'].graphicWidthRatio, 38 / 128);
@@ -160,13 +163,19 @@ test('la minicard compensa individualmente i canvas delle icone e scala sui bbox
   assert.equal(icons['rain.svg'].graphicHeightRatio, 78 / 128);
   assert.notEqual(icons['umidity.svg'].visibleHeightRatio, icons['wind.svg'].visibleHeightRatio);
   assert.notEqual(icons['wind.svg'].visibleHeightRatio, icons['rain.svg'].visibleHeightRatio);
-  for (const icon of Object.values(icons)) closeTo(icon.canvasHeight / 188, .825);
-  closeTo(dimensions.current.paddingY / 478, .065);
-  closeTo(dimensions.current.temperature / 478, .127 * 1.3);
-  closeTo(dimensions.current.condition / 478, .092 * 1.3 * .70);
-  closeTo(dimensions.current.apparentTemperature / 478, .07);
-  closeTo(dimensions.facts.labelSize / 188, .5 * .305 * 1.5 * .80);
-  const larger = weatherMinicardDimensions({ width: 741 * 1.2, height: 478 * 1.2 }, { width: 741 * 1.2, height: 188 * 1.2 });
+  for (const icon of Object.values(icons)) closeTo(icon.canvasHeight / factsBox.height, .825);
+  closeTo(dimensions.current.paddingY / currentBox.height, .065);
+  closeTo(dimensions.current.temperature / currentBox.height, .127 * 1.3);
+  closeTo(dimensions.current.condition / currentBox.height, .092 * 1.3 * .70);
+  closeTo(dimensions.current.conditionMin / currentBox.height, .04);
+  closeTo(dimensions.current.apparentTemperature / currentBox.height, .07);
+  closeTo(dimensions.current.textLeft, iconBox.width + currentBox.width * .025);
+  closeTo(dimensions.current.availableWidth, currentBox.width - dimensions.current.textLeft - currentBox.width * .04);
+  closeTo(dimensions.facts.labelSize / factsBox.height, .5 * .305 * 1.5 * .80);
+  for (const shortText of ['Sereno', 'Coperto', 'Nebbia']) assert.equal(fitWeatherConditionFontSize(shortText, { maxFontSize: dimensions.current.condition, minFontSize: dimensions.current.conditionMin, availableWidth: dimensions.current.availableWidth, measureText: () => 10 }), dimensions.current.condition);
+  const long = fitWeatherConditionFontSize('Prevalentemente sereno', { maxFontSize: dimensions.current.condition, minFontSize: dimensions.current.conditionMin, availableWidth: dimensions.current.availableWidth, measureText: (text, fontSize) => text.length * fontSize * .6 });
+  assert.ok(long < dimensions.current.condition); assert.ok(long >= dimensions.current.conditionMin);
+  const larger = weatherMinicardDimensions({ x: currentBox.x * 1.2, width: currentBox.width * 1.2, height: currentBox.height * 1.2 }, { width: factsBox.width * 1.2, height: factsBox.height * 1.2 }, { x: iconBox.x * 1.2, width: iconBox.width * 1.2 });
   for (const asset of Object.keys(icons)) {
     closeTo(larger.facts.icons[asset].visibleHeight / icons[asset].visibleHeight, 1.2);
     closeTo(larger.facts.icons[asset].canvasHeight / icons[asset].canvasHeight, 1.2);
@@ -174,6 +183,8 @@ test('la minicard compensa individualmente i canvas delle icone e scala sui bbox
   closeTo(larger.current.temperature / dimensions.current.temperature, 1.2);
   closeTo(larger.current.condition / dimensions.current.condition, 1.2);
   closeTo(larger.current.apparentTemperature / dimensions.current.apparentTemperature, 1.2);
+  closeTo(larger.current.textLeft / dimensions.current.textLeft, 1.2);
+  closeTo(larger.current.availableWidth / dimensions.current.availableWidth, 1.2);
   closeTo(larger.facts.labelSize / dimensions.facts.labelSize, 1.2);
 });
 
