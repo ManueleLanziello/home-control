@@ -33,6 +33,21 @@ export function updateFloorplanWeather(snapshot) {
   renderWeatherSnapshot(snapshot);
   updateFloorplanBackground();
 }
+
+export function weatherMinicardDimensions(currentBox, factsBox) {
+  return {
+    current: {
+      paddingY: currentBox.height * .065,
+      temperature: currentBox.height * .127,
+      condition: currentBox.height * .092,
+      apparentTemperature: currentBox.height * .07,
+    },
+    facts: {
+      iconHeight: factsBox.height * .5 * .66,
+      labelSize: factsBox.height * .5 * .305,
+    },
+  };
+}
 const svgElement = (tag, attributes = {}) => {
   const element = document.createElementNS(SVG_NS, tag);
   for (const [name, value] of Object.entries(attributes)) element.setAttribute(name, value);
@@ -751,14 +766,21 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     weatherCard.tabIndex = 0;
     weatherCard.setAttribute('role', 'button');
     bindWeatherPopupTrigger(weatherCard);
-    placeHtml(weatherMapping, config.weather.card, weatherCard);
+    const weatherCardBox = placeHtml(weatherMapping, config.weather.card, weatherCard);
     const weatherCurrentCard = document.createElement('article');
     weatherCurrentCard.className = 'floorplan-weather-current';
     weatherCurrentCard.setAttribute('aria-label', 'Apri METEO OGGI');
     weatherCurrentCard.tabIndex = 0;
     weatherCurrentCard.setAttribute('role', 'button');
     bindWeatherPopupTrigger(weatherCurrentCard);
-    placeHtml(weatherMapping, config.weather.currentCard, weatherCurrentCard);
+    const weatherCurrentBox = placeHtml(weatherMapping, config.weather.currentCard, weatherCurrentCard);
+    const weatherDimensions = weatherMinicardDimensions(weatherCurrentBox, weatherCardBox);
+    weatherCurrentCard.style.setProperty('--weather-current-padding-y', `${weatherDimensions.current.paddingY}px`);
+    weatherCurrentCard.style.setProperty('--weather-current-temperature-size', `${weatherDimensions.current.temperature}px`);
+    weatherCurrentCard.style.setProperty('--weather-current-condition-size', `${weatherDimensions.current.condition}px`);
+    weatherCurrentCard.style.setProperty('--weather-current-apparent-size', `${weatherDimensions.current.apparentTemperature}px`);
+    weatherCard.style.setProperty('--weather-fact-icon-height', `${weatherDimensions.facts.iconHeight}px`);
+    weatherCard.style.setProperty('--weather-fact-label-size', `${weatherDimensions.facts.labelSize}px`);
     const weatherMarker = markerElement('Apri METEO OGGI', true);
     weatherMarker.classList.add('floorplan-marker-weather');
     bindWeatherPopupTrigger(weatherMarker);

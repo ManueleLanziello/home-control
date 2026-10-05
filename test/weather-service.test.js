@@ -120,15 +120,27 @@ test('M1/QM1/LM1 sono identificati da label stabili e ne leggono la geometria da
   assert.match(css, /\.floorplan-weather-card, \.floorplan-weather-current/);
   assert.match(css, /\.floorplan-weather-current-details/);
   assert.match(css, /grid-template-rows: repeat\(3, minmax\(0, 1fr\)\); align-items: center/);
-  assert.match(css, /padding: 9% 4% 9% 61%/);
-  assert.match(css, /font-size: clamp\(28px, 15cqh, 76px\)/);
-  assert.match(css, /font-size: clamp\(19px, 10cqh, 50px\)/);
-  assert.match(css, /font-size: clamp\(15px, 8cqh, 40px\)/);
+  assert.match(floorplan, /weatherMinicardDimensions\(weatherCurrentBox, weatherCardBox\)/);
+  assert.match(css, /font-size: var\(--weather-current-temperature-size\)/);
+  assert.match(css, /font-size: var\(--weather-current-condition-size\)/);
+  assert.match(css, /font-size: var\(--weather-current-apparent-size\)/);
   assert.match(css, /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
   assert.match(css, /grid-template-rows: repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(css, /\.floorplan-weather-fact-icon \{ grid-column: var\(--weather-fact-column\); grid-row: 1/);
   assert.match(css, /\.floorplan-weather-fact-label \{ grid-column: var\(--weather-fact-column\); grid-row: 2/);
   assert.doesNotMatch(JSON.stringify(floorplanConfig.weather), /\[d|\[x=|\[y=/);
+});
+
+test('la minicard scala i contenuti sulle altezze reali LM1 e QM1', async () => {
+  globalThis.window = globalThis.window || { addEventListener() {} };
+  const { weatherMinicardDimensions } = await import('../public/js/floorplan.js');
+  const dimensions = weatherMinicardDimensions({ width: 854, height: 455 }, { width: 866, height: 222 });
+  assert.equal(dimensions.current.paddingY / 455, .065);
+  assert.equal(dimensions.current.temperature / 455, .127);
+  assert.equal(dimensions.current.condition / 455, .092);
+  assert.equal(dimensions.current.apparentTemperature / 455, .07);
+  assert.equal(dimensions.facts.iconHeight / (222 / 2), .66);
+  assert.equal(dimensions.facts.labelSize / (222 / 2), .305);
 });
 
 test('probabilità giornaliera 0 resta un dato valido e il dato assente resta non disponibile', () => {
