@@ -7,6 +7,7 @@ import { readCameraAlarm, setCameraAlarm } from './camera-alarm.js';
 import { readCameraEvents, normalizeCameraEvents } from './camera-events.js';
 import { readCameraRecording } from './camera-recording.js';
 import { CameraOperationQueue } from './camera-operation-queue.js';
+import { CameraEventStateStore } from './camera-event-state-store.js';
 
 export const OWNED_CAMERA_ADAPTER = 'tapo-c410-owned';
 export const CAMERA_ROLE_MAP = Object.freeze({ C1: 'camera_terrazzo', C2: 'camera_pond' });
@@ -22,7 +23,7 @@ const EMPTY_TELEMETRY = () => ({
 const EMPTY = role => ({ role, configured: false, sourceType: 'owned', online: false, available: false, alias: null, model: null, updatedAt: null, error: null, status: 'NOT_CONFIGURED', imageAvailable: false, live: false, ...EMPTY_TELEMETRY() });
 
 export class HomeCameraRuntime {
-  constructor({ hardwareStore, roleStore, root, env = process.env, readTelemetry = readCameraTelemetry, readDetection = readCameraDetection, setDetection = setCameraDetection, readPrivacy = readCameraPrivacy, setPrivacy = setCameraPrivacy, readAlarm = readCameraAlarm, setAlarm = setCameraAlarm, readEvents = readCameraEvents, readRecording = readCameraRecording, now = Date.now, telemetryTtlMs = CAMERA_TELEMETRY_TTL_MS, cameraProbeTimeoutMs = 8_000, recordingTtlMs = RECORDING_CACHE_TTL_MS }) {
+  constructor({ hardwareStore, roleStore, root, env = process.env, readTelemetry = readCameraTelemetry, readDetection = readCameraDetection, setDetection = setCameraDetection, readPrivacy = readCameraPrivacy, setPrivacy = setCameraPrivacy, readAlarm = readCameraAlarm, setAlarm = setCameraAlarm, readEvents = readCameraEvents, readRecording = readCameraRecording, eventStateStore, now = Date.now, telemetryTtlMs = CAMERA_TELEMETRY_TTL_MS, cameraProbeTimeoutMs = 8_000, recordingTtlMs = RECORDING_CACHE_TTL_MS }) {
     Object.assign(this, { hardwareStore, roleStore, root, env, readTelemetry, readDetection, setDetection, readPrivacy, setPrivacy, readAlarm, setAlarm, readEvents, readRecording, now, telemetryTtlMs, cameraProbeTimeoutMs, recordingTtlMs });
     this.telemetryCache = new Map();
     this.detectionPending = new Map();
@@ -33,6 +34,7 @@ export class HomeCameraRuntime {
     this.recordingCache = new Map();
     this.recordingPending = new Map();
     this.eventMonitorState = new Map();
+    this.eventStateStore = eventStateStore || new CameraEventStateStore({ filePath: path.join(root, 'data', 'config', 'camera-event-state.json'), now });
     this.operations = new CameraOperationQueue();
     this.owned = new RoleRuntimeManager({ category: 'camera', emptySnapshot: () => EMPTY('C1'), createRuntime: (record, signature) => new CameraManager({
       ip: record.ip, pythonPath: defaultCameraPython(root), workerPath: c410WorkerPath(), env,
@@ -75,7 +77,7 @@ export class HomeCameraRuntime {
     return typeof value?.enabled === 'boolean' ? value : null;
   }
 
-  async refreshTelemetryForLive(record) {
+  async refreshTelemetryForLive(record, role) {
     const signature = `${record.id}:${record.connection?.ip || ''}`;
     const receivedFields = new Set();
     const apply = value => {
@@ -103,6 +105,7 @@ export class HomeCameraRuntime {
       // The final document must not reconfirm fields already delivered by their getter.
       const remaining = Object.fromEntries(Object.entries(snapshot).filter(([field]) => field !== 'telemetryUpdatedAt' && !receivedFields.has(field)));
       if (Object.keys(remaining).length) apply({ ...remaining, telemetryUpdatedAt: snapshot.telemetryUpdatedAt });
+      if (role && value.recordings?.available === true) this.setCameraEventAlert(role, await this.eventStateStore.observe(role, value.recordings.clips));
     } catch { /* Optional telemetry cannot break Live. */ }
   }
 
@@ -126,20 +129,25 @@ export class HomeCameraRuntime {
       const signature = `${record.id}:${record.connection?.ip || ''}`;
       const online = active && technical.status !== 'ERROR' ? (technical.live === true ? true : cached?.signature === signature ? cached.online : null) : false;
       const status = !online && technical.status === 'READY' && cached?.signature === signature && cached.online === false ? 'OFFLINE' : technical.status;
+      const alert = this.getCameraEventAlerts()[role];
       return { ...technical, status, role, configured: record.configurationStatus === 'complete', sourceType: 'owned', alias: record.alias, model: record.model,
         online, available: online === true, lastContactAt: cached?.signature === signature && Number.isFinite(cached.checkedAt) ? new Date(cached.checkedAt).toISOString() : null,
         lastContactSucceeded: cached?.signature === signature ? cached.online : null,
-        error: technical.error || null, ...telemetry };
+        error: technical.error || null, ...telemetry, events: { available: true, count: alert.unreadCount, windowHours: 12 }, recentEventAlert: alert };
     } catch {
       return { ...EMPTY(role), configured: true, alias: record.alias, model: record.model, status: 'ERROR', error: 'Camera non disponibile' };
     }
   }
 
   async snapshot() {
+    await this.ensureEventState();
     const { registry, assignments } = await this.reconcile();
     const [C1, C2] = await Promise.all(['C1', 'C2'].map(role => this.ownedState(role, registry, assignments)));
     const alerts = this.getCameraEventAlerts();
-    return { C1: { ...C1, recentEventAlert: alerts.C1 }, C2: { ...C2, recentEventAlert: alerts.C2 } };
+    return Object.fromEntries(['C1', 'C2'].map(role => {
+      const camera = role === 'C1' ? C1 : C2;
+      return [role, { ...camera, events: { ...camera.events, available: true, count: alerts[role].unreadCount, windowHours: 12 }, recentEventAlert: alerts[role] }];
+    }));
   }
 
   async imagePath(role) { await this.reconcile(); return this.owned.imagePath(CAMERA_ROLE_MAP[role]); }
@@ -152,7 +160,7 @@ export class HomeCameraRuntime {
         if (active) {
           await this.owned.start(CAMERA_ROLE_MAP[role]);
           this.noteContact(record, true);
-          await this.refreshTelemetryForLive(record);
+          await this.refreshTelemetryForLive(record, role);
         } else {
           await this.owned.stop(CAMERA_ROLE_MAP[role]);
         }
@@ -328,12 +336,23 @@ export class HomeCameraRuntime {
     clearTimeout(entry.timer); if (this.recordingCache.get(key) === entry) this.recordingCache.delete(key); await entry.recording.cleanup();
   }
   getCameraEventAlerts() {
-    const now = this.now();
     return Object.fromEntries(Object.keys(CAMERA_ROLE_MAP).map(role => {
       const state = this.eventMonitorState.get(role);
-      const active = state?.alertUntil > now && Boolean(state?.alertVersion);
-      return [role, { active, version: active ? state.alertVersion : null, until: active ? state.alertUntil : null }];
+      const unreadCount = Number.isInteger(state?.unreadCount) ? state.unreadCount : 0;
+      const active = unreadCount > 0;
+      return [role, { active, version: active ? state.version : null, unreadCount }];
     }));
+  }
+  setCameraEventAlert(role, summary) { this.eventMonitorState.set(role, { unreadCount: summary?.unreadCount || 0, version: summary?.version || null }); }
+  async ensureEventState() {
+    const summaries = await this.eventStateStore.summaries();
+    for (const [role, summary] of Object.entries(summaries)) this.setCameraEventAlert(role, summary);
+  }
+  async acknowledgeCameraEvents(role) {
+    await this.ensureEventState();
+    const summary = await this.eventStateStore.acknowledge(role);
+    this.setCameraEventAlert(role, summary);
+    return { camera: role, unread: summary.unreadCount, alert: this.getCameraEventAlerts()[role] };
   }
   async close() { await Promise.all([...this.recordingCache.entries()].map(([key, entry]) => { entry.expired = true; return this.deleteRecording(key, entry); })); await this.owned.close(); }
 }

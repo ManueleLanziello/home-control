@@ -29,15 +29,24 @@ function renderVideo(dialog, camera, payload, event) {
   content.append(back, loading, video);
 }
 
-export async function showCameraEventsPopup(camera, load = id => fetch(homeControlPath(`/api/cameras/${id}/events?hours=12`), { cache: 'no-store' }).then(response => { if (!response.ok) throw new Error('events'); return response.json(); })) {
+export async function showCameraEventsPopup(camera, load = id => fetch(homeControlPath(`/api/cameras/${id}/events?hours=12`), { cache: 'no-store' }).then(response => { if (!response.ok) throw new Error('events'); return response.json(); }), acknowledge = id => fetch(homeControlPath(`/api/cameras/${id}/events/ack`), { method: 'PUT' }).then(response => { if (!response.ok) throw new Error('ack'); return response.json(); })) {
   let dialog = document.querySelector('[data-camera-events-dialog]');
   if (!dialog) {
     dialog = document.createElement('dialog'); dialog.className = 'camera-events-dialog'; dialog.dataset.cameraEventsDialog = '';
-    dialog.innerHTML = '<header><h2 data-camera-events-title></h2><button type="button" data-camera-events-close aria-label="Chiudi storico">X</button></header><section data-camera-events-content></section>';
+    dialog.innerHTML = '<header><h2 data-camera-events-title></h2><div><button type="button" data-camera-events-ack>Segna come visti</button><button type="button" data-camera-events-close aria-label="Chiudi storico">X</button></div></header><section data-camera-events-content></section>';
     dialog.querySelector('[data-camera-events-close]').addEventListener('click', () => dialog.close());
+    dialog.querySelector('[data-camera-events-ack]').addEventListener('click', async event => {
+      const button = event.currentTarget; const session = dialog.cameraEventsSession;
+      if (!session || button.disabled) return;
+      button.disabled = true;
+      try { await session.acknowledge(session.camera.id); button.textContent = 'Eventi segnati'; }
+      catch { button.disabled = false; }
+    });
     dialog.addEventListener('close', () => releasePlayer(dialog));
     dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); }); document.body.append(dialog);
   }
+  dialog.cameraEventsSession = { camera, acknowledge };
+  const acknowledgement = dialog.querySelector('[data-camera-events-ack]'); acknowledgement.disabled = false; acknowledgement.textContent = 'Segna come visti';
   renderList(dialog, camera, { loading: true }); if (!dialog.open) dialog.showModal();
   try { renderList(dialog, camera, await load(camera.id)); } catch { renderList(dialog, camera, { error: true }); }
 }

@@ -480,7 +480,11 @@ export function bindWeatherPopupTrigger(element, opener = openWeather) {
   });
 }
 
-export async function initFloorplan({ store = createFloorplanState(), onCameraSelect = showCamera, onCameraEventsSelect = camera => showCameraEventsPopup(camera), onCameraPrivacyToggle = async (id, enabled) => {
+export async function initFloorplan({ store = createFloorplanState(), onCameraSelect = showCamera, onCameraEventsSelect = camera => showCameraEventsPopup(camera, undefined, async id => {
+  const response = await fetch(homeControlPath('/api/cameras/' + id + '/events/ack'), { method: 'PUT' });
+  if (!response.ok) throw new Error('Conferma eventi non disponibile');
+  const result = await response.json(); store.applyCameraEventAcknowledgement(id, result); return result;
+}), onCameraPrivacyToggle = async (id, enabled) => {
   const response = await fetch(homeControlPath('/api/cameras/' + id + '/privacy'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(enabled === null ? { toggle: true } : { enabled }) });
   if (!response.ok) throw new Error('Comando Privacy non disponibile');
   return response.json();
@@ -877,15 +881,10 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     let previousLights = {};
     let previousCappaPower;
     let previousLedbarOn;
-    const cameraAlertVersions = new Map();
-    const cameraAlertTimers = new Map();
-    const showCameraEventAlert = (id, version) => {
+    const showCameraEventAlert = (id, active) => {
       const layer = imageLayers.get(config.cameraEventLayers[id]);
-      if (!layer || !version || cameraAlertVersions.get(id) === version) return;
-      cameraAlertVersions.set(id, version);
-      clearTimeout(cameraAlertTimers.get(id));
-      layer.hidden = false; layer.classList.add('is-camera-event-alert');
-      cameraAlertTimers.set(id, setTimeout(() => { layer.classList.remove('is-camera-event-alert'); layer.hidden = true; }, 15_000));
+      if (!layer) return;
+      layer.hidden = !active; layer.classList.toggle('is-camera-event-alert', active);
     };
     const render = state => {
       for (const room of config.rooms) {
@@ -925,7 +924,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
       }
       for (const camera of config.cameras) {
         const cameraState = state.cameras[camera.id] || {};
-        if (cameraState.recentEventAlert?.active) showCameraEventAlert(camera.id, cameraState.recentEventAlert.version);
+        showCameraEventAlert(camera.id, cameraState.recentEventAlert?.active === true);
         const controls = cameraControls.get(camera.id) || {};
         const binaryControls = {
           detection: [config.icons.detectionOn, config.icons.detectionOff],
@@ -1045,7 +1044,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     window.addEventListener('pageshow', tick);
     status.hidden = true;
     stage.dataset.ready = 'true';
-    return { store, destroy() { if (activePondControls === pondControls) activePondControls = null; clearTimeout(timer); clearTimeout(ledbarThrottle); clearTimeout(cameraAlertTimer); for (const alertTimer of cameraAlertTimers.values()) clearTimeout(alertTimer); ledbarEvents?.close(); lightEvents?.close(); unsubscribe(); document.removeEventListener('visibilitychange', tick); window.removeEventListener('pageshow', tick); floorplanClock?.destroy(); if (renderWeatherSnapshot === renderWeather) renderWeatherSnapshot = () => {}; if (updateFloorplanBackground === updateBackground) updateFloorplanBackground = () => {}; stage.replaceChildren(); } };
+    return { store, destroy() { if (activePondControls === pondControls) activePondControls = null; clearTimeout(timer); clearTimeout(ledbarThrottle); clearTimeout(cameraAlertTimer); ledbarEvents?.close(); lightEvents?.close(); unsubscribe(); document.removeEventListener('visibilitychange', tick); window.removeEventListener('pageshow', tick); floorplanClock?.destroy(); if (renderWeatherSnapshot === renderWeather) renderWeatherSnapshot = () => {}; if (updateFloorplanBackground === updateBackground) updateFloorplanBackground = () => {}; stage.replaceChildren(); } };
   } catch (error) {
     status.textContent = error.message;
   } finally {

@@ -106,12 +106,23 @@ export function createFloorplanState() {
     applyCameraEventAlerts(alerts = {}) {
       for (const { id } of floorplanConfig.cameras) {
         const alert = alerts[id];
-        state.cameras[id] = { ...(state.cameras[id] || {}), recentEventAlert: {
+        const unread = Number.isInteger(alert?.unreadCount) && alert.unreadCount >= 0 ? alert.unreadCount : 0;
+        state.cameras[id] = { ...(state.cameras[id] || {}), events: { ...(state.cameras[id]?.events || {}), available: true, count: unread, windowHours: 12 }, recentEventAlert: {
           active: alert?.active === true,
           version: typeof alert?.version === 'string' ? alert.version : null,
-          until: Number.isFinite(alert?.until) ? alert.until : null,
+          unreadCount: unread,
         } };
       }
+      for (const listener of listeners) listener(this.snapshot());
+    },
+    applyCameraEventAcknowledgement(id, result = {}) {
+      if (!floorplanConfig.cameras.some(camera => camera.id === id)) return;
+      const unread = Number.isInteger(result.unread) && result.unread >= 0 ? result.unread : 0;
+      state.cameras[id] = { ...(state.cameras[id] || {}), events: { ...(state.cameras[id]?.events || {}), available: true, count: unread, windowHours: 12 }, recentEventAlert: {
+        active: result.alert?.active === true,
+        version: typeof result.alert?.version === 'string' ? result.alert.version : null,
+        unreadCount: unread,
+      } };
       for (const listener of listeners) listener(this.snapshot());
     },
     applyThermostatSnapshot(thermostat) {

@@ -296,6 +296,7 @@ export function createHomeControlServer({
     }
     if (url.pathname === '/api/cameras/event-alerts') {
       if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
+      await cameras.ensureEventState?.();
       return sendJson(response, 200, { alerts: cameras.getCameraEventAlerts?.() || {} });
     }
     if (url.pathname === '/api/ledbar/events') {
@@ -440,6 +441,12 @@ export function createHomeControlServer({
       if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
       try { return sendCameraRecording(request, response, await cameras.getCameraEventVideo(cameraEventVideoMatch[1], cameraEventVideoMatch[2])); }
       catch (error) { return sendJson(response, 503, { error: error.message || 'Video non disponibile' }); }
+    }
+    const cameraEventAckMatch = /^\/api\/cameras\/(C[12])\/events\/ack$/.exec(url.pathname);
+    if (cameraEventAckMatch) {
+      if (request.method !== 'PUT') return sendJson(response, 405, { error: 'Metodo non consentito' });
+      try { const result = await cameras.acknowledgeCameraEvents(cameraEventAckMatch[1]); homeStatus.invalidate(); return sendJson(response, 200, result); }
+      catch (error) { return sendJson(response, 503, { error: error.message || 'Conferma eventi non disponibile' }); }
     }
     const cameraEventsMatch = /^\/api\/cameras\/(C[12])\/events$/.exec(url.pathname);
     if (cameraEventsMatch) {
