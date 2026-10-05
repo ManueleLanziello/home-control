@@ -93,18 +93,12 @@ button.floorplan-marker { pointer-events: auto; cursor: pointer; }
 .weather-dialog header p { margin-top: 3px; color: #8eacbd; font-size: .78rem; }
 .weather-dialog header button { width: 34px; height: 34px; padding: 4px; border: 1px solid #476b83; border-radius: 9px; background: #132d40; cursor: pointer; }
 .weather-dialog header button img { width: 100%; height: 100%; object-fit: contain; }
-.weather-popup-current { display: grid; grid-template-columns: 96px 1fr; align-items: center; gap: 16px; min-height: 112px; padding: 14px; border: 1px solid #39738e; border-radius: 16px; background: #0b2233; }
-.weather-popup-current > img { width: 88px; height: 88px; object-fit: contain; }
-.weather-popup-current strong, .weather-popup-current span, .weather-popup-current small { display: block; }
-.weather-popup-current strong { font-size: 2.1rem; line-height: 1.1; }
-.weather-popup-current span { margin-top: 4px; color: #d4eff9; }
-.weather-popup-current small { margin-top: 4px; color: #96b8c8; }
-.weather-popup-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.weather-popup-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .weather-popup-details div { padding: 10px; border-radius: 10px; background: #071826; }
 .weather-popup-details span, .weather-popup-details strong { display: block; }
 .weather-popup-details span { color: #8eacbd; font-size: .72rem; }
 .weather-popup-details strong { margin-top: 3px; font-size: .9rem; }
-.weather-popup-hourly { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(76px, 1fr); gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+.weather-popup-hourly { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
 .weather-popup-hourly div, .weather-popup-daily div { display: grid; justify-items: center; gap: 5px; padding: 9px; border: 1px solid #284e64; border-radius: 10px; background: #071826; text-align: center; }
 .weather-popup-hourly img, .weather-popup-daily img { width: 34px; height: 34px; object-fit: contain; }
 .weather-popup-hourly small, .weather-popup-daily small { color: #9cc3d3; }
@@ -217,8 +211,7 @@ button[data-floorplan-light] { user-select: none; touch-action: manipulation; }
 button[data-floorplan-light] .floorplan-symbol { pointer-events: none; }
 
 @media (max-width: 540px) {
-  .weather-popup-current { grid-template-columns: 72px 1fr; }
-  .weather-popup-current > img { width: 64px; height: 64px; }
   .weather-popup-details { grid-template-columns: 1fr; }
+  .weather-popup-hourly { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .weather-popup-daily div { grid-template-columns: 76px 36px minmax(0, 1fr); }
 }

@@ -78,7 +78,7 @@ export function parseOpenMeteo(payload, config, updatedAt = new Date().toISOStri
   }));
   if (!dailyForecast.length) throw new Error('Previsione Open-Meteo insufficiente');
   const remainingHourly = (hourly.time || []).map((time, index) => ({ time, index }))
-    .filter(({ time }) => time.slice(0, 10) === currentDate && time > currentTime).slice(0, 6)
+    .filter(({ time }) => time.slice(0, 10) === currentDate && time > currentTime)
     .map(({ time, index }) => weatherValue(at(hourly.weather_code, index), {
       time,
       temperature: optionalNumber(at(hourly.temperature_2m, index)),

@@ -409,22 +409,18 @@ function updateWeatherDialog(snapshot) {
   const current = snapshot?.current;
   dialog.querySelector('[data-weather-popup-location]').textContent = snapshot?.location || 'METEO OGGI';
   dialog.querySelector('[data-weather-popup-updated]').textContent = snapshot?.updatedAt ? `Aggiornato ${weatherTime(snapshot.updatedAt)}${snapshot.stale ? ' · dati precedenti' : ''}` : 'Dati non disponibili';
-  const currentHost = dialog.querySelector('[data-weather-popup-current]');
   const details = dialog.querySelector('[data-weather-popup-details]');
   const hourly = dialog.querySelector('[data-weather-popup-hourly]');
   const daily = dialog.querySelector('[data-weather-popup-daily]');
-  currentHost.replaceChildren(); details.replaceChildren(); hourly.replaceChildren(); daily.replaceChildren();
+  details.replaceChildren(); hourly.replaceChildren(); daily.replaceChildren();
   if (!current) {
-    currentHost.textContent = 'Dati meteo non disponibili';
+    details.textContent = 'Dati meteo non disponibili';
     return;
   }
-  const icon = document.createElement('img'); icon.src = assetUrl(current.icon || 'cloudy.svg'); icon.alt = '';
-  const text = document.createElement('div'); text.innerHTML = `<strong>${weatherTemperature(current.temperature)}</strong><span>${current.condition}</span><small>Percepita ${weatherTemperature(current.apparentTemperature)}</small>`;
-  currentHost.append(icon, text);
   for (const [label, value] of [
     ['Min / Max', `${weatherTemperature(snapshot.today?.minTemperature)} / ${weatherTemperature(snapshot.today?.maxTemperature)}`],
     ['Umidità', weatherPercent(current.humidity)], ['Vento', `${weatherNumber(current.windSpeed)} km/h ${windDirection(current.windDirection)}`],
-    ['Probabilità pioggia', weatherPercent(current.rainProbability)], ['Precipitazioni', Number.isFinite(current.precipitation) ? `${weatherNumber(current.precipitation)} mm` : '—'],
+    ['Probabilità pioggia', weatherPercent(snapshot.today?.rainProbability)], ['Precipitazioni', Number.isFinite(current.precipitation) ? `${weatherNumber(current.precipitation)} mm` : '—'],
   ]) {
     const item = document.createElement('div'); item.innerHTML = `<span>${label}</span><strong>${value}</strong>`; details.append(item);
   }
@@ -433,7 +429,7 @@ function updateWeatherDialog(snapshot) {
     card.innerHTML = `<strong>${weatherTime(item.time)}</strong><img src="${assetUrl(item.icon || 'cloudy.svg')}" alt=""><span>${weatherTemperature(item.temperature)}</span><small>${weatherPercent(item.rainProbability)}</small>`;
     hourly.append(card);
   }
-  for (const item of snapshot.daily || []) {
+  for (const item of (snapshot.daily || []).slice(1, 4)) {
     const card = document.createElement('div');
     card.innerHTML = `<strong>${weatherDay(item.date)}</strong><img src="${assetUrl(item.icon || 'cloudy.svg')}" alt=""><span>${item.condition}</span><small>${weatherTemperature(item.minTemperature)} / ${weatherTemperature(item.maxTemperature)} · ${weatherPercent(item.rainProbability)}</small>`;
     daily.append(card);
@@ -446,7 +442,7 @@ function openWeather() {
     dialog = document.createElement('dialog');
     dialog.className = 'weather-dialog';
     dialog.dataset.weatherDialog = '';
-    dialog.innerHTML = '<header><div><h2 data-weather-popup-location>METEO OGGI</h2><p data-weather-popup-updated></p></div><button type="button" data-weather-popup-close aria-label="Chiudi METEO"><img src="' + assetUrl('close.svg') + '" alt=""></button></header><section class="weather-popup-current" data-weather-popup-current></section><section class="weather-popup-details" data-weather-popup-details></section><section><h3>Prossime ore</h3><div class="weather-popup-hourly" data-weather-popup-hourly></div></section><section><h3>Previsioni</h3><div class="weather-popup-daily" data-weather-popup-daily></div></section>';
+    dialog.innerHTML = '<header><div><h2 data-weather-popup-location>METEO OGGI</h2><p data-weather-popup-updated></p></div><button type="button" data-weather-popup-close aria-label="Chiudi METEO"><img src="' + assetUrl('close.svg') + '" alt=""></button></header><section class="weather-popup-details" data-weather-popup-details></section><section><h3>Prossime ore</h3><div class="weather-popup-hourly" data-weather-popup-hourly></div></section><section><h3>Previsioni</h3><div class="weather-popup-daily" data-weather-popup-daily></div></section>';
     dialog.querySelector('[data-weather-popup-close]').addEventListener('click', () => dialog.close());
     dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });
     document.body.append(dialog);

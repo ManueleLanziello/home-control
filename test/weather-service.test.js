@@ -44,6 +44,21 @@ test('normalizza current, resto della giornata e previsione giornaliera Open-Met
   assert.equal(weather.daily[2].icon, 'snow.svg');
 });
 
+test('mantiene tutte e sole le ore rimanenti della giornata meteo locale', () => {
+  const source = payload();
+  const hours = Array.from({ length: 14 }, (_, index) => index + 10);
+  source.hourly = {
+    time: [...hours.map(hour => `2026-09-15T${String(hour).padStart(2, '0')}:00`), '2026-09-16T00:00'],
+    temperature_2m: Array(16).fill(20), weather_code: Array(16).fill(2), is_day: Array(16).fill(1),
+    precipitation_probability: Array(16).fill(0), precipitation: Array(16).fill(0),
+  };
+  const weather = parseOpenMeteo(source, config);
+  assert.equal(weather.hourly.length, 12);
+  assert.equal(weather.hourly[0].time, '2026-09-15T12:00');
+  assert.equal(weather.hourly.at(-1).time, '2026-09-15T23:00');
+  assert.ok(weather.hourly.every(item => item.time.startsWith('2026-09-15')));
+});
+
 test('cache 15 minuti e fallback stale mantengono l ultimo dato valido', async () => {
   let now = Date.parse('2026-09-15T09:00:00.000Z'); let calls = 0; let fail = false;
   const service = new WeatherService({ config, now: () => now, logError: () => {}, fetchImpl: async () => {
@@ -185,4 +200,18 @@ test('M1 e QM1 usano lo stesso trigger popup senza listener duplicati', async ()
   const floorplan = await readFile(new URL('../public/js/floorplan.js', import.meta.url), 'utf8');
   assert.match(floorplan, /let dialog = document\.querySelector\('\[data-weather-dialog\]'\)/);
   assert.match(floorplan, /if \(!dialog\) \{/);
+});
+
+test('popup METEO riusa la probabilità giornaliera di QM1 e mostra solo i tre giorni successivi', async () => {
+  const [floorplan, css, weatherService] = await Promise.all([
+    readFile(new URL('../public/js/floorplan.js', import.meta.url), 'utf8'),
+    readFile(new URL('../public/floorplan.css', import.meta.url), 'utf8'),
+    readFile(new URL('../src/weather-service.js', import.meta.url), 'utf8'),
+  ]);
+  assert.doesNotMatch(floorplan, /data-weather-popup-current/);
+  assert.match(floorplan, /\['Probabilità pioggia', weatherPercent\(snapshot\.today\?\.rainProbability\)\]/);
+  assert.match(floorplan, /for \(const item of \(snapshot\.daily \|\| \[\]\)\.slice\(1, 4\)\)/);
+  assert.doesNotMatch(weatherService, /\.slice\(0, 6\)/);
+  assert.match(css, /\.weather-popup-hourly \{ display: grid; grid-template-columns: repeat\(6, minmax\(0, 1fr\)\); gap: 8px; \}/);
+  assert.doesNotMatch(css, /\.weather-popup-current/);
 });
