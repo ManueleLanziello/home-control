@@ -116,10 +116,12 @@ test('M1/QM1/LM1 sono identificati da label stabili e ne leggono la geometria da
   assert.match(css, /\.floorplan-marker-weather > img \{ width: 100%; height: 100%; object-fit: contain; \}/);
   assert.match(css, /\.floorplan-weather-card, \.floorplan-weather-current/);
   assert.match(css, /\.floorplan-weather-current-details/);
+  assert.match(css, /grid-template-rows: repeat\(3, minmax\(0, 1fr\)\); align-items: center/);
+  assert.match(css, /font-size: clamp\(20px, 14cqh, 64px\)/);
   assert.match(css, /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
   assert.match(css, /font-size: 46px; font-weight: 700/);
-  assert.match(css, /grid-template-rows: minmax\(0, 2fr\) minmax\(0, 1fr\)/);
-  assert.match(css, /width: 82%; height: 100%; object-fit: contain/);
+  assert.match(css, /grid-template-rows: repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(css, /width: 78%; height: 78%; object-fit: contain/);
   assert.doesNotMatch(JSON.stringify(floorplanConfig.weather), /\[d|\[x=|\[y=/);
 });
 
