@@ -105,6 +105,9 @@ test('M1/QM1/LM1 sono identificati da label stabili e ne leggono la geometria da
   assert.match(floorplan, /\[\['umidity\.svg', weatherPercent/);
   assert.match(floorplan, /\['wind\.svg', `\$\{weatherNumber\(current\?\.windSpeed\)\} km\/h`\]/);
   assert.match(floorplan, /\['rain\.svg', weatherPercent/);
+  assert.match(floorplan, /weatherImage\(assets, icon, 'floorplan-weather-fact-icon'\)/);
+  assert.match(floorplan, /label\.className = 'floorplan-weather-fact-label'/);
+  assert.match(floorplan, /facts\.append\(iconImage, label\)/);
   assert.match(floorplan, /weatherPercent\(snapshot\?\.today\?\.rainProbability\)/);
   assert.match(floorplan, /weatherCurrentCard\.replaceChildren\(weatherCurrentDetails\)/);
   assert.match(floorplan, /const condition = document\.createElement\('span'\); condition\.textContent = current\?\.condition/);
@@ -117,11 +120,14 @@ test('M1/QM1/LM1 sono identificati da label stabili e ne leggono la geometria da
   assert.match(css, /\.floorplan-weather-card, \.floorplan-weather-current/);
   assert.match(css, /\.floorplan-weather-current-details/);
   assert.match(css, /grid-template-rows: repeat\(3, minmax\(0, 1fr\)\); align-items: center/);
-  assert.match(css, /font-size: clamp\(20px, 14cqh, 64px\)/);
+  assert.match(css, /padding: 9% 4% 9% 61%/);
+  assert.match(css, /font-size: clamp\(28px, 15cqh, 76px\)/);
+  assert.match(css, /font-size: clamp\(19px, 10cqh, 50px\)/);
+  assert.match(css, /font-size: clamp\(15px, 8cqh, 40px\)/);
   assert.match(css, /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
-  assert.match(css, /font-size: 46px; font-weight: 700/);
   assert.match(css, /grid-template-rows: repeat\(2, minmax\(0, 1fr\)\)/);
-  assert.match(css, /width: 78%; height: 78%; object-fit: contain/);
+  assert.match(css, /\.floorplan-weather-fact-icon \{ grid-column: var\(--weather-fact-column\); grid-row: 1/);
+  assert.match(css, /\.floorplan-weather-fact-label \{ grid-column: var\(--weather-fact-column\); grid-row: 2/);
   assert.doesNotMatch(JSON.stringify(floorplanConfig.weather), /\[d|\[x=|\[y=/);
 });
 

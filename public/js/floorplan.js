@@ -794,8 +794,11 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
       weatherCurrentCard.replaceChildren(weatherCurrentDetails);
       weatherCard.replaceChildren();
       const facts = document.createElement('div'); facts.className = 'floorplan-weather-facts';
-      for (const [icon, valueText] of [['umidity.svg', weatherPercent(current?.humidity)], ['wind.svg', `${weatherNumber(current?.windSpeed)} km/h`], ['rain.svg', weatherPercent(snapshot?.today?.rainProbability)]]) {
-        const fact = document.createElement('span'); fact.append(weatherImage(assets, icon), document.createTextNode(valueText)); facts.append(fact);
+      for (const [index, [icon, valueText]] of [['umidity.svg', weatherPercent(current?.humidity)], ['wind.svg', `${weatherNumber(current?.windSpeed)} km/h`], ['rain.svg', weatherPercent(snapshot?.today?.rainProbability)]].entries()) {
+        const iconImage = weatherImage(assets, icon, 'floorplan-weather-fact-icon');
+        iconImage.style.setProperty('--weather-fact-column', String(index + 1));
+        const label = document.createElement('span'); label.className = 'floorplan-weather-fact-label'; label.style.setProperty('--weather-fact-column', String(index + 1)); label.textContent = valueText;
+        facts.append(iconImage, label);
       }
       weatherCard.append(facts);
       updateWeatherDialog(snapshot);
