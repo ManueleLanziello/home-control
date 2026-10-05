@@ -104,7 +104,7 @@ test('mapping SVG aggiornati usano label semantiche, non geometrie fragili', asy
   assert.deepEqual(floorplanConfig.mobileMonitor, { marker: { label: 'DM' }, icons: { phone: 'phone.svg', tablet: 'tablet.svg' } });
 });
 
-test('L1-L7 mantengono i layer, L8-L12 sono toggle UI locali', () => {
+test('L7 usa soltanto il nuovo layer ON e L8-L12 restano toggle UI locali', () => {
   const store = createFloorplanState();
   store.applyHomeSnapshot({ lights: { L1: { source: 'simulation', state: false } } });
 
@@ -117,8 +117,8 @@ test('L1-L7 mantengono i layer, L8-L12 sono toggle UI locali', () => {
   assert.equal(state.lightSources.L8, 'simulation');
   assert.equal(floorplanConfig.rooms.some(room => room.lightId === 'L8'), false);
   assert.equal(floorplanConfig.rooms.some(room => room.lightId === 'L12'), false);
-  assert.deepEqual(floorplanConfig.rooms.at(-1), { lightId: 'L7', on: 'LAYER-11-ON.svg', off: 'LAYER-11-OFF.svg', optional: true });
-  assert.doesNotMatch(JSON.stringify(floorplanConfig.rooms), /LAYER-L7-ON\.svg/);
+  assert.deepEqual(floorplanConfig.rooms.at(-1), { lightId: 'L7', on: 'LAYER-L7-ON.svg', optional: true });
+  assert.equal(floorplanConfig.rooms.at(-1).off, undefined);
 });
 
 test('DM resta un contenitore fisso e usa esclusivamente le righe mobile configurate', async () => {
