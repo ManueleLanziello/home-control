@@ -59,12 +59,12 @@ export function weatherMinicardDimensions(currentBox, factsBox) {
     current: {
       paddingY: currentBox.height * .065,
       temperature: currentBox.height * .127 * 1.3,
-      condition: currentBox.height * .092 * 1.3,
+      condition: currentBox.height * .092 * 1.3 * .70,
       apparentTemperature: currentBox.height * .07,
     },
     facts: {
       icons,
-      labelSize: factsBox.height * .5 * .305 * 1.5,
+      labelSize: factsBox.height * .5 * .305 * 1.5 * .80,
     },
   };
 }

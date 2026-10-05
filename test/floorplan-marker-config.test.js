@@ -237,8 +237,8 @@ test('gli altri marker semantici restano risolvibili nelle rispettive geometrie'
 
 test('LAYER-16 espone marker semantici sulle nuove posizioni di integrazione', async () => {
   const svg = await readFile(new URL('../design/LAYER-16-INTEGRAZIONE.svg', import.meta.url), 'utf8');
-  assert.match(svg, /<rect id="integration-title" x="181\.5" y="1098\.5" width="750" height="201"/);
-  assert.match(svg, /<rect id="integration-options" x="947\.5" y="1098\.5" width="201" height="201"/);
+  assert.match(svg, /<rect id="integration-title" x="181\.5" y="1098\.5" width="750" height="201" stroke="none"/);
+  assert.match(svg, /<rect id="integration-options" x="947\.5" y="1098\.5" width="201" height="201" stroke="none"/);
   assert.equal(floorplanConfig.integration.title.selector, '#integration-title');
   assert.equal(floorplanConfig.integration.options.selector, '#integration-options');
   assert.doesNotMatch(svg, /x="260\.5" y="1039\.5" width="750" height="130"/);

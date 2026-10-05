@@ -163,9 +163,9 @@ test('la minicard compensa individualmente i canvas delle icone e scala sui bbox
   for (const icon of Object.values(icons)) closeTo(icon.canvasHeight / 188, .825);
   closeTo(dimensions.current.paddingY / 478, .065);
   closeTo(dimensions.current.temperature / 478, .127 * 1.3);
-  closeTo(dimensions.current.condition / 478, .092 * 1.3);
+  closeTo(dimensions.current.condition / 478, .092 * 1.3 * .70);
   closeTo(dimensions.current.apparentTemperature / 478, .07);
-  closeTo(dimensions.facts.labelSize / 188, .5 * .305 * 1.5);
+  closeTo(dimensions.facts.labelSize / 188, .5 * .305 * 1.5 * .80);
   const larger = weatherMinicardDimensions({ width: 741 * 1.2, height: 478 * 1.2 }, { width: 741 * 1.2, height: 188 * 1.2 });
   for (const asset of Object.keys(icons)) {
     closeTo(larger.facts.icons[asset].visibleHeight / icons[asset].visibleHeight, 1.2);
