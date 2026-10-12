@@ -95,6 +95,11 @@ test('recovery LB1 non introduce timer o polling', async () => {
   assert.doesNotMatch(source, /setInterval|setTimeout/);
 });
 
+test('API luci include L1 nel gate semantico Zigbee', async () => {
+  const source = await readFile(new URL('../server.js', import.meta.url), 'utf8');
+  assert.match(source, /api\\\/lights\\\/\(L\[156\]\)\\\/power/);
+});
+
 test('LB1 interpreta MQTT, conserva brightness durante OFF e pubblica i comandi Zigbee2MQTT', async () => {
   const f = fixture(); f.runtime.start(); f.client.emit('connect');
   assert.ok(f.subscriptions[0].includes('zigbee2mqtt/SmartHomeLB1'));

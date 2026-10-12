@@ -315,7 +315,7 @@ export function createHomeControlServer({
       request.on('close', () => lightEventClients.delete(response));
       return;
     }
-    const lightPowerMatch = /^\/api\/lights\/(L[56])\/power$/.exec(url.pathname);
+    const lightPowerMatch = /^\/api\/lights\/(L[156])\/power$/.exec(url.pathname);
     if (lightPowerMatch) {
       if (request.method !== 'PUT') return sendJson(response, 405, { error: 'Metodo non consentito' });
       const payload = await readJson(request);
