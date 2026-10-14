@@ -98,23 +98,25 @@ test('mapping SVG aggiornati usano label semantiche, non geometrie fragili', asy
   assert.equal(includesLabel(devices.labels, 'DM'), true);
   assert.deepEqual(floorplanConfig.lights.map(light => light.id), ['L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7', 'L8', 'L9', 'L10', 'L11', 'L12']);
   assert.deepEqual(floorplanConfig.rooms.map(room => room.lightId), ['L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7']);
-  assert.deepEqual(floorplanConfig.lights.slice(7).map(light => light.localOnly), [true, true, true, true, true]);
+  assert.deepEqual(floorplanConfig.lights.slice(7).map(light => light.localOnly === true), [false, true, true, false, true]);
   assert.deepEqual(floorplanConfig.sensors.map(sensor => [sensor.reading.label, sensor.humidityReading?.label || null]), [['LS1', 'LU1'], ['LS2', 'LU2'], ['LS3', null], ['LS4', 'LU4'], ['LS5', 'LU5']]);
   for (const marker of [...floorplanConfig.lights, ...floorplanConfig.sensors].map(item => item.marker).concat(floorplanConfig.boiler.marker, floorplanConfig.boiler.card, floorplanConfig.weather.marker, floorplanConfig.weather.card, floorplanConfig.weather.currentCard, floorplanConfig.clock.marker)) assert.ok(marker.label);
   assert.deepEqual(floorplanConfig.mobileMonitor, { marker: { label: 'DM' }, icons: { phone: 'phone.svg', tablet: 'tablet.svg' } });
 });
 
-test('L7 usa soltanto il nuovo layer ON e L8-L12 restano toggle UI locali', () => {
+test('L7 usa soltanto il nuovo layer ON; L8 e L11 sono Zigbee, L9/L10/L12 restano locali', () => {
   const store = createFloorplanState();
   store.applyHomeSnapshot({ lights: { L1: { source: 'simulation', state: false } } });
 
   store.setLight('L1', true);
-  store.setLight('L8', true);
+  store.setLight('L9', true);
   const state = store.snapshot();
 
   assert.equal(state.lights.L1, true);
-  assert.equal(state.lights.L8, true);
-  assert.equal(state.lightSources.L8, 'simulation');
+  assert.equal(state.lights.L9, true);
+  assert.equal(state.lightSources.L9, 'simulation');
+  assert.equal(state.lightSources.L8, 'unavailable');
+  assert.equal(state.lightSources.L11, 'unavailable');
   assert.equal(floorplanConfig.rooms.some(room => room.lightId === 'L8'), false);
   assert.equal(floorplanConfig.rooms.some(room => room.lightId === 'L12'), false);
   assert.deepEqual(floorplanConfig.rooms.at(-1), { lightId: 'L7', on: 'LAYER-L7-ON.svg', optional: true });
@@ -140,11 +142,10 @@ test('L8-L12 usano overlay full-plan indipendenti e conservano lo stato attraver
     L8: 'LAYER-L8-ON.svg', L9: 'LAYER-L9-ON.svg', L10: 'LAYER-L10-ON.svg', L11: 'LAYER-L11-ON.svg', L12: 'LAYER-L12-ON.svg',
   });
   const store = createFloorplanState();
-  store.setLight('L8', true);
+  store.applyHomeSnapshot({ lights: { L8: { source: 'zigbee', available: true, state: 'ON' }, L11: { source: 'zigbee', available: true, state: 'ON' } } });
   store.setLight('L10', true);
-  store.setLight('L11', true);
   const beforeBaseChange = store.snapshot().lights;
-  assert.deepEqual(beforeBaseChange, { L1: false, L2: false, L3: false, L4: false, L5: false, L6: false, L7: false, L8: true, L9: false, L10: true, L11: true, L12: false });
+  assert.deepEqual(beforeBaseChange, { L1: null, L2: null, L3: null, L4: null, L5: null, L6: null, L7: null, L8: true, L9: false, L10: true, L11: true, L12: false });
   assert.deepEqual(store.snapshot().lights, beforeBaseChange);
 });
 

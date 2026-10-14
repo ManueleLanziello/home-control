@@ -12,5 +12,7 @@ export const ZIGBEE_SENSOR_CONFIG = Object.freeze({
     Object.freeze({ id: 'L2', name: 'camera-L2', topic: 'zigbee2mqtt/camera-L2', setTopic: 'zigbee2mqtt/camera-L2/set', getTopic: 'zigbee2mqtt/camera-L2/get', getPayload: Object.freeze({ state: '' }) }),
     Object.freeze({ id: 'L5', name: 'bagno-L5', topic: 'zigbee2mqtt/bagno-L5', setTopic: 'zigbee2mqtt/bagno-L5/set', getTopic: 'zigbee2mqtt/bagno-L5/get', getPayload: Object.freeze({ state: '' }) }),
     Object.freeze({ id: 'L6', name: 'cameretta-L6', topic: 'zigbee2mqtt/cameretta-L6', setTopic: 'zigbee2mqtt/cameretta-L6/set', getTopic: 'zigbee2mqtt/cameretta-L6/get', getPayload: Object.freeze({ state: '' }) }),
+    Object.freeze({ id: 'L8', name: 'giardino-L8', topic: 'zigbee2mqtt/giardino-L8', setTopic: 'zigbee2mqtt/giardino-L8/set', getTopic: 'zigbee2mqtt/giardino-L8/get', getPayload: Object.freeze({ state: '' }) }),
+    Object.freeze({ id: 'L11', name: 'terrazzo-L11', topic: 'zigbee2mqtt/terrazzo-L11', setTopic: 'zigbee2mqtt/terrazzo-L11/set', getTopic: 'zigbee2mqtt/terrazzo-L11/get', getPayload: Object.freeze({ state: '' }) }),
   ]),
 });
