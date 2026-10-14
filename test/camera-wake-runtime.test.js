@@ -31,6 +31,22 @@ test('scheduled wake reuses Live telemetry, always closes its session, and prese
   } finally { await runtime.close(); }
 });
 
+test('scheduled wake uses 8 seconds for C1 and 15 seconds for C2 without changing the Live default', async () => {
+  const c1 = camera('c1', 'camera_terrazzo'); const c2 = camera('c2', 'camera_pond'); const timeouts = [];
+  const runtime = new HomeCameraRuntime({
+    hardwareStore: { async read() { return { devices: [c1, c2] }; } }, roleStore: { async read() { return { c1: 'camera_terrazzo', c2: 'camera_pond' }; } }, root: process.cwd(),
+    async readTelemetry({ timeoutMs }) { timeouts.push(timeoutMs); return {}; },
+  });
+  runtime.owned = { has: () => true, async reconcile() {}, async snapshot() { return { status: 'READY', live: false }; }, async start() {}, async stop() {}, async close() {} };
+  try {
+    await runtime.wakeForTelemetry('C1');
+    await runtime.wakeForTelemetry('C2');
+    assert.deepEqual(timeouts, [8_000, 15_000]);
+    await runtime.refreshTelemetryForLive(c2, 'C2');
+    assert.equal(timeouts.at(-1), 8_000);
+  } finally { await runtime.close(); }
+});
+
 test('scheduled wake does not terminate a dashboard Live session', async () => {
   const record = camera('c1', 'camera_terrazzo'); let stopCalls = 0; let telemetry = 0;
   const runtime = new HomeCameraRuntime({

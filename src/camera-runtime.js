@@ -11,6 +11,7 @@ import { CameraEventStateStore } from './camera-event-state-store.js';
 
 export const OWNED_CAMERA_ADAPTER = 'tapo-c410-owned';
 export const CAMERA_ROLE_MAP = Object.freeze({ C1: 'camera_terrazzo', C2: 'camera_pond' });
+export const CAMERA_WAKE_TELEMETRY_TIMEOUT_MS = Object.freeze({ C1: 8_000, C2: 15_000 });
 const RECORDING_CACHE_TTL_MS = 3 * 60_000;
 const EMPTY_TELEMETRY = () => ({
   battery: { available: false, percent: null, charging: null },
@@ -77,7 +78,7 @@ export class HomeCameraRuntime {
     return typeof value?.enabled === 'boolean' ? value : null;
   }
 
-  async refreshTelemetryForLive(record, role) {
+  async refreshTelemetryForLive(record, role, timeoutMs = this.cameraProbeTimeoutMs) {
     const signature = `${record.id}:${record.connection?.ip || ''}`;
     const receivedFields = new Set();
     const apply = value => {
@@ -97,7 +98,7 @@ export class HomeCameraRuntime {
         recordings: value.recordings?.available ? value.recordings : previous.recordings }, controlUpdatedAt, expiresAt: this.now() + this.telemetryTtlMs });
     };
     try {
-      const value = await this.readTelemetry({ ip: record.connection?.ip, root: this.root, env: this.env, now: this.now(), timeoutMs: this.cameraProbeTimeoutMs, onPartial: update => {
+      const value = await this.readTelemetry({ ip: record.connection?.ip, root: this.root, env: this.env, now: this.now(), timeoutMs, onPartial: update => {
         for (const field of Object.keys(update)) if (field !== 'telemetryUpdatedAt') receivedFields.add(field);
         apply(update);
       } });
@@ -185,7 +186,7 @@ export class HomeCameraRuntime {
           await this.owned.start(CAMERA_ROLE_MAP[role]);
           started = true;
           this.noteContact(record, true);
-          await this.refreshTelemetryForLive(record, role);
+          await this.refreshTelemetryForLive(record, role, CAMERA_WAKE_TELEMETRY_TIMEOUT_MS[role] ?? this.cameraProbeTimeoutMs);
           return { skipped: false };
         } finally {
           if (started) await this.owned.stop(CAMERA_ROLE_MAP[role]);
