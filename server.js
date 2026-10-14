@@ -11,6 +11,7 @@ import { createPondPlugRuntime, isPondPlug, POND_PLUG_ADAPTER, runtimeDevice } f
 import { createPondController } from './src/pond-safety.js';
 import { pondPlugOwnership, requirePondPlugOwner } from './src/pond-ownership.js';
 import { HomeCameraRuntime, OWNED_CAMERA_ADAPTER } from './src/camera-runtime.js';
+import { CameraWakeScheduler } from './src/camera-wake-scheduler.js';
 import { verifyDewinSensor } from './src/dewin-verifier.js';
 import { HardwareRegistryStore, defaultHardwareRegistry, normalizeMac } from './src/hardware-registry.js';
 import { createHomeWt200Runtime } from './src/wt200-runtime.js';
@@ -200,6 +201,7 @@ export function createHomeControlServer({
   plugRuntime = null,
   pondOwner = () => pondPlugOwnership(),
   cameraRuntime = null,
+  cameraWakeScheduler = null,
   weatherService = null,
 } = {}) {
   let activeThermostatRuntime = thermostatRuntime;
@@ -242,6 +244,10 @@ export function createHomeControlServer({
   let activeHoodRuntime = hoodRuntime;
   const getHoodRuntime = () => activeHoodRuntime ||= new HomeCiarraRuntime({ adapter: null });
   const cameras = cameraRuntime || new HomeCameraRuntime({ hardwareStore, roleStore, root: ROOT });
+  const wakeScheduler = cameraWakeScheduler || new CameraWakeScheduler({
+    cameraRuntime: cameras,
+    logError: message => console.error(message),
+  });
   let activePlugRuntime = plugRuntime; let pondController = null; let pondPollingStarted = false;
   const ownerEnabled = () => pondOwner() === 'home';
   const requireOwner = () => requirePondPlugOwner(pondOwner());
@@ -677,7 +683,9 @@ export function createHomeControlServer({
     if (mutation) hardwareTransactions = operation.catch(() => {});
     void operation.catch(() => { if (!response.headersSent) sendJson(response, 500, { error: 'Operazione non riuscita' }); });
   });
+  server.once('listening', () => wakeScheduler.start());
   server.on('close', () => {
+    wakeScheduler.stop();
     unsubscribeZigbee?.();
     for (const client of lightEventClients) { try { client.end(); } catch {} }
     zigbeeRuntime?.close();

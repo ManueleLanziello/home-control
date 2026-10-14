@@ -171,6 +171,31 @@ export class HomeCameraRuntime {
     }
     return (await this.snapshot())[role];
   }
+  async wakeForTelemetry(role) {
+    const { registry, assignments } = await this.reconcile();
+    const record = registry.devices.find(device => assignments[device.id] === CAMERA_ROLE_MAP[role] && device.metadata?.adapter === OWNED_CAMERA_ADAPTER);
+    if (!record || !this.owned.has(record.id)) throw new Error('Camera non disponibile');
+    try {
+      return await this.operations.run(record.id, async () => {
+        // Do not interrupt a dashboard Live session: it has already performed the
+        // same telemetry refresh and owns the session shutdown.
+        if ((await this.owned.snapshot(CAMERA_ROLE_MAP[role])).live === true) return { skipped: 'live' };
+        let started = false;
+        try {
+          await this.owned.start(CAMERA_ROLE_MAP[role]);
+          started = true;
+          this.noteContact(record, true);
+          await this.refreshTelemetryForLive(record, role);
+          return { skipped: false };
+        } finally {
+          if (started) await this.owned.stop(CAMERA_ROLE_MAP[role]);
+        }
+      }, { background: true });
+    } catch (error) {
+      this.noteContact(record, false);
+      throw error;
+    }
+  }
   async toggleUnknownControl(role, kind) {
     const controls = {
       privacy: { pending: this.privacyPending, read: this.readPrivacy, write: this.setPrivacy, label: 'Privacy' },
