@@ -20,6 +20,25 @@ test('complete mode uses an absolute arming timestamp and survives a new store',
   setNow(1_060_001); const armed = await store.read(); assert.equal(armed.mode, 'complete'); assert.equal(armed.armingUntil, null);
 });
 
+test('DW1 is an exit door during complete arming but must be closed at expiry', async () => {
+  const { store, setNow } = await fixture();
+  await store.simulate({ sensors: { DW1: { closed: false } } }); let state = await store.selectMode('complete');
+  assert.equal(state.armingUntil, 1_060_000); assert.equal(state.armingError, null);
+  state = await store.simulate({ sensors: { DW1: { closed: true } } }); assert.equal(state.armingUntil, 1_060_000);
+  setNow(1_060_000); state = await store.read(); assert.equal(state.mode, 'complete');
+  await store.selectMode('none'); await store.simulate({ sensors: { DW1: { closed: false } } }); state = await store.selectMode('complete');
+  setNow(state.armingUntil); state = await store.read(); assert.equal(state.mode, 'none'); assert.deepEqual(state.armingError, ['DW1']);
+  state = await store.simulate({ sensors: { DW1: { closed: true } } }); assert.equal(state.mode, 'none'); assert.equal(state.armingUntil, null);
+});
+
+test('partial still refuses DW1 and DW1 starts the configured delay after complete arming', async () => {
+  const { store, setNow } = await fixture();
+  await store.simulate({ sensors: { DW1: { closed: false } } }); await assert.rejects(store.selectMode('partial'), error => error.blocked.includes('DW1'));
+  await store.selectMode('complete'); await store.simulate({ sensors: { DW1: { closed: true } } }); setNow(1_060_000); await store.read();
+  let state = await store.simulate({ sensors: { DW1: { closed: false } } }); assert.equal(state.intrusion.sensorId, 'DW1'); assert.equal(state.intrusion.active, false);
+  state = await store.selectMode('none'); assert.equal(state.intrusion, null); assert.equal(state.sensors.SR1.active, false);
+});
+
 test('partial ignores motion while complete arms PR1 only after an observed idle state', async () => {
   const { store, setNow } = await fixture();
   await store.selectMode('partial'); let state = await store.simulate({ sensors: { PR1: { motion: true } } }); assert.equal(state.intrusion, null);

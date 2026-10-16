@@ -16,6 +16,8 @@ export function blockedSensors(state) {
   return DW_IDS.filter(id => state.sensors[id]?.available !== true || state.sensors[id]?.closed !== true);
 }
 
+const blockedDuringCompleteExit = state => DW_IDS.slice(1).filter(id => state.sensors[id]?.available !== true || state.sensors[id]?.closed !== true);
+
 const intrusionSensorIds = intrusion => Array.from(new Set(Array.isArray(intrusion?.sensorIds) ? intrusion.sensorIds : intrusion?.sensorId ? [intrusion.sensorId] : [])).filter(id => SENSOR_IDS.includes(id));
 const isTriggered = (id, sensor) => id === 'PR1' ? sensor?.available === true && sensor.motion === true : sensor?.available === true && sensor.closed === false;
 const monitoredSensors = state => state.mode === 'partial' ? DW_IDS : state.mode === 'complete' && !state.armingUntil ? [...DW_IDS, ...(state.pr1Ready ? ['PR1'] : [])] : [];
@@ -34,9 +36,14 @@ export function observeIntrusions(state, now = Date.now()) {
 export function reconcileAlarm(state, now = Date.now()) {
   const next = structuredClone(state);
   if (next.armingUntil) {
-    const blocked = blockedSensors(next);
-    if (blocked.length) { next.armingUntil = null; next.mode = 'none'; next.armingError = blocked; }
-    else if (now >= next.armingUntil) { next.armingUntil = null; next.mode = 'complete'; next.armingError = null; next.pr1Ready = next.sensors.PR1?.available === true && next.sensors.PR1.motion === false; }
+    if (now >= next.armingUntil) {
+      const blocked = blockedSensors(next);
+      if (blocked.length) { next.armingUntil = null; next.mode = 'none'; next.armingError = blocked; }
+      else { next.armingUntil = null; next.mode = 'complete'; next.armingError = null; next.pr1Ready = next.sensors.PR1?.available === true && next.sensors.PR1.motion === false; }
+    } else {
+      const blocked = blockedDuringCompleteExit(next);
+      if (blocked.length) { next.armingUntil = null; next.mode = 'none'; next.armingError = blocked; }
+    }
   }
   if (next.mode === 'complete' && !next.armingUntil && next.pr1Ready !== true && next.sensors.PR1?.available === true && next.sensors.PR1.motion === false) next.pr1Ready = true;
   observeIntrusions(next, now);
@@ -92,7 +99,7 @@ export class AlarmSimulationStore {
     if (!['none', 'partial', 'complete'].includes(mode)) throw new Error('Modalità antifurto non valida');
     state.armingError = null;
     if (mode === 'none') { state.mode = 'none'; state.armingUntil = null; state.intrusion = null; state.pr1Ready = false; return; }
-    const blocked = blockedSensors(state);
+    const blocked = mode === 'complete' ? blockedDuringCompleteExit(state) : blockedSensors(state);
     if (blocked.length) { state.armingUntil = null; state.armingError = blocked; return { blocked }; }
     state.mode = mode; state.pr1Ready = false;
     state.armingUntil = mode === 'complete' ? this.now() + state.settings.armingMinutes * 60_000 : null;
