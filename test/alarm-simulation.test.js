@@ -84,3 +84,9 @@ test('records one audio event for each alarm transition', async () => {
   setNow(state.intrusion.alarmAt); state = await store.read(); assert.equal(state.events.at(-1).audio, 'alarm-active.ogg');
   state = await store.selectMode('none'); assert.equal(state.events.at(-1).audio, 'alarm-disarmed.ogg');
 });
+
+test('intrusion audio events identify one countdown without changing alarm timing', async () => {
+  const { store } = await fixture();
+  await store.selectMode('partial'); const state = await store.simulate({ sensors: { DW1: { closed: false } } });
+  const events = state.events.slice(-2); assert.equal(events[0].type, 'intrusion'); assert.equal(events[0].alarmAt, state.intrusion.alarmAt); assert.equal(events[1].type, 'intrusion-sensor'); assert.equal(events[1].intrusionId, state.intrusion.detectedAt); assert.equal(events[1].sensorId, 'DW1');
+});

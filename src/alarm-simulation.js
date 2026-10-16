@@ -57,18 +57,18 @@ export class AlarmSimulationStore {
   subscribe(listener) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
   appendEvents(previous, next) {
     const additions = [];
-    if (previous.armingError?.join(',') !== next.armingError?.join(',') && next.armingError?.length) additions.push(['blocked', AUDIO.blocked]);
-    if (!previous.armingUntil && next.armingUntil) additions.push(['arming', AUDIO.arming(next.settings.armingMinutes)]);
-    if (previous.armingUntil && !next.armingUntil && previous.mode === 'complete' && next.mode === 'complete') additions.push(['armed', AUDIO.armed]);
-    if (previous.mode !== next.mode && next.mode === 'partial') additions.push(['partial', AUDIO.partial]);
-    if (previous.mode !== 'none' && next.mode === 'none') additions.push(['disarmed', AUDIO.disarmed]);
+    if (previous.armingError?.join(',') !== next.armingError?.join(',') && next.armingError?.length) additions.push({ type: 'blocked', audio: AUDIO.blocked });
+    if (!previous.armingUntil && next.armingUntil) additions.push({ type: 'arming', audio: AUDIO.arming(next.settings.armingMinutes) });
+    if (previous.armingUntil && !next.armingUntil && previous.mode === 'complete' && next.mode === 'complete') additions.push({ type: 'armed', audio: AUDIO.armed });
+    if (previous.mode !== next.mode && next.mode === 'partial') additions.push({ type: 'partial', audio: AUDIO.partial });
+    if (previous.mode !== 'none' && next.mode === 'none') additions.push({ type: 'disarmed', audio: AUDIO.disarmed });
     const previousSensorIds = intrusionSensorIds(previous.intrusion); const nextSensorIds = intrusionSensorIds(next.intrusion);
-    if (!previous.intrusion && next.intrusion) additions.push(['intrusion', AUDIO.intrusion]);
-    for (const id of nextSensorIds.filter(id => !previousSensorIds.includes(id))) additions.push(['intrusion-sensor', AUDIO.sensor(id), id]);
-    if (!previous.intrusion?.active && next.intrusion?.active) additions.push(['active', AUDIO.active]);
+    if (!previous.intrusion && next.intrusion) additions.push({ type: 'intrusion', audio: AUDIO.intrusion, intrusionId: next.intrusion.detectedAt, alarmAt: next.intrusion.alarmAt });
+    for (const id of nextSensorIds.filter(id => !previousSensorIds.includes(id))) additions.push({ type: 'intrusion-sensor', audio: AUDIO.sensor(id), sensorId: id, intrusionId: next.intrusion.detectedAt, alarmAt: next.intrusion.alarmAt });
+    if (!previous.intrusion?.active && next.intrusion?.active) additions.push({ type: 'active', audio: AUDIO.active });
     if (!additions.length) return [];
     const timestamp = new Date(this.now()).toISOString();
-    const events = additions.map(([type, audio, sensorId]) => ({ id: String(next.nextEventId++), type, timestamp, audio, ...(sensorId ? { sensorId } : {}) }));
+    const events = additions.map(event => ({ id: String(next.nextEventId++), timestamp, ...event }));
     next.events = [...(next.events || []), ...events].slice(-100);
     return events;
   }

@@ -71,7 +71,7 @@ const STATIC_FILES = new Map([
 
 async function serveStatic(response, pathname) {
   const designName = /^\/design\/([a-zA-Z0-9_-]+\.svg)$/.exec(pathname)?.[1];
-  const alarmSound = /^\/sounds\/alarm\/(alarm-(?:disarmed|partial|arming-[123]|armed|blocked|intrusion|active|intrusion-(?:dw[1-8]|pr1))\.ogg)$/.exec(pathname)?.[1];
+  const alarmSound = /^\/sounds\/alarm\/(alarm-(?:disarmed|partial|arming-[123]|armed|blocked|intrusion|active|intrusion-(?:dw[1-8]|pr1)|warning-(?:prefix|and|minute-[123]|seconds-(?:[1-9]|[1-5][0-9])))\.ogg)$/.exec(pathname)?.[1];
   const entry = designName ? [`../design/${designName}`, 'image/svg+xml'] : alarmSound ? [`sounds/alarm/${alarmSound}`, 'audio/ogg'] : STATIC_FILES.get(pathname);
   if (!entry) return false;
 
@@ -394,7 +394,7 @@ export function createHomeControlServer({
     }
     if (url.pathname === '/api/alarm') {
       if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
-      return sendJson(response, 200, await alarmStore.read());
+      return sendJson(response, 200, { ...(await alarmStore.read()), serverNow: Date.now() });
     }
     if (url.pathname === '/api/alarm/events') {
       if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
