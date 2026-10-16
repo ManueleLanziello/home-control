@@ -4,11 +4,11 @@ import path from 'node:path';
 export const ALARM_SENSORS = Object.freeze([
   ['DW1', 'Porta di ingresso'], ['DW2', 'Finestra sala'], ['DW3', 'Porta finestra sala'], ['DW4', 'Porta finestra cucina'],
   ['DW5', 'Finestra cucina'], ['DW6', 'Porta finestra camera'], ['DW7', 'Finestra bagno'], ['DW8', 'Porta finestra cameretta'],
-  ['PR1', 'Sensore movimento interno'],
+  ['PR1', 'Sensore movimento interno'], ['SR1', 'Sirena esterna'],
 ]);
 const DW_IDS = ALARM_SENSORS.slice(0, 8).map(([id]) => id);
 const validMinutes = value => Number.isInteger(value) && value >= 1 && value <= 3;
-const defaults = () => ({ simulation: true, mode: 'none', armingUntil: null, armingError: null, intrusion: null, settings: { armingMinutes: 1, delayMinutes: 1 }, sensors: Object.fromEntries(ALARM_SENSORS.map(([id, name]) => [id, { id, name, available: true, closed: id === 'PR1' ? null : true, motion: false, batteryLow: false, battery: null, linkQuality: null, updatedAt: null }])) });
+const defaults = () => ({ simulation: true, mode: 'none', armingUntil: null, armingError: null, intrusion: null, settings: { armingMinutes: 1, delayMinutes: 1 }, sensors: Object.fromEntries(ALARM_SENSORS.map(([id, name]) => [id, { id, name, available: id === 'SR1' ? false : true, closed: id === 'PR1' || id === 'SR1' ? null : true, motion: false, active: false, batteryLow: false, battery: null, linkQuality: null, updatedAt: null }])) });
 
 export function blockedSensors(state) {
   return DW_IDS.filter(id => state.sensors[id]?.available !== true || state.sensors[id]?.closed !== true);
@@ -22,6 +22,7 @@ export function reconcileAlarm(state, now = Date.now()) {
     else if (now >= next.armingUntil) { next.armingUntil = null; next.mode = 'complete'; next.armingError = null; }
   }
   if (next.intrusion && now >= next.intrusion.alarmAt) next.intrusion.active = true;
+  if (next.sensors.SR1) next.sensors.SR1.active = next.intrusion?.active === true;
   return next;
 }
 
@@ -29,7 +30,7 @@ export class AlarmSimulationStore {
   constructor({ filePath, now = Date.now } = {}) { this.filePath = filePath; this.now = now; this.state = null; this.queue = Promise.resolve(); }
   async read() {
     if (!this.state) {
-      try { this.state = { ...defaults(), ...JSON.parse(await readFile(this.filePath, 'utf8')) }; }
+      try { const saved = JSON.parse(await readFile(this.filePath, 'utf8')); const initial = defaults(); this.state = { ...initial, ...saved, settings: { ...initial.settings, ...saved.settings }, sensors: { ...initial.sensors, ...saved.sensors } }; }
       catch (error) { if (error.code !== 'ENOENT') throw error; this.state = defaults(); }
     }
     const next = reconcileAlarm(this.state, this.now());

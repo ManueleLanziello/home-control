@@ -25,3 +25,12 @@ test('partial ignores motion while complete turns motion into a delayed simulate
   await store.selectMode('partial'); let state = await store.simulate({ sensors: { PR1: { motion: true } } }); assert.equal(state.intrusion, null);
   await store.selectMode('none'); await store.simulate({ sensors: { PR1: { motion: false } } }); await store.selectMode('complete'); setNow(1_060_000); await store.read(); state = await store.simulate({ sensors: { PR1: { motion: true } } }); assert.equal(state.intrusion.sensorId, 'PR1');
 });
+
+test('SR1 remains unavailable by default and only becomes active after the simulated alarm delay', async () => {
+  const { store, setNow } = await fixture();
+  let state = await store.read(); assert.equal(state.sensors.SR1.available, false); assert.equal(state.sensors.SR1.active, false);
+  await store.simulate({ sensors: { SR1: { available: true }, DW1: { closed: false } } }); await store.selectMode('none');
+  await store.simulate({ sensors: { DW1: { closed: true } } }); await store.selectMode('partial'); state = await store.simulate({ sensors: { DW1: { closed: false } } });
+  setNow(state.intrusion.alarmAt); state = await store.read(); assert.equal(state.sensors.SR1.active, true);
+  state = await store.selectMode('none'); assert.equal(state.sensors.SR1.active, false);
+});
