@@ -12,10 +12,6 @@ body.dashboard-body.layered-dashboard { height: 100svh; min-height: 100svh; padd
 .layered-floorplan-stage[data-ready="true"] { visibility: visible; }
 .floorplan-stack-layer, .floorplan-mapping-source { position: absolute; inset: 0; width: 100%; height: 100%; display: block; object-fit: contain; pointer-events: none; }
 .floorplan-stack-layer[hidden] { display: none; }
-.floorplan-camera-event-layer { pointer-events: none; }
-.floorplan-camera-event-layer.is-camera-event-alert { animation: floorplan-camera-event-pulse 1s ease-in-out infinite; }
-@keyframes floorplan-camera-event-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .05; } }
-@media (prefers-reduced-motion: reduce) { .floorplan-camera-event-layer.is-camera-event-alert { animation: none; opacity: 1; } }
 .floorplan-external-light-overlay { pointer-events: none; }
 .floorplan-mapping-source { visibility: hidden; }
 .floorplan-overlay { overflow: visible; }
@@ -58,7 +54,10 @@ button.floorplan-marker { pointer-events: auto; cursor: pointer; }
 .camera-events-row:hover, .camera-events-row:focus-visible { border-color: #5194ae; background: #102b3d; }
 .camera-events-back { justify-self: start; border: 1px solid #476b83; border-radius: 8px; padding: 7px 10px; background: #132d40; color: inherit; cursor: pointer; }
 .camera-events-dialog video { display: block; width: 100%; max-height: min(56vw, 430px); background: #000; border-radius: 10px; }
-.floorplan-marker-camera { color: #8adeff; }
+.floorplan-marker-camera { border-width: 1px; border-color: rgb(190 210 219 / 65%); background: #778896; color: #e3f4ff; box-shadow: 0 0 5px rgb(151 174 188 / 45%); }
+.floorplan-marker-camera[data-camera-state="online"] { background: #29df92; box-shadow: 0 0 8px rgb(41 223 146 / 70%); }
+.floorplan-marker-camera[data-camera-state="unknown"] { background: #778896; box-shadow: 0 0 5px rgb(151 174 188 / 45%); }
+.floorplan-marker-camera.is-alarm { animation: alarm-flash 1.6s ease-in-out infinite; }
 .floorplan-marker-camera-aux { position: relative; box-sizing: border-box; border-width: 2px; border-color: rgba(138, 222, 255, .45); border-radius: 22%; background: rgba(7, 24, 38, .72); color: #e3f4ff; font-size: 56px; font-weight: 700; line-height: 1; overflow: hidden; }
 .floorplan-marker-camera-aux .floorplan-symbol { width: 70%; height: 70%; }
 .floorplan-marker-camera-aux[data-available="false"] { opacity: .55; }
@@ -164,7 +163,7 @@ button.floorplan-marker { pointer-events: auto; cursor: pointer; }
 .alarm-dialog::backdrop { background: #0009; }.alarm-dialog header { display:flex; justify-content:space-between; align-items:center; gap:12px; }.alarm-dialog header small { display:block; margin-top:3px; color:#ffcf8b; font-size:.7rem; }.alarm-dialog header button { width:34px; height:34px; border:1px solid #476b83; border-radius:9px; background:#132d40; color:inherit; font-size:1.3rem; cursor:pointer; }
 .alarm-dialog > label { display:flex; justify-content:space-between; gap:12px; margin-top:12px; padding:10px; border-radius:10px; background:#071826; font-size:.85rem; }.alarm-dialog select { color:inherit; background:#132d40; border:1px solid #476b83; border-radius:6px; }.alarm-modes { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }.alarm-mode { display:grid; gap:5px; justify-items:center; padding:9px 4px; border:1px solid #284e64; border-radius:11px; color:#cfe8f4; background:#071826; cursor:pointer; }.alarm-mode img { width:48px; height:48px; object-fit:contain; }.alarm-mode.is-active { border-color:#29df92; box-shadow:0 0 12px rgb(41 223 146 / 30%); }.alarm-problems { margin-top:12px; padding:10px; border-radius:10px; color:#ffd5d8; background:rgba(155,31,40,.35); font-size:.82rem; }.alarm-dialog details { margin-top:14px; color:#9cc3d3; }.alarm-simulation { display:grid; gap:8px; margin-top:10px; }.alarm-simulation div { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:8px; border-radius:8px; background:#071826; font-size:.75rem; }.alarm-simulation strong { min-width:30px; color:#e5f3fc; }.alarm-simulation label { display:flex; gap:3px; align-items:center; }
 .alarm-audio { display:grid; gap:9px; margin-top:12px; padding:11px; border:1px solid #284e64; border-radius:10px; background:#071826; font-size:.82rem; }.alarm-audio > strong { color:#cfe8f4; }.alarm-audio label { display:flex; align-items:center; gap:8px; }.alarm-audio input[type="range"] { flex:1; accent-color:#29df92; }.alarm-audio button { justify-self:start; padding:6px 10px; border:1px solid #476b83; border-radius:7px; color:#e5f3fc; background:#132d40; cursor:pointer; }.alarm-audio small { color:#ffcf8b; }
-@media (prefers-reduced-motion: reduce) { .floorplan-marker-alarm-card.is-alarm, .floorplan-marker-alarm-sensor.is-alarm { animation:none; border-color:#e55663; } }
+@media (prefers-reduced-motion: reduce) { .floorplan-marker-alarm-card.is-alarm, .floorplan-marker-alarm-sensor.is-alarm, .floorplan-marker-camera.is-alarm { animation:none; border-color:#e55663; } }
 .pond-cards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; padding:16px; }.pond-card { display:grid; justify-items:center; gap:12px; padding:18px; border:1px solid #39738e; border-radius:16px; background:#0b2233; }.pond-card>img,.pond-power-icon img { width:64px; height:64px; object-fit:contain; }.pond-card h2 { margin:0; font-size:1rem; }.pond-power-icon { min-width:64px; min-height:64px; border:0; background:transparent; color:#9cc3d3; font-size:2.5rem; line-height:1; cursor:pointer; }.pond-power-icon:disabled { opacity:.5; cursor:default; }
 .pond-state { color:#9cc3d3; font-size:.72rem; font-weight:700; letter-spacing:.04em; text-align:center; }.pond-state--on { color:#29df92; }.pond-state--off { color:#a9bfcc; }.pond-state--unknown { color:#9cc3d3; }
 .pond-mode { color:#b9d4e1; font-size:.86rem; }.pond-mode input { accent-color:#29df92; }.pond-mode:has(input:disabled) { opacity:.55; }

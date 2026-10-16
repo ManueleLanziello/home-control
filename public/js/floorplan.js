@@ -484,11 +484,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
   const response = await fetch(homeControlPath('/api/cameras/' + id + '/events/ack'), { method: 'PUT' });
   if (!response.ok) throw new Error('Conferma eventi non disponibile');
   const result = await response.json(); store.applyCameraEventAcknowledgement(id, result); return result;
-}), onCameraPrivacyToggle = async (id, enabled) => {
-  const response = await fetch(homeControlPath('/api/cameras/' + id + '/privacy'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(enabled === null ? { toggle: true } : { enabled }) });
-  if (!response.ok) throw new Error('Comando Privacy non disponibile');
-  return response.json();
-}, onCameraPrivacyRead = async id => {
+}), onCameraPrivacyRead = async id => {
   const response = await fetch(homeControlPath('/api/cameras/' + id + '/privacy'), { cache: 'no-store' });
   if (!response.ok) throw new Error('Privacy non disponibile');
   return response.json();
@@ -499,10 +495,6 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
 }, onCameraDetectionRead = async id => {
   const response = await fetch(homeControlPath('/api/cameras/' + id + '/detection'), { cache: 'no-store' });
   if (!response.ok) throw new Error('Rilevazione non disponibile');
-  return response.json();
-}, onCameraAlarmToggle = async (id, enabled) => {
-  const response = await fetch(homeControlPath('/api/cameras/' + id + '/alarm'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(enabled === null ? { toggle: true } : { enabled }) });
-  if (!response.ok) throw new Error('Comando Allarme non disponibile');
   return response.json();
 }, onCameraAlarmRead = async id => {
   const response = await fetch(homeControlPath('/api/cameras/' + id + '/alarm'), { cache: 'no-store' });
@@ -522,14 +514,13 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     const response = await fetch(homeControlPath('/api/floorplan/assets'), { cache: 'no-store' });
     if (!response.ok) throw new Error('Elenco asset non disponibile');
     const assets = new Set((await response.json()).assets);
-    const required = [...Object.values(config.backgrounds), ...config.rooms.filter(room => !room.optional).flatMap(room => [room.on, room.off]), ...Object.values(config.mappings).filter(name => name !== config.mappings.clock), ...Object.values(config.ledbar.layers), ...Object.values(config.cameraEventLayers), config.icons.ledbarOn, config.icons.ledbarOff, config.icons.cappaOn, config.icons.cappaOff, config.icons.pondPumpOn, config.icons.pondPumpOff, config.icons.pondHeaterOn, config.icons.pondHeaterOff, config.icons.pondManual, config.icons.pondThermostat, config.icons.alarm, config.icons.antiOff, config.icons.antiOn, config.icons.alarmNone, config.icons.alarmPartial, config.icons.alarmComplete, config.icons.alarmDoor, config.icons.alarmMotion, ...Object.values(config.mobileMonitor.icons)];
+    const required = [...Object.values(config.backgrounds), ...config.rooms.filter(room => !room.optional).flatMap(room => [room.on, room.off]), ...Object.values(config.mappings).filter(name => name !== config.mappings.clock), ...Object.values(config.ledbar.layers), config.icons.ledbarOn, config.icons.ledbarOff, config.icons.cappaOn, config.icons.cappaOff, config.icons.pondPumpOn, config.icons.pondPumpOff, config.icons.pondHeaterOn, config.icons.pondHeaterOff, config.icons.pondManual, config.icons.pondThermostat, config.icons.alarm, config.icons.antiOff, config.icons.antiOn, config.icons.alarmNone, config.icons.alarmPartial, config.icons.alarmComplete, config.icons.alarmDoor, config.icons.alarmMotion, ...Object.values(config.mobileMonitor.icons)];
     const missing = required.filter(name => !assets.has(name));
     if (missing.length) throw new Error('Asset planimetria mancanti: ' + missing.join(', '));
     const imageLayers = new Map();
     const externalOverlayNames = new Map(Object.entries(config.externalLightOverlays).map(([lightId, name]) => [name, lightId]));
     // Place exterior effects immediately above the base, before every interactive mapping overlay.
-    const cameraEventLayerNames = new Set(Object.values(config.cameraEventLayers));
-    const staticLayerNames = [...Object.values(config.backgrounds), ...externalOverlayNames.keys(), ...config.rooms.flatMap(room => [room.off, room.on].filter(name => !room.optional || assets.has(name))), ...Object.values(config.ledbar.layers), ...cameraEventLayerNames, config.mappings.integration];
+    const staticLayerNames = [...Object.values(config.backgrounds), ...externalOverlayNames.keys(), ...config.rooms.flatMap(room => [room.off, room.on].filter(name => !room.optional || assets.has(name))), ...Object.values(config.ledbar.layers), config.mappings.integration];
     await Promise.all(staticLayerNames.map(name => new Promise((resolve, reject) => {
       const externalLightId = externalOverlayNames.get(name);
       if (externalLightId && !assets.has(name)) {
@@ -540,7 +531,6 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
       const image = document.createElement('img');
       image.className = 'floorplan-stack-layer';
       if (externalLightId) image.classList.add('floorplan-external-light-overlay');
-      if (cameraEventLayerNames.has(name)) image.classList.add('floorplan-camera-event-layer');
       image.alt = '';
       image.hidden = true;
       image.dataset.layer = name;
@@ -685,10 +675,8 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
         sensorHumidityReadings.set(sensor.id, humidity);
       }
     }
-    const cameraControls = new Map();
+    const cameraControls = new Map(); const cameraMarkers = new Map();
     const detectionPending = new Set();
-    const privacyPending = new Set();
-    const alarmPending = new Set();
     for (const camera of config.cameras) {
       const element = markerElement('Camera ' + camera.room, true);
       element.classList.add('floorplan-marker-camera');
@@ -696,6 +684,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
       element.append(createIcon(assets, config.icons.camera, '📷'));
       element.addEventListener('click', () => onCameraSelect({ ...camera, status: store.snapshot().cameras[camera.id] }));
       placeHtmlOptional(cameraMapping, camera.marker, element, true, camera.id);
+      cameraMarkers.set(camera.id, element);
       const controls = {};
       for (const [kind, marker] of Object.entries(camera.controls)) {
         const control = markerElement(kind === 'events' ? 'Eventi recenti ' + camera.room : kind + ' ' + camera.room, true);
@@ -705,17 +694,6 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
         control.addEventListener('click', event => {
           event.preventDefault();
           event.stopPropagation();
-          if (kind === 'privacy') {
-            const privacy = store.snapshot().cameras[camera.id]?.privacy;
-            if (privacyPending.has(camera.id)) return;
-            privacyPending.add(camera.id);
-            control.disabled = true;
-            void onCameraPrivacyToggle(camera.id, typeof privacy?.enabled === 'boolean' ? !privacy.enabled : null)
-              .then(readBack => store.applyCameraPrivacy(camera.id, readBack))
-              .catch(() => {})
-              .finally(() => { privacyPending.delete(camera.id); control.disabled = false; });
-            return;
-          }
           if (kind === 'detection') {
             const detection = store.snapshot().cameras[camera.id]?.detection;
             if (detectionPending.has(camera.id)) return;
@@ -725,16 +703,6 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
               .then(readBack => store.applyCameraDetection(camera.id, readBack))
               .catch(() => {})
               .finally(() => { detectionPending.delete(camera.id); control.disabled = false; });
-            return;
-          }
-          if (kind === 'alarm') {
-            const alarm = store.snapshot().cameras[camera.id]?.alarm;
-            if (alarmPending.has(camera.id)) return;
-            alarmPending.add(camera.id); control.disabled = true;
-            void onCameraAlarmToggle(camera.id, typeof alarm?.enabled === 'boolean' ? !alarm.enabled : null)
-              .then(readBack => store.applyCameraAlarm(camera.id, readBack))
-              .catch(() => {})
-              .finally(() => { alarmPending.delete(camera.id); control.disabled = false; });
             return;
           }
           if (kind === 'events') onCameraEventsSelect({ ...camera, status: store.snapshot().cameras[camera.id] });
@@ -885,11 +853,6 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     let previousLights = {};
     let previousCappaPower;
     let previousLedbarOn;
-    const showCameraEventAlert = (id, active) => {
-      const layer = imageLayers.get(config.cameraEventLayers[id]);
-      if (!layer) return;
-      layer.hidden = !active; layer.classList.toggle('is-camera-event-alert', active);
-    };
     const render = state => {
       for (const room of config.rooms) {
         const on = state.lights[room.lightId] === true;
@@ -928,28 +891,20 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
       }
       for (const camera of config.cameras) {
         const cameraState = state.cameras[camera.id] || {};
-        showCameraEventAlert(camera.id, cameraState.recentEventAlert?.active === true);
+        const cameraMarker = cameraMarkers.get(camera.id); const intrusion = cameraState.recentEventAlert?.active === true; const online = cameraState.online === true;
+        if (cameraMarker) { cameraMarker.dataset.cameraState = intrusion ? 'alarm' : online ? 'online' : 'unknown'; cameraMarker.classList.toggle('is-alarm', intrusion); cameraMarker.setAttribute('aria-label', `Camera ${camera.room}: ${intrusion ? 'intrusione rilevata' : online ? 'online' : 'offline o stato sconosciuto'}`); }
         const controls = cameraControls.get(camera.id) || {};
         const binaryControls = {
           detection: [config.icons.detectionOn, config.icons.detectionOff],
-          alarm: [config.icons.alarmOn, config.icons.alarmOff],
         };
         for (const [kind, [onIcon, offIcon]] of Object.entries(binaryControls)) {
           const control = controls[kind];
           if (!control) continue;
-          const value = kind === 'alarm' ? cameraState.alarm?.enabled : cameraState[kind];
+          const value = cameraState[kind];
           const available = typeof value === 'boolean';
           control.dataset.available = String(available);
           control.setAttribute('aria-label', `${kind} ${camera.room}: ${available ? value ? 'ON' : 'OFF' : 'stato non disponibile'}`);
           renderCameraIcon(control, assets, available && value ? onIcon : offIcon, '—');
-        }
-        const privacy = controls.privacy;
-        if (privacy) {
-          const value = cameraState.privacy?.enabled;
-          const available = typeof value === 'boolean';
-          privacy.dataset.available = String(available);
-          privacy.setAttribute('aria-label', `privacy ${camera.room}: ${available ? value ? 'ON' : 'OFF' : 'stato non disponibile'}`);
-          renderCameraIcon(privacy, assets, available && value ? config.icons.privacyOn : config.icons.privacyOff, '—');
         }
         const battery = controls.battery;
         if (battery) {

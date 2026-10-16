@@ -9,13 +9,13 @@ test('normalizza eventi recenti con start_time come identità e ignora payload n
   ] }), { available: true, events: [{ startTime: 20, endTime: 25 }, { startTime: 10, endTime: 12 }] });
 });
 
-test('layer alert usa SVG preparati, pulsazione morbida e reduced-motion senza alterare SVG', async () => {
+test('alert camera usa il contenitore dell icona e non layer SVG separati', async () => {
   const [config, css, floorplan] = await Promise.all([
     readFile(new URL('../public/js/floorplan-config.js', import.meta.url), 'utf8'), readFile(new URL('../public/floorplan.css', import.meta.url), 'utf8'), readFile(new URL('../public/js/floorplan.js', import.meta.url), 'utf8'),
   ]);
-  for (const name of ['LAYER-C1-ALARM.svg', 'LAYER-C2-ALARM.svg']) assert.match(config, new RegExp(name));
-  assert.doesNotMatch(config, /LAYER-C3-ALARM\.svg/);
-  assert.match(css, /floorplan-camera-event-pulse 1s ease-in-out infinite/); assert.match(css, /50% \{ opacity: \.05; \}/); assert.match(css, /prefers-reduced-motion: reduce/);
-  assert.match(floorplan, /api\/cameras\/event-alerts/); assert.doesNotMatch(floorplan, /15_000/);
-  assert.match(floorplan, /layer\.hidden = !active/);
+  assert.doesNotMatch(config, /LAYER-C[12]-ALARM\.svg/);
+  assert.doesNotMatch(floorplan, /cameraEventLayer/);
+  assert.match(floorplan, /cameraMarker\.dataset\.cameraState = intrusion \? 'alarm' : online \? 'online' : 'unknown'/);
+  assert.match(css, /\.floorplan-marker-camera\.is-alarm \{ animation: alarm-flash 1\.6s ease-in-out infinite; \}/);
+  assert.match(floorplan, /api\/cameras\/event-alerts/);
 });

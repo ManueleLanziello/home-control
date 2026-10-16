@@ -36,7 +36,6 @@ export const floorplanConfig = {
   }),
   // These are full-plan graphical effects, not marker-sized light layers.
   externalLightOverlays: Object.fromEntries(['L8', 'L9', 'L10', 'L11', 'L12'].map(id => [id, 'LAYER-' + id + '-ON.svg'])),
-  cameraEventLayers: { C1: 'LAYER-C1-ALARM.svg', C2: 'LAYER-C2-ALARM.svg' },
   sensors: ['CUCINA', 'CAMERA', 'SALOTTO', 'CAMERETTA', 'GIARDINO'].map((room, index) => {
     const id = 'S' + (index + 1);
     return { id, room, marker: labeledMarker(id), reading: labeledMarker('LS' + (index + 1)), probeReading: id === 'S5' ? labeledMarker('LS25') : null, humidityReading: ['S1', 'S2', 'S4', 'S5'].includes(id) ? labeledMarker('LU' + (index + 1)) : null, futureSource: index === 2 ? 'AVATTO' : null };
@@ -46,12 +45,12 @@ export const floorplanConfig = {
     { id: 'C2', room: 'POND', markerId: 'C2' },
   ].map(({ id, room, markerId }) => {
     const prefix = id.toLowerCase();
-    return { id, room, marker: labeledMarker(markerId), controls: { privacy: labeledMarker(prefix + 'a'), detection: labeledMarker(prefix + 'b'), alarm: labeledMarker(prefix + 'c'), battery: labeledMarker(prefix + 'd'), events: labeledMarker(prefix + 'e') } };
+    return { id, room, marker: labeledMarker(markerId), controls: { detection: labeledMarker(prefix + 'b'), battery: labeledMarker(prefix + 'd'), events: labeledMarker(prefix + 'e') } };
   }),
-  // LAYER-DISPOSITIVI labels its markers 1…18 except the retired D13; the inventory prefix is D.
+  // LAYER-DISPOSITIVI labels its markers 1…18 except retired D11–D13; the inventory prefix is D.
   // Geometry always comes from its SVG; no coordinate or DOM order is copied here.
   devices: Array.from({ length: 18 }, (_, index) => index + 1)
-    .filter(index => index !== 13)
+    .filter(index => ![11, 12, 13].includes(index))
     .map(index => ({ id: `D${index}`, marker: labeledMarker(String(index)) })),
   boiler: { marker: labeledMarker('D1'), card: labeledMarker('QD1'), target: '.boiler-card', settings: '.boiler-settings-link' },
   cappa: { id: 'K1', marker: marker(0) },
