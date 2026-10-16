@@ -54,9 +54,9 @@ button.floorplan-marker { pointer-events: auto; cursor: pointer; }
 .camera-events-row:hover, .camera-events-row:focus-visible { border-color: #5194ae; background: #102b3d; }
 .camera-events-back { justify-self: start; border: 1px solid #476b83; border-radius: 8px; padding: 7px 10px; background: #132d40; color: inherit; cursor: pointer; }
 .camera-events-dialog video { display: block; width: 100%; max-height: min(56vw, 430px); background: #000; border-radius: 10px; }
-.floorplan-marker-camera { border-width: 1px; border-color: rgb(190 210 219 / 65%); background: #778896; color: #e3f4ff; box-shadow: 0 0 5px rgb(151 174 188 / 45%); }
-.floorplan-marker-camera[data-camera-state="online"] { background: #29df92; box-shadow: 0 0 8px rgb(41 223 146 / 70%); }
-.floorplan-marker-camera[data-camera-state="unknown"] { background: #778896; box-shadow: 0 0 5px rgb(151 174 188 / 45%); }
+.floorplan-marker-camera { border-width: 1px; border-color: rgb(190 210 219 / 65%); background: rgb(119 136 150 / 70%); color: #e3f4ff; box-shadow: 0 0 5px rgb(151 174 188 / 45%); --alarm-background: rgb(155 31 40 / 70%); }
+.floorplan-marker-camera[data-camera-state="online"] { background: rgb(41 223 146 / 70%); box-shadow: 0 0 8px rgb(41 223 146 / 70%); }
+.floorplan-marker-camera[data-camera-state="unknown"] { background: rgb(119 136 150 / 70%); box-shadow: 0 0 5px rgb(151 174 188 / 45%); }
 .floorplan-marker-camera.is-alarm { animation: alarm-flash 1.6s ease-in-out infinite; }
 .floorplan-marker-camera-aux { position: relative; box-sizing: border-box; border-width: 2px; border-color: rgba(138, 222, 255, .45); border-radius: 22%; background: rgba(7, 24, 38, .72); color: #e3f4ff; font-size: 56px; font-weight: 700; line-height: 1; overflow: hidden; }
 .floorplan-marker-camera-aux .floorplan-symbol { width: 70%; height: 70%; }
@@ -154,10 +154,11 @@ button.floorplan-marker { pointer-events: auto; cursor: pointer; }
 .floorplan-marker-alarm-sensor { border-width: 1px; border-color: rgb(190 210 219 / 65%); background: #778896; box-shadow: 0 0 5px rgb(151 174 188 / 45%); }
 .floorplan-marker-alarm-sensor[data-alarm-state="normal"] { background: #29df92; box-shadow: 0 0 8px rgb(41 223 146 / 70%); }
 .floorplan-marker-alarm-sensor[data-alarm-state="active"] { background: #ff9d3d; box-shadow: 0 0 8px rgb(255 157 61 / 70%); }
+.floorplan-marker-alarm-sensor[data-alarm-sensor-id="PR1"][data-alarm-state="active"] { --alarm-border-color: #ff9d3d; --alarm-background: #ff9d3d; --alarm-shadow: 0 0 18px rgb(255 157 61 / 80%); animation: alarm-flash 1.6s ease-in-out infinite; }
 .floorplan-marker-alarm-sensor[data-alarm-state="battery-low"] { background: #ffe56a; box-shadow: 0 0 8px rgb(255 229 106 / 70%); }
 .floorplan-marker-alarm-sensor[data-alarm-state="unknown"] { background: #778896; box-shadow: 0 0 5px rgb(151 174 188 / 45%); }
 .floorplan-marker-alarm-card.is-alarm, .floorplan-marker-alarm-sensor.is-alarm { animation: alarm-flash 1.6s ease-in-out infinite; }
-@keyframes alarm-flash { 50% { border-color: #e55663; background: rgba(155, 31, 40, .72); box-shadow: 0 0 18px rgb(229 86 99 / 80%); } }
+@keyframes alarm-flash { 50% { border-color: var(--alarm-border-color, #e55663); background: var(--alarm-background, rgba(155, 31, 40, .72)); box-shadow: var(--alarm-shadow, 0 0 18px rgb(229 86 99 / 80%)); } }
 .alarm-dialog { width: min(480px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); box-sizing: border-box; padding: 18px; border: 1px solid #3c718c; border-radius: 20px; background: #081522; color: #e5f3fc; }
 .alarm-dialog [data-alarm-message] { white-space: pre-line; line-height: 1.45; }
 .alarm-dialog::backdrop { background: #0009; }.alarm-dialog header { display:flex; justify-content:space-between; align-items:center; gap:12px; }.alarm-dialog header small { display:block; margin-top:3px; color:#ffcf8b; font-size:.7rem; }.alarm-dialog header button { width:34px; height:34px; border:1px solid #476b83; border-radius:9px; background:#132d40; color:inherit; font-size:1.3rem; cursor:pointer; }

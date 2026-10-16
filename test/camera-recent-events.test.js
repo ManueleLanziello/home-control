@@ -17,5 +17,8 @@ test('alert camera usa il contenitore dell icona e non layer SVG separati', asyn
   assert.doesNotMatch(floorplan, /cameraEventLayer/);
   assert.match(floorplan, /cameraMarker\.dataset\.cameraState = intrusion \? 'alarm' : online \? 'online' : 'unknown'/);
   assert.match(css, /\.floorplan-marker-camera\.is-alarm \{ animation: alarm-flash 1\.6s ease-in-out infinite; \}/);
+  assert.match(css, /\.floorplan-marker-camera \{[^}]*background: rgb\(119 136 150 \/ 70%\)/);
+  assert.match(css, /\.floorplan-marker-camera\[data-camera-state="online"\] \{ background: rgb\(41 223 146 \/ 70%\)/);
+  assert.doesNotMatch(css, /\.floorplan-marker-camera \{[^}]*opacity:/);
   assert.match(floorplan, /api\/cameras\/event-alerts/);
 });
