@@ -56,7 +56,7 @@ export const floorplanConfig = {
   boiler: { marker: labeledMarker('D1'), card: labeledMarker('QD1'), target: '.boiler-card', settings: '.boiler-settings-link' },
   cappa: { id: 'K1', marker: marker(0) },
   pond: { marker: labeledMarker('P1'), controls: { pump: labeledMarker('P1a'), heater: labeledMarker('P1b'), mode: labeledMarker('P1c') } },
-  alarm: { marker: labeledMarker('A1'), card: labeledMarker('AD1'), sensors: ['DW1', 'DW2', 'DW3', 'DW4', 'DW5', 'DW6', 'DW7', 'DW8', 'PR1', 'SR1'].map(id => ({ id, marker: labeledMarker(id), led: labeledMarker(id === 'PR1' ? 'i' : id === 'SR1' ? 'l' : String.fromCharCode(96 + Number(id.slice(2)))) })) },
+  alarm: { marker: labeledMarker('A1'), card: labeledMarker('AD1'), sensors: ['DW1', 'DW2', 'DW3', 'DW4', 'DW5', 'DW6', 'DW7', 'DW8', 'PR1', 'SR1'].map(id => ({ id, marker: labeledMarker(id) })) },
   // Semantic SVG labels remain stable when a weather reference is moved in the design.
   weather: {
     marker: labeledMarker('M1'),
