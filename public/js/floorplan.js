@@ -514,6 +514,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
   const stage = document.querySelector('[data-layered-floorplan]');
   const status = document.querySelector('[data-floorplan-status]');
   if (!stage) return;
+  delete stage.dataset.ready;
   void switchSound.preload();
   const mappings = [];
   let floorplanClock;
@@ -584,7 +585,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     const pondMapping = await loadMapping(config.mappings.pond, stage); mappings.push(pondMapping);
     const alarmMapping = await loadMapping(config.mappings.alarm, stage); mappings.push(alarmMapping);
     const { initAlarmFloorplan } = await import('./alarm-floorplan.js');
-    initAlarmFloorplan({ mapping: alarmMapping, assets, placeHtml, createIcon });
+    const alarmControls = await initAlarmFloorplan({ mapping: alarmMapping, assets, placeHtml, createIcon });
     const { createPondControls, initPondPopup, pondRoleState } = await import('./pond-popup.js');
     const pondControls = createPondControls();
     activePondControls = pondControls;
@@ -1047,7 +1048,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     window.addEventListener('pageshow', tick);
     status.hidden = true;
     stage.dataset.ready = 'true';
-    return { store, destroy() { if (activePondControls === pondControls) activePondControls = null; clearTimeout(timer); clearTimeout(ledbarThrottle); clearTimeout(cameraAlertTimer); ledbarEvents?.close(); lightEvents?.close(); unsubscribe(); document.removeEventListener('visibilitychange', tick); window.removeEventListener('pageshow', tick); floorplanClock?.destroy(); if (renderWeatherSnapshot === renderWeather) renderWeatherSnapshot = () => {}; if (updateFloorplanBackground === updateBackground) updateFloorplanBackground = () => {}; stage.replaceChildren(); } };
+    return { store, destroy() { if (activePondControls === pondControls) activePondControls = null; clearTimeout(timer); clearTimeout(ledbarThrottle); clearTimeout(cameraAlertTimer); ledbarEvents?.close(); lightEvents?.close(); alarmControls?.destroy(); unsubscribe(); document.removeEventListener('visibilitychange', tick); window.removeEventListener('pageshow', tick); floorplanClock?.destroy(); if (renderWeatherSnapshot === renderWeather) renderWeatherSnapshot = () => {}; if (updateFloorplanBackground === updateBackground) updateFloorplanBackground = () => {}; stage.replaceChildren(); } };
   } catch (error) {
     status.textContent = error.message;
   } finally {
