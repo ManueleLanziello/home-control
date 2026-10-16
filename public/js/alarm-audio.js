@@ -1,6 +1,6 @@
 import { homeControlPath } from '../base-path.js';
 
-export const ALARM_AUDIO_FILES = Object.freeze(['alarm-disarmed.ogg', 'alarm-partial.ogg', 'alarm-arming-1.ogg', 'alarm-arming-2.ogg', 'alarm-arming-3.ogg', 'alarm-armed.ogg', 'alarm-blocked.ogg', 'alarm-intrusion.ogg', 'alarm-active.ogg']);
+export const ALARM_AUDIO_FILES = Object.freeze(['alarm-disarmed.ogg', 'alarm-partial.ogg', 'alarm-arming-1.ogg', 'alarm-arming-2.ogg', 'alarm-arming-3.ogg', 'alarm-armed.ogg', 'alarm-blocked.ogg', 'alarm-intrusion.ogg', 'alarm-active.ogg', ...['dw1', 'dw2', 'dw3', 'dw4', 'dw5', 'dw6', 'dw7', 'dw8', 'pr1'].map(id => `alarm-intrusion-${id}.ogg`)]);
 const SETTINGS_KEY = 'home-control:alarm-audio';
 
 export function createAlarmAudio({ storage = globalThis.localStorage, createAudio = () => new Audio(), EventSourceImpl = globalThis.EventSource, onBlocked = () => {} } = {}) {
