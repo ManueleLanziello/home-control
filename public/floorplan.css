@@ -149,8 +149,8 @@ button.floorplan-marker { pointer-events: auto; cursor: pointer; }
 .floorplan-marker-pond-control { border-width: 2px; border-color: rgba(138, 222, 255, .45); border-radius: 22%; background: rgba(7, 24, 38, .72); color: #e3f4ff; }
 .floorplan-marker-pond-control[data-available="false"] { opacity: .55; }
 .floorplan-marker-pond-control[data-mode="manual"] { pointer-events: none; }
-.floorplan-marker-alarm-card { border-width: 2px; border-color: rgba(138, 222, 255, .45); border-radius: 16%; background: rgba(7, 24, 38, .72); display: flex; gap: 4%; padding: 8%; }
-.floorplan-marker-alarm-card .floorplan-symbol { width: 46%; height: 100%; }
+.floorplan-marker-alarm-card { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; height: 100%; margin: 0; padding: 0; border: 5px solid #5194ae; border-radius: 28px; background: rgb(5 11 18 / 72%); overflow: hidden; }
+.floorplan-marker-alarm-card .floorplan-symbol { width: 72%; height: 72%; align-self: center; justify-self: center; }
 .floorplan-marker-alarm-sensor { border-width: 1px; background: rgba(7, 24, 38, .5); }
 .alarm-led { display: block; width: 100%; height: 100%; border-radius: 50%; background: #778896; box-shadow: 0 0 5px rgb(151 174 188 / 45%); opacity: .8; }
 .alarm-led[data-status="closed"] { background: #29df92; box-shadow: 0 0 8px rgb(41 223 146 / 70%); }
