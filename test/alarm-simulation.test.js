@@ -34,3 +34,11 @@ test('SR1 remains unavailable by default and only becomes active after the simul
   setNow(state.intrusion.alarmAt); state = await store.read(); assert.equal(state.sensors.SR1.active, true);
   state = await store.selectMode('none'); assert.equal(state.sensors.SR1.active, false);
 });
+
+test('records one audio event for each alarm transition', async () => {
+  const { store, setNow } = await fixture();
+  await store.selectMode('partial'); await store.simulate({ sensors: { DW1: { closed: false } } });
+  let state = await store.read(); assert.deepEqual(state.events.map(event => event.audio), ['alarm-partial.ogg', 'alarm-intrusion.ogg']);
+  setNow(state.intrusion.alarmAt); state = await store.read(); assert.equal(state.events.at(-1).audio, 'alarm-active.ogg');
+  state = await store.selectMode('none'); assert.equal(state.events.at(-1).audio, 'alarm-disarmed.ogg');
+});

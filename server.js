@@ -56,6 +56,7 @@ const STATIC_FILES = new Map([
   ['/js/floorplan-state.js', ['js/floorplan-state.js', 'text/javascript; charset=utf-8']],
   ['/js/sensor-popup.js', ['js/sensor-popup.js', 'text/javascript; charset=utf-8']],
   ['/js/alarm-floorplan.js', ['js/alarm-floorplan.js', 'text/javascript; charset=utf-8']],
+  ['/js/alarm-audio.js', ['js/alarm-audio.js', 'text/javascript; charset=utf-8']],
   ['/js/dashboard.js', ['js/dashboard.js', 'text/javascript; charset=utf-8']],
   ['/js/boiler-schedule.js', ['js/boiler-schedule.js', 'text/javascript; charset=utf-8']],
   ['/js/thermostat.js', ['js/thermostat.js', 'text/javascript; charset=utf-8']],
@@ -70,7 +71,8 @@ const STATIC_FILES = new Map([
 
 async function serveStatic(response, pathname) {
   const designName = /^\/design\/([a-zA-Z0-9_-]+\.svg)$/.exec(pathname)?.[1];
-  const entry = designName ? [`../design/${designName}`, 'image/svg+xml'] : STATIC_FILES.get(pathname);
+  const alarmSound = /^\/sounds\/alarm\/(alarm-(?:disarmed|partial|arming-[123]|armed|blocked|intrusion|active)\.ogg)$/.exec(pathname)?.[1];
+  const entry = designName ? [`../design/${designName}`, 'image/svg+xml'] : alarmSound ? [`sounds/alarm/${alarmSound}`, 'audio/ogg'] : STATIC_FILES.get(pathname);
   if (!entry) return false;
 
   const [fileName, contentType] = entry;
@@ -214,6 +216,12 @@ export function createHomeControlServer({
   const thermostatEventClients = new Set();
   const ledbarEventClients = new Set();
   const lightEventClients = new Set();
+  const alarmEventClients = new Set();
+  const publishAlarmEvent = event => {
+    const payload = `id: ${event.id}\ndata: ${JSON.stringify(event)}\n\n`;
+    for (const client of alarmEventClients) { try { client.write(payload); } catch { alarmEventClients.delete(client); } }
+  };
+  const unsubscribeAlarm = alarmStore.subscribe(publishAlarmEvent);
   const publishLedbarState = () => {
     homeStatus?.invalidate();
     const payload = `data: ${JSON.stringify(zigbeeRuntime?.readLedbarSnapshot?.() || null)}\n\n`;
@@ -387,6 +395,14 @@ export function createHomeControlServer({
     if (url.pathname === '/api/alarm') {
       if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
       return sendJson(response, 200, await alarmStore.read());
+    }
+    if (url.pathname === '/api/alarm/events') {
+      if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
+      const snapshot = await alarmStore.read(); const lastId = Number(request.headers['last-event-id']);
+      response.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
+      response.write('retry: 2000\n\n');
+      if (Number.isInteger(lastId)) for (const event of snapshot.events.filter(item => Number(item.id) > lastId)) response.write(`id: ${event.id}\ndata: ${JSON.stringify(event)}\n\n`);
+      alarmEventClients.add(response); request.on('close', () => alarmEventClients.delete(response)); return;
     }
     if (url.pathname === '/api/alarm/mode') {
       if (request.method !== 'PUT') return sendJson(response, 405, { error: 'Metodo non consentito' });
@@ -706,10 +722,12 @@ export function createHomeControlServer({
     void operation.catch(() => { if (!response.headersSent) sendJson(response, 500, { error: 'Operazione non riuscita' }); });
   });
   server.once('listening', () => wakeScheduler.start());
+  const alarmClock = setInterval(() => { void alarmStore.read().catch(() => {}); }, 1_000);
   server.on('close', () => {
     wakeScheduler.stop();
     unsubscribeZigbee?.();
     for (const client of lightEventClients) { try { client.end(); } catch {} }
+    clearInterval(alarmClock); unsubscribeAlarm(); for (const client of alarmEventClients) { try { client.end(); } catch {} }
     zigbeeRuntime?.close();
     void cameras.close().catch(() => {});
     activePlugRuntime?.stop(); pondPollingStarted = false;
