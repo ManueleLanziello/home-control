@@ -15,7 +15,7 @@ export const floorplanConfig = {
     const number = String(index + 1).padStart(2, '0');
     return { lightId: 'L' + (index + 1), on: 'LAYER-' + number + '-ON.svg', off: 'LAYER-' + number + '-OFF.svg' };
   }).concat({ lightId: 'L7', on: 'LAYER-L7-ON.svg', optional: true }),
-  mappings: { lights: 'LAYER-07-LUCI.svg', sensors: 'LAYER-08-SENSORI.svg', cameras: 'LAYER-09-CAM.svg', boiler: 'LAYER-10-CALDAIA.svg', cappa: 'LAYER-12-CAPPA.svg', weather: 'LAYER-13-METEO.svg', integration: 'LAYER-16-INTEGRAZIONE.svg', ledbar: 'LAYER-17-LED.svg', devices: 'LAYER-DISPOSITIVI.svg', clock: 'LAYER-22-OROLOGIO.svg', pond: 'LAYER-POND.svg' },
+  mappings: { lights: 'LAYER-07-LUCI.svg', sensors: 'LAYER-08-SENSORI.svg', cameras: 'LAYER-09-CAM.svg', boiler: 'LAYER-10-CALDAIA.svg', cappa: 'LAYER-12-CAPPA.svg', weather: 'LAYER-13-METEO.svg', integration: 'LAYER-16-INTEGRAZIONE.svg', ledbar: 'LAYER-17-LED.svg', devices: 'LAYER-DISPOSITIVI.svg', clock: 'LAYER-22-OROLOGIO.svg', pond: 'LAYER-POND.svg', alarm: 'LAYER-ANTIFURTO.svg' },
   clock: { marker: labeledMarker('CLK1') },
   mobileMonitor: { marker: labeledMarker('DM'), icons: { phone: 'phone.svg', tablet: 'tablet.svg' } },
   ledbar: {
@@ -28,7 +28,7 @@ export const floorplanConfig = {
     title: exactShape('#integration-title'),
     options: exactShape('#integration-options'),
   },
-  icons: { lightOn: 'lampon.svg', lightOff: 'lampoff.svg', ledbarOn: 'ledbaron.svg', ledbarOff: 'ledbaroff.svg', sensor: 'temp.svg', camera: 'cam.svg', privacyOn: 'privacyon.svg', privacyOff: 'privacyoff.svg', detectionOn: 'rilevon.svg', detectionOff: 'rilevoff.svg', alarmOn: 'alarmon.svg', alarmOff: 'alarmoff.svg', batteryEmpty: 'solar-panel-battery-empty.svg', batteryLow: 'solar-panel-battery-low.svg', batteryHalf: 'solar-panel-battery-half.svg', batteryHalf2: 'solar-panel-battery-half2.svg', batteryFull: 'solar-panel-battery-full.svg', batteryCharging: 'solar-panel-battery-charging.svg', boiler: 'boiler.svg', cappaOn: 'CAPPAON.svg', cappaOff: 'CAPPAOFF.svg', pondPumpOn: 'pumpon.svg', pondPumpOff: 'pumpoff.svg', pondHeaterOn: 'heateron.svg', pondHeaterOff: 'heateroff.svg', pondManual: 'manual.svg', pondThermostat: 'auto.svg' },
+  icons: { lightOn: 'lampon.svg', lightOff: 'lampoff.svg', ledbarOn: 'ledbaron.svg', ledbarOff: 'ledbaroff.svg', sensor: 'temp.svg', camera: 'cam.svg', privacyOn: 'privacyon.svg', privacyOff: 'privacyoff.svg', detectionOn: 'rilevon.svg', detectionOff: 'rilevoff.svg', alarmOn: 'alarmon.svg', alarmOff: 'alarmoff.svg', batteryEmpty: 'solar-panel-battery-empty.svg', batteryLow: 'solar-panel-battery-low.svg', batteryHalf: 'solar-panel-battery-half.svg', batteryHalf2: 'solar-panel-battery-half2.svg', batteryFull: 'solar-panel-battery-full.svg', batteryCharging: 'solar-panel-battery-charging.svg', boiler: 'boiler.svg', cappaOn: 'CAPPAON.svg', cappaOff: 'CAPPAOFF.svg', pondPumpOn: 'pumpon.svg', pondPumpOff: 'pumpoff.svg', pondHeaterOn: 'heateron.svg', pondHeaterOff: 'heateroff.svg', pondManual: 'manual.svg', pondThermostat: 'auto.svg', alarm: 'antifurto.svg', antiOff: 'antoff.svg', antiOn: 'anton.svg', alarmNone: 'nessuno.svg', alarmPartial: 'parziale.svg', alarmComplete: 'completo.svg', alarmDoor: 'porte.svg', alarmMotion: 'movimento.svg' },
   // Semantic labels survive a geometry-only edit of their mapping SVG.
   lights: ['CUCINA', 'CAMERA', 'SALOTTO', 'DISIMPEGNO', 'BAGNO', 'CAMERETTA', 'GAZEBO', 'GIARDINO', 'ESTERNO 9', 'ESTERNO 10', 'TERRAZZO', 'ESTERNO 12'].map((room, index) => {
     const id = 'L' + (index + 1);
@@ -56,6 +56,7 @@ export const floorplanConfig = {
   boiler: { marker: labeledMarker('D1'), card: labeledMarker('QD1'), target: '.boiler-card', settings: '.boiler-settings-link' },
   cappa: { id: 'K1', marker: marker(0) },
   pond: { marker: labeledMarker('P1'), controls: { pump: labeledMarker('P1a'), heater: labeledMarker('P1b'), mode: labeledMarker('P1c') } },
+  alarm: { marker: labeledMarker('A1'), card: labeledMarker('AD1'), sensors: ['DW1', 'DW2', 'DW3', 'DW4', 'DW5', 'DW6', 'DW7', 'DW8', 'PR1'].map(id => ({ id, marker: labeledMarker(id), led: labeledMarker(id === 'PR1' ? 'i' : String.fromCharCode(96 + Number(id.slice(2)))) })) },
   // Semantic SVG labels remain stable when a weather reference is moved in the design.
   weather: {
     marker: labeledMarker('M1'),

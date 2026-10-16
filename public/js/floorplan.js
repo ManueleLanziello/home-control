@@ -521,7 +521,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     const response = await fetch(homeControlPath('/api/floorplan/assets'), { cache: 'no-store' });
     if (!response.ok) throw new Error('Elenco asset non disponibile');
     const assets = new Set((await response.json()).assets);
-    const required = [...Object.values(config.backgrounds), ...config.rooms.filter(room => !room.optional).flatMap(room => [room.on, room.off]), ...Object.values(config.mappings).filter(name => name !== config.mappings.clock), ...Object.values(config.ledbar.layers), ...Object.values(config.cameraEventLayers), config.icons.ledbarOn, config.icons.ledbarOff, config.icons.cappaOn, config.icons.cappaOff, config.icons.pondPumpOn, config.icons.pondPumpOff, config.icons.pondHeaterOn, config.icons.pondHeaterOff, config.icons.pondManual, config.icons.pondThermostat, ...Object.values(config.mobileMonitor.icons)];
+    const required = [...Object.values(config.backgrounds), ...config.rooms.filter(room => !room.optional).flatMap(room => [room.on, room.off]), ...Object.values(config.mappings).filter(name => name !== config.mappings.clock), ...Object.values(config.ledbar.layers), ...Object.values(config.cameraEventLayers), config.icons.ledbarOn, config.icons.ledbarOff, config.icons.cappaOn, config.icons.cappaOff, config.icons.pondPumpOn, config.icons.pondPumpOff, config.icons.pondHeaterOn, config.icons.pondHeaterOff, config.icons.pondManual, config.icons.pondThermostat, config.icons.alarm, config.icons.antiOff, config.icons.antiOn, config.icons.alarmNone, config.icons.alarmPartial, config.icons.alarmComplete, config.icons.alarmDoor, config.icons.alarmMotion, ...Object.values(config.mobileMonitor.icons)];
     const missing = required.filter(name => !assets.has(name));
     if (missing.length) throw new Error('Asset planimetria mancanti: ' + missing.join(', '));
     const imageLayers = new Map();
@@ -582,6 +582,9 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     const ledbarMapping = await loadMapping(config.mappings.ledbar, stage); mappings.push(ledbarMapping);
     const deviceMapping = await loadMapping(config.mappings.devices, stage); mappings.push(deviceMapping);
     const pondMapping = await loadMapping(config.mappings.pond, stage); mappings.push(pondMapping);
+    const alarmMapping = await loadMapping(config.mappings.alarm, stage); mappings.push(alarmMapping);
+    const { initAlarmFloorplan } = await import('./alarm-floorplan.js');
+    initAlarmFloorplan({ mapping: alarmMapping, assets, placeHtml, createIcon });
     const { createPondControls, initPondPopup, pondRoleState } = await import('./pond-popup.js');
     const pondControls = createPondControls();
     activePondControls = pondControls;
