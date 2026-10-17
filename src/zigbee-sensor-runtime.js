@@ -24,9 +24,9 @@ export class HomeZigbeeSensorRuntime {
     this.lightTopics = new Map((config.lights || []).map(light => [light.topic, light]));
   }
   subscribeState(listener) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
-  notify() {
+  notify(kind = 'state') {
     for (const listener of this.listeners) {
-      try { listener(); } catch { /* A UI subscriber must not break MQTT handling. */ }
+      try { listener(kind); } catch { /* A UI subscriber must not break MQTT handling. */ }
     }
   }
   start() {
@@ -46,7 +46,7 @@ export class HomeZigbeeSensorRuntime {
           if (this.stopped || !this.connectionActive || cycle !== this.connectionCycle || completed) return;
           completed = true;
           this.connected = !error && !granted?.some(subscription => subscription.qos === 128);
-          this.notify();
+          this.notify('connection');
           // One state request per configured actuator and successful subscription.
           // Incoming MQTT messages remain the sole source of confirmed state.
           for (const device of [this.config.ledbar, ...(this.config.lights || [])]) {
@@ -59,7 +59,7 @@ export class HomeZigbeeSensorRuntime {
         this.connectionActive = false;
         this.connectionCycle += 1;
         this.connected = false;
-        this.notify();
+        this.notify('connection');
       };
       this.client.on('offline', disconnect);
       this.client.on('close', disconnect);
@@ -77,7 +77,7 @@ export class HomeZigbeeSensorRuntime {
             const identity = normalizeZigbeeDeviceIdentity(device);
             if (identity) this.doorIdentities.set(contact.id, identity);
           }
-          this.notify();
+          this.notify('doorContacts');
           return;
         }
         if (topic === this.ledbarTopic) {
@@ -89,31 +89,31 @@ export class HomeZigbeeSensorRuntime {
             brightness: brightness ?? this.ledbar?.brightness ?? null,
             updatedAt: new Date(this.now()).toISOString(),
           };
-          this.notify();
+          this.notify('ledbar');
           return;
         }
         if (light) {
           const state = typeof payload.state === 'string' ? payload.state.toUpperCase() : null;
           if (!['ON', 'OFF'].includes(state)) return;
           this.lights.set(light.id, { state, updatedAt: new Date(this.now()).toISOString() });
-          this.notify();
+          this.notify('lights');
           return;
         }
         if (doorContact) {
           const snapshot = normalizeDoorContactPayload(payload, this.doorContacts.get(doorContact.id), new Date(this.now()).toISOString());
           if (!snapshot) return;
           this.doorContacts.set(doorContact.id, snapshot);
-          this.notify();
+          this.notify('doorContacts');
           return;
         }
         const snapshot = normalizeSnzb02pPayload(payload, { updatedAt: new Date(this.now()).toISOString() });
         if (!snapshot) return;
         this.latest.set(sensor.id, snapshot);
-        this.notify();
+        this.notify('sensors');
       });
     } catch {
       this.connected = false;
-      this.notify();
+      this.notify('connection');
     }
   }
   readSnapshot() {
@@ -185,7 +185,7 @@ export class HomeZigbeeSensorRuntime {
     this.connectionActive = false;
     this.connectionCycle += 1;
     this.connected = false;
-    this.notify();
+    this.notify('connection');
     this.listeners.clear();
     try { this.client?.end(true); } catch { /* Shutdown must remain safe after a transport failure. */ }
   }

@@ -86,6 +86,10 @@ export function createFloorplanState() {
       }
       for (const listener of listeners) listener(this.snapshot());
     },
+    applyDoorContactSnapshot(doorContacts = {}) {
+      state.doorContacts = doorContacts && typeof doorContacts === 'object' ? structuredClone(doorContacts) : {};
+      for (const listener of listeners) listener(this.snapshot());
+    },
     applyCameraPrivacy(id, privacy) {
       if (typeof privacy?.enabled !== 'boolean') return;
       noteCameraReadBack(id, 'privacy');

@@ -978,6 +978,10 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     if (lightEvents) lightEvents.onmessage = event => {
       try { store.applyZigbeeLightsSnapshot(JSON.parse(event.data)); } catch { /* An invalid light event must not break the floorplan. */ }
     };
+    const doorContactEvents = typeof EventSource === 'function' ? new EventSource(homeControlPath('/api/door-contacts/events')) : null;
+    if (doorContactEvents) doorContactEvents.onmessage = event => {
+      try { store.applyDoorContactSnapshot(JSON.parse(event.data)); } catch { /* An invalid contact event must not break the floorplan. */ }
+    };
     let cameraAlertTimer;
     const refreshCameraAlerts = async () => {
       try {
@@ -1004,7 +1008,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     window.addEventListener('pageshow', tick);
     status.hidden = true;
     stage.dataset.ready = 'true';
-    return { store, destroy() { if (activePondControls === pondControls) activePondControls = null; clearTimeout(timer); clearTimeout(ledbarThrottle); clearTimeout(cameraAlertTimer); ledbarEvents?.close(); lightEvents?.close(); alarmControls?.destroy(); unsubscribe(); document.removeEventListener('visibilitychange', tick); window.removeEventListener('pageshow', tick); floorplanClock?.destroy(); if (renderWeatherSnapshot === renderWeather) renderWeatherSnapshot = () => {}; if (updateFloorplanBackground === updateBackground) updateFloorplanBackground = () => {}; stage.replaceChildren(); } };
+    return { store, destroy() { if (activePondControls === pondControls) activePondControls = null; clearTimeout(timer); clearTimeout(ledbarThrottle); clearTimeout(cameraAlertTimer); ledbarEvents?.close(); lightEvents?.close(); doorContactEvents?.close(); alarmControls?.destroy(); unsubscribe(); document.removeEventListener('visibilitychange', tick); window.removeEventListener('pageshow', tick); floorplanClock?.destroy(); if (renderWeatherSnapshot === renderWeather) renderWeatherSnapshot = () => {}; if (updateFloorplanBackground === updateBackground) updateFloorplanBackground = () => {}; stage.replaceChildren(); } };
   } catch (error) {
     status.textContent = error.message;
   } finally {

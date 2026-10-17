@@ -32,6 +32,8 @@ test('Home snapshots retain door contacts separately from all alarm simulation f
 test('the floorplan forwards its existing Home snapshot updates to alarm DW markers', async () => {
   const [floorplan, alarm] = await Promise.all(['../public/js/floorplan.js', '../public/js/alarm-floorplan.js'].map(file => readFile(new URL(file, import.meta.url), 'utf8')));
   assert.match(floorplan, /alarmControls\.setDoorContacts\(state\.doorContacts\)/);
+  assert.match(floorplan, /new EventSource\(homeControlPath\('\/api\/door-contacts\/events'\)\)/);
+  assert.match(floorplan, /store\.applyDoorContactSnapshot\(JSON\.parse\(event\.data\)\)/);
   assert.match(alarm, /element\.dataset\.tamperState = real \? contact\.tamperState \|\| 'unknown' : ''/);
   assert.match(alarm, /element\.classList\.toggle\('is-alarm', !real && visualState === 'alarm'\)/);
 });

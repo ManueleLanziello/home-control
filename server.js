@@ -216,6 +216,7 @@ export function createHomeControlServer({
   const thermostatEventClients = new Set();
   const ledbarEventClients = new Set();
   const lightEventClients = new Set();
+  const doorContactEventClients = new Set();
   const alarmEventClients = new Set();
   const publishAlarmEvent = event => {
     const payload = `id: ${event.id}\ndata: ${JSON.stringify(event)}\n\n`;
@@ -223,17 +224,21 @@ export function createHomeControlServer({
   };
   const unsubscribeAlarm = alarmStore.subscribe(publishAlarmEvent);
   const publishLedbarState = () => {
-    homeStatus?.invalidate();
     const payload = `data: ${JSON.stringify(zigbeeRuntime?.readLedbarSnapshot?.() || null)}\n\n`;
     for (const client of ledbarEventClients) {
       try { client.write(payload); } catch { ledbarEventClients.delete(client); }
     }
   };
   const publishLightState = () => {
-    homeStatus?.invalidate();
     const payload = `data: ${JSON.stringify(zigbeeRuntime?.readLightsSnapshot?.() || {})}\n\n`;
     for (const client of lightEventClients) {
       try { client.write(payload); } catch { lightEventClients.delete(client); }
+    }
+  };
+  const publishDoorContactState = () => {
+    const payload = `data: ${JSON.stringify(zigbeeRuntime?.readDoorContactSnapshot?.() || {})}\n\n`;
+    for (const client of doorContactEventClients) {
+      try { client.write(payload); } catch { doorContactEventClients.delete(client); }
     }
   };
   const publishThermostatState = (snapshot) => {
@@ -279,7 +284,12 @@ export function createHomeControlServer({
     readThermostat: () => getThermostatRuntime().readSnapshot(),
   });
 
-  const unsubscribeZigbee = zigbeeRuntime?.subscribeState(() => { publishLedbarState(); publishLightState(); });
+  const unsubscribeZigbee = zigbeeRuntime?.subscribeState(kind => {
+    homeStatus?.invalidate();
+    if (kind === 'ledbar' || kind === 'connection') publishLedbarState();
+    if (kind === 'lights' || kind === 'connection') publishLightState();
+    if (kind === 'doorContacts' || kind === 'connection') publishDoorContactState();
+  });
   if (ownerEnabled()) void startPondRuntime();
   const handleRequest = async (request, response) => {
     const url = new URL(request.url || '/', 'http://localhost');
@@ -333,6 +343,14 @@ export function createHomeControlServer({
       response.write(`retry: 2000\ndata: ${JSON.stringify(zigbeeRuntime?.readLightsSnapshot?.() || {})}\n\n`);
       lightEventClients.add(response);
       request.on('close', () => lightEventClients.delete(response));
+      return;
+    }
+    if (url.pathname === '/api/door-contacts/events') {
+      if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
+      response.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
+      response.write(`retry: 2000\ndata: ${JSON.stringify(zigbeeRuntime?.readDoorContactSnapshot?.() || {})}\n\n`);
+      doorContactEventClients.add(response);
+      request.on('close', () => doorContactEventClients.delete(response));
       return;
     }
     const lightPowerMatch = /^\/api\/lights\/(L\d+)\/power$/.exec(url.pathname);
@@ -728,6 +746,7 @@ export function createHomeControlServer({
     wakeScheduler.stop();
     unsubscribeZigbee?.();
     for (const client of lightEventClients) { try { client.end(); } catch {} }
+    for (const client of doorContactEventClients) { try { client.end(); } catch {} }
     clearInterval(alarmClock); unsubscribeAlarm(); for (const client of alarmEventClients) { try { client.end(); } catch {} }
     zigbeeRuntime?.close();
     void cameras.close().catch(() => {});
