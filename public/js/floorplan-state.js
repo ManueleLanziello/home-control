@@ -37,6 +37,7 @@ export function createFloorplanState() {
     hood: { online: false, power: null, fanSpeed: null, light: null, operatingStatus: null, updatedAt: null },
     ledbar: { state: null, brightness: null, online: false, available: false, updatedAt: null },
     doorContacts: {},
+    motionSensor: null,
     devices: {},
     mobileDevices: [],
   };
@@ -88,6 +89,10 @@ export function createFloorplanState() {
     },
     applyDoorContactSnapshot(doorContacts = {}) {
       state.doorContacts = doorContacts && typeof doorContacts === 'object' ? structuredClone(doorContacts) : {};
+      for (const listener of listeners) listener(this.snapshot());
+    },
+    applyMotionSensorSnapshot(motionSensor = null) {
+      state.motionSensor = motionSensor && typeof motionSensor === 'object' ? structuredClone(motionSensor) : null;
       for (const listener of listeners) listener(this.snapshot());
     },
     applyCameraPrivacy(id, privacy) {
@@ -165,6 +170,7 @@ export function createFloorplanState() {
       applyHood(home.hood);
       if (home.ledbar) state.ledbar = { ...state.ledbar, ...home.ledbar };
       state.doorContacts = home.doorContacts && typeof home.doorContacts === 'object' ? structuredClone(home.doorContacts) : {};
+      state.motionSensor = home.motionSensor && typeof home.motionSensor === 'object' ? structuredClone(home.motionSensor) : null;
       if (home.devices && typeof home.devices === 'object') state.devices = structuredClone(home.devices);
       state.mobileDevices = Array.isArray(home.mobileDevices) ? structuredClone(home.mobileDevices) : [];
       for (const listener of listeners) listener(this.snapshot());

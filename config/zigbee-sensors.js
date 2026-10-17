@@ -10,6 +10,7 @@ export const ZIGBEE_SENSOR_CONFIG = Object.freeze({
     ['DW1', 'sala-dw1'], ['DW2', 'sala-dw2'], ['DW3', 'sala-dw3'], ['DW4', 'cucina-dw4'],
     ['DW5', 'cucina-dw5'], ['DW6', 'camera-dw6'], ['DW7', 'bagno-dw7'], ['DW8', 'cameretta-dw8'],
   ].map(([id, friendlyName]) => Object.freeze({ id, friendlyName, topic: `zigbee2mqtt/${friendlyName}`, model: 'SNZB-04PR2', manufacturer: 'SONOFF' }))),
+  motionSensor: Object.freeze({ id: 'PR1', friendlyName: 'sala-pr1', topic: 'zigbee2mqtt/sala-pr1', ieeeAddress: '0xf044d3fffef6cb7a', model: 'SNZB-03P', manufacturer: 'SONOFF' }),
   bridgeDevicesTopic: 'zigbee2mqtt/bridge/devices',
   ledbar: Object.freeze({ id: 'LB1', name: 'SmartHomeLB1', topic: 'zigbee2mqtt/SmartHomeLB1', setTopic: 'zigbee2mqtt/SmartHomeLB1/set', getTopic: 'zigbee2mqtt/SmartHomeLB1/get', getPayload: Object.freeze({ state: '', brightness: '' }) }),
   lights: Object.freeze([

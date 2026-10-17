@@ -34,6 +34,8 @@ test('the floorplan forwards its existing Home snapshot updates to alarm DW mark
   assert.match(floorplan, /alarmControls\.setDoorContacts\(state\.doorContacts\)/);
   assert.match(floorplan, /new EventSource\(homeControlPath\('\/api\/door-contacts\/events'\)\)/);
   assert.match(floorplan, /store\.applyDoorContactSnapshot\(JSON\.parse\(event\.data\)\)/);
-  assert.match(alarm, /element\.dataset\.tamperState = real \? contact\.tamperState \|\| 'unknown' : ''/);
-  assert.match(alarm, /element\.classList\.toggle\('is-alarm', !real && visualState === 'alarm'\)/);
+  assert.match(floorplan, /new EventSource\(homeControlPath\('\/api\/motion-sensor\/events'\)\)/);
+  assert.match(floorplan, /alarmControls\.setMotionSensor\(state\.motionSensor\)/);
+  assert.match(alarm, /element\.dataset\.tamperState = realContact \? contact\.tamperState \|\| 'unknown' : ''/);
+  assert.match(alarm, /element\.classList\.toggle\('is-alarm', !realContact && !realMotion && visualState === 'alarm'\)/);
 });

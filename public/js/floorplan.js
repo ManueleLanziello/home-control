@@ -855,6 +855,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     let previousLedbarOn;
     const render = state => {
       alarmControls.setDoorContacts(state.doorContacts);
+      alarmControls.setMotionSensor(state.motionSensor);
       for (const room of config.rooms) {
         const on = state.lights[room.lightId] === true;
         if (imageLayers.has(room.on)) imageLayers.get(room.on).hidden = !on;
@@ -982,6 +983,10 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     if (doorContactEvents) doorContactEvents.onmessage = event => {
       try { store.applyDoorContactSnapshot(JSON.parse(event.data)); } catch { /* An invalid contact event must not break the floorplan. */ }
     };
+    const motionSensorEvents = typeof EventSource === 'function' ? new EventSource(homeControlPath('/api/motion-sensor/events')) : null;
+    if (motionSensorEvents) motionSensorEvents.onmessage = event => {
+      try { store.applyMotionSensorSnapshot(JSON.parse(event.data)); } catch { /* An invalid motion event must not break the floorplan. */ }
+    };
     let cameraAlertTimer;
     const refreshCameraAlerts = async () => {
       try {
@@ -1008,7 +1013,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     window.addEventListener('pageshow', tick);
     status.hidden = true;
     stage.dataset.ready = 'true';
-    return { store, destroy() { if (activePondControls === pondControls) activePondControls = null; clearTimeout(timer); clearTimeout(ledbarThrottle); clearTimeout(cameraAlertTimer); ledbarEvents?.close(); lightEvents?.close(); doorContactEvents?.close(); alarmControls?.destroy(); unsubscribe(); document.removeEventListener('visibilitychange', tick); window.removeEventListener('pageshow', tick); floorplanClock?.destroy(); if (renderWeatherSnapshot === renderWeather) renderWeatherSnapshot = () => {}; if (updateFloorplanBackground === updateBackground) updateFloorplanBackground = () => {}; stage.replaceChildren(); } };
+    return { store, destroy() { if (activePondControls === pondControls) activePondControls = null; clearTimeout(timer); clearTimeout(ledbarThrottle); clearTimeout(cameraAlertTimer); ledbarEvents?.close(); lightEvents?.close(); doorContactEvents?.close(); motionSensorEvents?.close(); alarmControls?.destroy(); unsubscribe(); document.removeEventListener('visibilitychange', tick); window.removeEventListener('pageshow', tick); floorplanClock?.destroy(); if (renderWeatherSnapshot === renderWeather) renderWeatherSnapshot = () => {}; if (updateFloorplanBackground === updateBackground) updateFloorplanBackground = () => {}; stage.replaceChildren(); } };
   } catch (error) {
     status.textContent = error.message;
   } finally {

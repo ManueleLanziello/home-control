@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { alarmVisualState } from '../public/js/alarm-floorplan.js';
+import { alarmVisualState, motionSensorVisualState } from '../public/js/alarm-floorplan.js';
 import { floorplanConfig } from '../public/js/floorplan-config.js';
 
 test('alarm icon background state follows the documented priority', () => {
@@ -17,6 +17,14 @@ test('motion sensor and siren use their existing state fields', () => {
   assert.equal(alarmVisualState('PR1', { available: true, motion: false }), 'normal');
   assert.equal(alarmVisualState('SR1', { available: true, active: true }), 'alarm');
   assert.equal(alarmVisualState('SR1', { available: true, active: false }), 'normal');
+});
+
+test('PR1 reale conserva gli stessi colori senza trasformare lo sconosciuto in assenza di movimento', () => {
+  assert.equal(motionSensorVisualState({ available: true, occupancy: true, battery: 70 }), 'active');
+  assert.equal(motionSensorVisualState({ available: true, occupancy: false, battery: 70 }), 'normal');
+  assert.equal(motionSensorVisualState({ available: true, occupancy: null, battery: 70 }), 'unknown');
+  assert.equal(motionSensorVisualState({ available: false, occupancy: false, battery: 70 }), 'unknown');
+  assert.equal(motionSensorVisualState({ available: true, occupancy: true, battery: 20 }), 'battery-low');
 });
 
 test('alarm sensors no longer depend on removed LED markers', () => {
