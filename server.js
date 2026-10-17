@@ -270,6 +270,7 @@ export function createHomeControlServer({
   const activeWeatherService = weatherService || new WeatherService({ config: WEATHER_CONFIG, logError: message => console.error(message) });
   homeStatus = new HomeStatusRuntime({ hardwareStore, roleStore, createSensorRuntime,
     readZigbeeSensors: zigbeeRuntime ? () => zigbeeRuntime.readSnapshot() : null,
+    readZigbeeDoorContacts: zigbeeRuntime ? () => zigbeeRuntime.readDoorContactSnapshot() : null,
     readZigbeeLedbar: zigbeeRuntime ? () => zigbeeRuntime.readLedbarSnapshot() : null,
     readZigbeeLights: zigbeeRuntime ? () => zigbeeRuntime.readLightsSnapshot() : null,
     readCameras: () => cameras.snapshot(),

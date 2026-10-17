@@ -6,6 +6,11 @@ export const ZIGBEE_SENSOR_CONFIG = Object.freeze({
     Object.freeze({ id: 'S2', name: 'SmartHomeS2', topic: 'zigbee2mqtt/SmartHomeS2' }),
     Object.freeze({ id: 'S4', name: 'SmartHomeS4', topic: 'zigbee2mqtt/SmartHomeS4' }),
   ]),
+  doorContacts: Object.freeze([
+    ['DW1', 'sala-dw1'], ['DW2', 'sala-dw2'], ['DW3', 'sala-dw3'], ['DW4', 'cucina-dw4'],
+    ['DW5', 'cucina-dw5'], ['DW6', 'camera-dw6'], ['DW7', 'bagno-dw7'], ['DW8', 'cameretta-dw8'],
+  ].map(([id, friendlyName]) => Object.freeze({ id, friendlyName, topic: `zigbee2mqtt/${friendlyName}`, model: 'SNZB-04PR2', manufacturer: 'SONOFF' }))),
+  bridgeDevicesTopic: 'zigbee2mqtt/bridge/devices',
   ledbar: Object.freeze({ id: 'LB1', name: 'SmartHomeLB1', topic: 'zigbee2mqtt/SmartHomeLB1', setTopic: 'zigbee2mqtt/SmartHomeLB1/set', getTopic: 'zigbee2mqtt/SmartHomeLB1/get', getPayload: Object.freeze({ state: '', brightness: '' }) }),
   lights: Object.freeze([
     Object.freeze({ id: 'L1', name: 'cucina-L1', topic: 'zigbee2mqtt/cucina-L1', setTopic: 'zigbee2mqtt/cucina-L1/set', getTopic: 'zigbee2mqtt/cucina-L1/get', getPayload: Object.freeze({ state: '' }) }),

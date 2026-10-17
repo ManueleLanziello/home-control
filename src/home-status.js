@@ -66,8 +66,8 @@ export function normalizeCiarraState(snapshot, now = Date.now()) {
 }
 
 export class HomeStatusRuntime {
-  constructor({ hardwareStore, roleStore, readThermostat, readHood = null, readZigbeeSensors = null, readZigbeeLedbar = null, readZigbeeLights = null, createSensorRuntime, readCameras = null, readPresence = null, now = Date.now, cacheMs = 30_000, timeoutMs = 12_000 }) {
-    Object.assign(this, { hardwareStore, roleStore, readThermostat, readHood, readZigbeeSensors, readZigbeeLedbar, readZigbeeLights, readCameras, now, cacheMs, timeoutMs });
+  constructor({ hardwareStore, roleStore, readThermostat, readHood = null, readZigbeeSensors = null, readZigbeeDoorContacts = null, readZigbeeLedbar = null, readZigbeeLights = null, createSensorRuntime, readCameras = null, readPresence = null, now = Date.now, cacheMs = 30_000, timeoutMs = 12_000 }) {
+    Object.assign(this, { hardwareStore, roleStore, readThermostat, readHood, readZigbeeSensors, readZigbeeDoorContacts, readZigbeeLedbar, readZigbeeLights, readCameras, now, cacheMs, timeoutMs });
     this.presenceRuntime = new NetworkPresenceRuntime({ now });
     this.readPresence = readPresence || this.presenceRuntime.readInventory.bind(this.presenceRuntime);
     this.createSensorRuntime = createSensorRuntime || (device => new HomeDewinRuntime({ device, client: new TuyaCloudClient({
@@ -138,6 +138,8 @@ export class HomeStatusRuntime {
     const presenceRead = this.readPresence(inventory).catch(() => ({}));
     let zigbeeSensors;
     try { zigbeeSensors = this.readZigbeeSensors?.(); } catch { /* MQTT must not block the Home snapshot. */ }
+    let zigbeeDoorContacts;
+    try { zigbeeDoorContacts = this.readZigbeeDoorContacts?.(); } catch { /* MQTT must not block the Home snapshot. */ }
     let zigbeeLights;
     try { zigbeeLights = this.readZigbeeLights?.(); } catch { /* MQTT must not block the Home snapshot. */ }
     const entries = await Promise.all(Object.entries(HOME_ROLES).map(async ([id, role]) => {
@@ -208,6 +210,7 @@ export class HomeStatusRuntime {
     const snapshot = { updatedAt: new Date(this.now()).toISOString(), sensors, thermostat, hood,
       ledbar: ledbar || { id: 'LB1', name: 'SmartHomeLB1', state: null, brightness: null, online: false, available: false, updatedAt: null },
       lights: Object.fromEntries(Object.entries(values).filter(([id]) => id.startsWith('L'))),
+      doorContacts: zigbeeDoorContacts || {},
       cameras,
       devices: normalizeDeviceStatuses(deviceInventory, { selfOnline: true, ledbar, hood, thermostat, cameras, zigbee: zigbeeSensors, dewin: inventoryDewin, presence }, this.now()),
       mobileDevices: normalizeMobilePresence(inventory, presence),
@@ -218,7 +221,8 @@ export class HomeStatusRuntime {
     const timestamps = [...Object.values(sensors).filter(sensor => sensor.available && !['zigbee', 'dewin'].includes(sensor.source)).map(sensor => sensor.updatedAt), thermostat.online ? thermostat.updatedAt : null, hood.online ? hood.updatedAt : null].filter(Boolean);
     const dewinExpirations = Object.values(sensors).filter(sensor => sensor.source === 'dewin' && sensor.online).map(sensor => Date.parse(sensor.updatedAt) + DEWIN_REFRESH_INTERVAL_MS);
     const zigbeeExpirations = Object.values(sensors).filter(sensor => sensor.source === 'zigbee' && sensor.online).map(sensor => Date.parse(sensor.updatedAt) + ZIGBEE_SENSOR_CONFIG.freshnessMs);
-    const expiresAt = Math.min(this.now() + this.cacheMs, ...timestamps.map(time => Date.parse(time) + MAX_AGE_MS), ...zigbeeExpirations, ...dewinExpirations);
+    const doorContactExpirations = Object.values(zigbeeDoorContacts || {}).filter(contact => contact.online).map(contact => Date.parse(contact.updatedAt) + ZIGBEE_SENSOR_CONFIG.freshnessMs);
+    const expiresAt = Math.min(this.now() + this.cacheMs, ...timestamps.map(time => Date.parse(time) + MAX_AGE_MS), ...zigbeeExpirations, ...doorContactExpirations, ...dewinExpirations);
     if (generation === this.generation) this.cached = { signature, expiresAt, snapshot };
     return structuredClone(snapshot);
   }

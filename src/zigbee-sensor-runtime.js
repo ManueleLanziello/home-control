@@ -1,5 +1,6 @@
 import { normalizeSnzb02pPayload } from '@smarthome/core';
 import { ZIGBEE_SENSOR_CONFIG } from '../config/zigbee-sensors.js';
+import { normalizeDoorContactPayload, normalizeZigbeeDeviceIdentity } from './zigbee-door-contact.js';
 
 export class HomeZigbeeSensorRuntime {
   constructor({ connect, config = ZIGBEE_SENSOR_CONFIG, now = Date.now } = {}) {
@@ -12,10 +13,13 @@ export class HomeZigbeeSensorRuntime {
     this.connectionCycle = 0;
     this.connectionActive = false;
     this.latest = new Map();
+    this.doorContacts = new Map();
+    this.doorIdentities = new Map();
     this.ledbar = null;
     this.lights = new Map();
     this.listeners = new Set();
     this.topics = new Map(config.sensors.map(sensor => [sensor.topic, sensor]));
+    this.doorContactTopics = new Map((config.doorContacts || []).map(contact => [contact.topic, contact]));
     this.ledbarTopic = config.ledbar?.topic;
     this.lightTopics = new Map((config.lights || []).map(light => [light.topic, light]));
   }
@@ -38,7 +42,7 @@ export class HomeZigbeeSensorRuntime {
         this.connectionActive = true;
         const cycle = ++this.connectionCycle;
         let completed = false;
-        this.client.subscribe([...this.topics.keys(), this.ledbarTopic, ...this.lightTopics.keys()].filter(Boolean), { qos: 0 }, (error, granted) => {
+        this.client.subscribe([...this.topics.keys(), ...this.doorContactTopics.keys(), this.config.bridgeDevicesTopic, this.ledbarTopic, ...this.lightTopics.keys()].filter(Boolean), { qos: 0 }, (error, granted) => {
           if (this.stopped || !this.connectionActive || cycle !== this.connectionCycle || completed) return;
           completed = true;
           this.connected = !error && !granted?.some(subscription => subscription.qos === 128);
@@ -61,10 +65,21 @@ export class HomeZigbeeSensorRuntime {
       this.client.on('close', disconnect);
       this.client.on('message', (topic, bytes) => {
         const sensor = this.topics.get(topic);
+        const doorContact = this.doorContactTopics.get(topic);
         const light = this.lightTopics.get(topic);
-        if ((!sensor && topic !== this.ledbarTopic && !light) || this.stopped) return;
+        if ((!sensor && !doorContact && topic !== this.config.bridgeDevicesTopic && topic !== this.ledbarTopic && !light) || this.stopped) return;
         let payload;
         try { payload = JSON.parse(bytes.toString()); } catch { return; }
+        if (topic === this.config.bridgeDevicesTopic) {
+          if (!Array.isArray(payload)) return;
+          for (const contact of this.config.doorContacts || []) {
+            const device = payload.find(item => item?.friendly_name === contact.friendlyName);
+            const identity = normalizeZigbeeDeviceIdentity(device);
+            if (identity) this.doorIdentities.set(contact.id, identity);
+          }
+          this.notify();
+          return;
+        }
         if (topic === this.ledbarTopic) {
           const state = typeof payload.state === 'string' ? payload.state.toUpperCase() : null;
           const brightness = Number.isInteger(payload.brightness) && payload.brightness >= 0 && payload.brightness <= 254 ? payload.brightness : null;
@@ -81,6 +96,13 @@ export class HomeZigbeeSensorRuntime {
           const state = typeof payload.state === 'string' ? payload.state.toUpperCase() : null;
           if (!['ON', 'OFF'].includes(state)) return;
           this.lights.set(light.id, { state, updatedAt: new Date(this.now()).toISOString() });
+          this.notify();
+          return;
+        }
+        if (doorContact) {
+          const snapshot = normalizeDoorContactPayload(payload, this.doorContacts.get(doorContact.id), new Date(this.now()).toISOString());
+          if (!snapshot) return;
+          this.doorContacts.set(doorContact.id, snapshot);
           this.notify();
           return;
         }
@@ -104,6 +126,26 @@ export class HomeZigbeeSensorRuntime {
       const age = now - Date.parse(snapshot.updatedAt);
       const online = Number.isFinite(age) && age >= 0 && age <= this.config.freshnessMs;
       return [sensor.id, { ...snapshot, name: sensor.name, online, available: this.connected && online }];
+    }));
+  }
+  readDoorContactSnapshot() {
+    const now = this.now();
+    const identityCount = new Map();
+    for (const identity of this.doorIdentities.values()) if (identity?.ieeeAddress) identityCount.set(identity.ieeeAddress, (identityCount.get(identity.ieeeAddress) || 0) + 1);
+    return Object.fromEntries((this.config.doorContacts || []).map(contact => {
+      const snapshot = this.doorContacts.get(contact.id) || { contact: null, tamper: null, batteryLow: null, battery: null, voltage: null, linkQuality: null, updatedAt: null };
+      const age = now - Date.parse(snapshot.updatedAt);
+      const online = this.connected && Number.isFinite(age) && age >= 0 && age <= this.config.freshnessMs;
+      const identity = this.doorIdentities.get(contact.id) || null;
+      const identityStatus = !identity ? 'unknown' : identityCount.get(identity.ieeeAddress) > 1 ? 'duplicate' : identity.model !== contact.model || identity.manufacturer !== contact.manufacturer ? 'model_mismatch' : 'verified';
+      return [contact.id, {
+        id: contact.id, friendlyName: contact.friendlyName, topic: contact.topic, model: contact.model, manufacturer: contact.manufacturer, protocol: 'Zigbee',
+        identity: { ieeeAddress: identity?.ieeeAddress ?? null }, identityStatus, reportedModel: identity?.model ?? null, reportedManufacturer: identity?.manufacturer ?? null,
+        contact: snapshot.contact ?? null, closed: snapshot.contact ?? null, tamper: snapshot.tamper ?? null,
+        tamperState: snapshot.tamper === true ? 'detected' : snapshot.tamper === false ? 'normal' : 'unknown',
+        batteryLow: snapshot.batteryLow ?? null, battery: snapshot.battery ?? null, voltage: snapshot.voltage ?? null, linkQuality: snapshot.linkQuality ?? null,
+        updatedAt: snapshot.updatedAt ?? null, online, available: online, reason: online ? null : snapshot.updatedAt ? this.connected ? 'stale' : 'broker_offline' : 'no_data',
+      }];
     }));
   }
   readLedbarSnapshot() {
