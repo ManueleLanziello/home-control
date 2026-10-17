@@ -38,4 +38,5 @@ test('the floorplan forwards its existing Home snapshot updates to alarm DW mark
   assert.match(floorplan, /alarmControls\.setMotionSensor\(state\.motionSensor\)/);
   assert.match(alarm, /element\.dataset\.tamperState = realContact \? contact\.tamperState \|\| 'unknown' : ''/);
   assert.match(alarm, /element\.classList\.toggle\('is-alarm', !realContact && !realMotion && visualState === 'alarm'\)/);
+  assert.match(alarm, /function showSensor\(id\)[\s\S]*const dialog = document\.createElement\('dialog'\); dialog\.className = 'sensor-dialog';[\s\S]*dialog\.showModal\(\)/);
 });
