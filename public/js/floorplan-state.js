@@ -36,6 +36,7 @@ export function createFloorplanState() {
     boiler: { on: null, mode: null },
     hood: { online: false, power: null, fanSpeed: null, light: null, operatingStatus: null, updatedAt: null },
     ledbar: { state: null, brightness: null, online: false, available: false, updatedAt: null },
+    doorContacts: {},
     devices: {},
     mobileDevices: [],
   };
@@ -159,6 +160,7 @@ export function createFloorplanState() {
       applyThermostat(home.thermostat);
       applyHood(home.hood);
       if (home.ledbar) state.ledbar = { ...state.ledbar, ...home.ledbar };
+      state.doorContacts = home.doorContacts && typeof home.doorContacts === 'object' ? structuredClone(home.doorContacts) : {};
       if (home.devices && typeof home.devices === 'object') state.devices = structuredClone(home.devices);
       state.mobileDevices = Array.isArray(home.mobileDevices) ? structuredClone(home.mobileDevices) : [];
       for (const listener of listeners) listener(this.snapshot());
