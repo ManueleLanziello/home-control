@@ -22,7 +22,7 @@ import { HomeZigbeeSensorRuntime } from './src/zigbee-sensor-runtime.js';
 import { ZIGBEE_SENSOR_CONFIG } from './config/zigbee-sensors.js';
 import { WEATHER_CONFIG } from './config/weather.js';
 import { WeatherService } from './src/weather-service.js';
-import { AlarmSimulationStore } from './src/alarm-simulation.js';
+import { AlarmRuntime } from './src/alarm-runtime.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_ROOT = path.join(ROOT, 'public');
@@ -33,7 +33,7 @@ const HOST = process.env.HOME_CONTROL_HOST || '0.0.0.0';
 const HARDWARE_FILE = path.join(ROOT, 'data', 'config', 'hardware.json');
 const LOCAL_HARDWARE_FILE = path.join(ROOT, 'data', 'config', 'hardware-local.json');
 const ROLE_FILE = path.join(ROOT, 'data', 'config', 'device-roles.json');
-const ALARM_SIMULATION_FILE = path.join(ROOT, 'data', 'config', 'alarm-simulation.json');
+const ALARM_STATE_FILE = path.join(ROOT, 'data', 'config', 'alarm-state.json');
 
 const STATIC_FILES = new Map([
   ['/', ['index.html', 'text/html; charset=utf-8']],
@@ -208,7 +208,7 @@ export function createHomeControlServer({
   cameraRuntime = null,
   cameraWakeScheduler = null,
   weatherService = null,
-  alarmStore = new AlarmSimulationStore({ filePath: ALARM_SIMULATION_FILE }),
+  alarmStore = new AlarmRuntime({ filePath: ALARM_STATE_FILE }),
 } = {}) {
   let activeThermostatRuntime = thermostatRuntime;
   let observedThermostatRuntime = null;
@@ -292,13 +292,22 @@ export function createHomeControlServer({
     readThermostat: () => getThermostatRuntime().readSnapshot(),
   });
 
+  const synchronizeAlarmSensors = () => {
+    const pending = alarmStore.syncSensors?.({
+      doorContacts: zigbeeRuntime?.readDoorContactSnapshot?.() || {},
+      motionSensor: zigbeeRuntime?.readMotionSensorSnapshot?.() || null,
+    });
+    pending?.catch(() => {});
+  };
   const unsubscribeZigbee = zigbeeRuntime?.subscribeState(kind => {
     homeStatus?.invalidate();
     if (kind === 'ledbar' || kind === 'connection') publishLedbarState();
     if (kind === 'lights' || kind === 'connection') publishLightState();
     if (kind === 'doorContacts' || kind === 'connection') publishDoorContactState();
     if (kind === 'motionSensor' || kind === 'connection') publishMotionSensorState();
+    if (kind === 'doorContacts' || kind === 'motionSensor' || kind === 'connection') void synchronizeAlarmSensors();
   });
+  void synchronizeAlarmSensors();
   if (ownerEnabled()) void startPondRuntime();
   const handleRequest = async (request, response) => {
     const url = new URL(request.url || '/', 'http://localhost');
@@ -449,10 +458,6 @@ export function createHomeControlServer({
       if (request.method !== 'PUT') return sendJson(response, 405, { error: 'Metodo non consentito' });
       try { return sendJson(response, 200, await alarmStore.setSettings(await readJson(request))); }
       catch (error) { return sendJson(response, 400, { error: error.message }); }
-    }
-    if (url.pathname === '/api/alarm/simulation') {
-      if (request.method !== 'PUT') return sendJson(response, 405, { error: 'Metodo non consentito' });
-      return sendJson(response, 200, await alarmStore.simulate(await readJson(request)));
     }
     const cameraImageMatch = /^\/api\/cameras\/(C[12])\/image$/.exec(url.pathname);
     if (cameraImageMatch) {
