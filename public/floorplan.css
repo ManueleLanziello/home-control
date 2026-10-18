@@ -39,10 +39,33 @@ button.floorplan-marker { pointer-events: auto; cursor: pointer; }
 .sensor-dialog header { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
 .sensor-dialog h2 { margin: 0; font-size: 1.1rem; }
 .sensor-dialog p { margin: 4px 0 0; color: #8eacbd; font-size: .8rem; }
-.sensor-dialog button { width: 34px; height: 34px; border: 1px solid #476b83; border-radius: 9px; background: #132d40; color: inherit; cursor: pointer; }
+.sensor-dialog > header > button { flex: 0 0 auto; width: 34px; height: 34px; border: 1px solid #476b83; border-radius: 9px; background: #132d40; color: inherit; cursor: pointer; }
 .sensor-dialog section { display: grid; gap: 8px; }
 .sensor-dialog section div { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 9px; border-radius: 9px; background: #071826; font-size: .85rem; }
 .sensor-dialog section span { color: #8eacbd; }
+.alarm-password-dialog { width: min(420px, calc(100vw - 24px)); }
+.alarm-password-dialog form { display: grid; gap: 14px; }
+.alarm-password-dialog label { display: grid; gap: 7px; color: #bfe7f7; font-size: .9rem; }
+.alarm-password-dialog input { box-sizing: border-box; width: 100%; min-height: 44px; padding: 0 12px; border: 1px solid #476b83; border-radius: 8px; color: inherit; background: #071826; font: inherit; }
+.alarm-password-dialog [data-error] { display: block; min-height: 1.2em; color: #ffcf8b; }
+.alarm-password-dialog footer, .siren-config-dialog footer { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.alarm-password-dialog footer button, .siren-config-dialog footer button { min-height: 44px; padding: 8px 12px; border: 1px solid #476b83; border-radius: 9px; color: inherit; background: #132d40; font: inherit; font-weight: 700; cursor: pointer; }
+.alarm-password-dialog footer button:focus-visible, .siren-config-dialog button:focus-visible, .siren-config-dialog input:focus-visible, .siren-config-dialog select:focus-visible { outline: 2px solid #8adeff; outline-offset: 2px; }
+.siren-config-dialog { width: min(540px, calc(100vw - 24px)); max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); overflow-y: auto; }
+.siren-config-dialog [data-siren-readonly] { margin-bottom: 14px; }
+.siren-config-form { display: grid; gap: 12px; }
+.siren-config-form fieldset { display: grid; gap: 10px; margin: 0; padding: 14px; border: 1px solid #284e64; border-radius: 10px; }
+.siren-config-form legend { padding: 0 6px; color: #bfe7f7; font-size: .82rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+.siren-config-form label { display: grid; grid-template-columns: minmax(0, 1fr) minmax(156px, 1.1fr); align-items: center; gap: 12px; color: #bfe7f7; font-size: .9rem; }
+.siren-config-form input, .siren-config-form select { box-sizing: border-box; min-width: 0; min-height: 40px; width: 100%; padding: 0 10px; border: 1px solid #476b83; border-radius: 8px; color: inherit; background: #071826; font: inherit; }
+.siren-config-form input[type="checkbox"] { justify-self: end; width: 22px; min-height: 22px; height: 22px; padding: 0; accent-color: #29df92; }
+.siren-config-form label > span { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.siren-config-form label > span input { flex: 1; }
+.siren-config-form em { color: #8eacbd; font-size: .82rem; font-style: normal; white-space: nowrap; }
+.siren-config-form [data-save-status], .siren-test-controls [data-test-status] { display: block; min-height: 1.2em; color: #ffcf8b; font-size: .82rem; }
+.siren-test-controls { gap: 10px !important; margin-top: 14px; padding-top: 14px; border-top: 1px solid #284e64; }
+.siren-config-dialog button:disabled { opacity: .55; cursor: default; }
+@media (max-width: 420px) { .siren-config-dialog { padding: 14px; } .siren-config-form label { grid-template-columns: 1fr; gap: 6px; } .siren-config-form input[type="checkbox"] { justify-self: start; } }
 .camera-events-dialog { width: min(390px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); box-sizing: border-box; padding: 16px; margin: auto; border: 1px solid #3c718c; border-radius: 20px; background: #081522; color: #e5f3fc; overflow: auto; }
 .camera-events-dialog::backdrop { background: #0009; }
 .camera-events-dialog header { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
