@@ -232,7 +232,11 @@ export function createHomeControlServer({
     const payload = `event: state\ndata: ${JSON.stringify({ siren: zigbeeRuntime?.readSirenSnapshot?.() || null })}\n\n`;
     for (const client of alarmEventClients) { try { client.write(payload); } catch { alarmEventClients.delete(client); } }
   };
-  const unsubscribeAlarm = alarmStore.subscribe(event => { publishAlarmEvent(event); if (event.type === 'active') sirenController.activate(); });
+  const unsubscribeAlarm = alarmStore.subscribe(event => {
+    publishAlarmEvent(event);
+    if (event.type === 'active') sirenController.activate();
+    else if (['arming', 'partial', 'armed', 'intrusion'].includes(event.type)) void sirenController.stopTest?.();
+  });
   const publishLedbarState = () => {
     const payload = `data: ${JSON.stringify(zigbeeRuntime?.readLedbarSnapshot?.() || null)}\n\n`;
     for (const client of ledbarEventClients) {
@@ -470,6 +474,21 @@ export function createHomeControlServer({
       const payload = await readJson(request);
       try { return sendJson(response, 202, await zigbeeRuntime?.setSirenConfiguration(payload)); }
       catch (error) { return sendJson(response, 400, { error: error.message === 'Sirena non disponibile' ? error.message : 'Configurazione sirena non valida' }); }
+    }
+    if (url.pathname === '/api/alarm/siren/test') {
+      if (!['POST', 'DELETE'].includes(request.method)) return sendJson(response, 405, { error: 'Metodo non consentito' });
+      const token = String(request.headers.authorization || '').replace(/^Bearer\s+/i, '');
+      if (!alarmAuthorization.hasSirenSession(token)) return sendJson(response, 401, { error: 'Autorizzazione non valida' });
+      if (request.method === 'DELETE') {
+        const stopped = await sirenController.stopTest?.();
+        return sendJson(response, 202, { stopped: stopped === true, message: 'Comando STOP inviato' });
+      }
+      const snapshot = await alarmStore.read();
+      if (snapshot.mode !== 'none' || snapshot.intrusion?.active) return sendJson(response, 409, { error: 'Test consentito soltanto con antifurto disinserito' });
+      try {
+        const started = await sirenController.startTest?.();
+        return started ? sendJson(response, 202, { testActive: true, durationSeconds: 3 }) : sendJson(response, 409, { error: 'Test sirena non disponibile' });
+      } catch { return sendJson(response, 503, { error: 'Sirena non disponibile' }); }
     }
     if (url.pathname === '/api/alarm/events') {
       if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });

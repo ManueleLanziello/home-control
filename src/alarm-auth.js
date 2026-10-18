@@ -22,6 +22,7 @@ export class AlarmAuthorization {
     this.failures.delete(key); return true;
   }
   createSirenSession(password, request) { if (!this.verify(password, request)) return null; const token = this.randomUUID(); const expiresAt = this.now() + SESSION_MS; this.sessions.set(token, { scope: 'siren-config', expiresAt }); return { token, expiresAt }; }
+  hasSirenSession(token) { const session = this.sessions.get(text(token)); return session?.scope === 'siren-config' && session.expiresAt > this.now(); }
   consumeSirenSession(token) { const value = text(token); const session = this.sessions.get(value); this.sessions.delete(value); return session?.scope === 'siren-config' && session.expiresAt > this.now(); }
   revokeSirenSession(token) { this.sessions.delete(text(token)); }
 }
