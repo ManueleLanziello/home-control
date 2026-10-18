@@ -13,7 +13,7 @@ function fixture() {
   let now = Date.parse('2026-10-18T12:00:00Z');
   const client = new EventEmitter(); const subscriptions = []; const publications = [];
   client.subscribe = (topics, options, callback) => { subscriptions.push(topics); callback(null, topics.map(topic => ({ topic, qos: 0 }))); };
-  client.publish = (...args) => publications.push(args); client.end = () => {};
+  client.publish = (...args) => { publications.push(args); args.at(-1)?.(null); }; client.end = () => {};
   const runtime = new HomeZigbeeSensorRuntime({ now: () => now, connect: () => client });
   const message = (payload, packet = {}) => client.emit('message', 'zigbee2mqtt/terrazzo-SR1', Buffer.from(JSON.stringify(payload)), packet);
   return { runtime, client, subscriptions, publications, message, now: () => now, advance: ms => { now += ms; } };
@@ -24,11 +24,19 @@ test('SR1 osserva il catalogo e tutta la telemetria senza un IEEE inventato o co
   assert.ok(f.subscriptions[0].includes('zigbee2mqtt/terrazzo-SR1'));
   assert.equal(f.publications.some(([topic]) => String(topic).includes('terrazzo-SR1')), false);
   f.client.emit('message', 'zigbee2mqtt/bridge/devices', Buffer.from(JSON.stringify([{ friendly_name: 'terrazzo-SR1', ieee_address: '0x00124b0025010203', definition: { model: 'SNZB-09P', vendor: 'SONOFF' } }])));
-  f.message({ power_supply_mode: 'battery', battery: 15, alarm_sound_enable: 'ON', alarm_light_enable: 'OFF', tamper: false, alarm_sound_type: 'burglar', alarm_volume_level: 'high', alarm_duration: 180, linkquality: 112 });
+  f.message({ power_supply_mode: 'battery', battery: 15, alarm_sound_enable: 'ON', alarm_light_enable: 'OFF', tamper: false, alarm_sound_type: 'siren_classic', alarm_volume_level: 'high', alarm_duration: 180, linkquality: 112 });
   const siren = f.runtime.readSirenSnapshot();
   assert.equal(siren.id, 'SR1'); assert.equal(siren.identity.ieeeAddress, '0x00124b0025010203'); assert.equal(siren.identityStatus, 'verified');
-  assert.equal(siren.sirenOn, null); assert.equal(siren.powerSupplyMode, 'battery'); assert.equal(siren.battery, 15); assert.equal(siren.soundEnabled, true); assert.equal(siren.lightEnabled, false); assert.equal(siren.tamperState, 'normal'); assert.equal(siren.soundType, 'burglar'); assert.equal(siren.volumeLevel, 'high'); assert.equal(siren.duration, 180); assert.equal(siren.linkQuality, 112); assert.equal(siren.available, true);
+  assert.equal(siren.sirenOn, null); assert.equal(siren.powerSupplyMode, 'battery'); assert.equal(siren.battery, 15); assert.equal(siren.soundEnabled, true); assert.equal(siren.lightEnabled, false); assert.equal(siren.tamperState, 'normal'); assert.equal(siren.soundType, 'siren_classic'); assert.equal(siren.volumeLevel, 'high'); assert.equal(siren.duration, 180); assert.equal(siren.linkQuality, 112); assert.equal(siren.available, true);
   assert.equal(f.publications.some(([topic]) => String(topic).includes('terrazzo-SR1')), false);
+});
+
+test('SR1 pubblica solo le cinque impostazioni autorizzate e mai siren_on', async () => {
+  const f = fixture(); f.runtime.start(); f.client.emit('connect');
+  await f.runtime.setSirenConfiguration({ soundEnabled: true, lightEnabled: false, soundType: 'siren_warning', volumeLevel: 'max', duration: 120 });
+  const sirenWrites = f.publications.filter(([topic]) => topic === 'zigbee2mqtt/terrazzo-SR1/set');
+  assert.deepEqual(sirenWrites.map(([, payload]) => JSON.parse(payload)), [{ alarm_sound_enable: 'ON', alarm_light_enable: 'OFF', alarm_sound_type: 'siren_warning', alarm_volume_level: 'max', alarm_duration: 120 }]);
+  await assert.rejects(f.runtime.setSirenConfiguration({ sirenOn: true })); assert.equal(sirenWrites[0][1].includes('siren_on'), false);
 });
 
 test('SR1 preserva pacchetti parziali, tratta retained come storico e segnala offline', () => {

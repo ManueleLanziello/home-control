@@ -135,7 +135,7 @@ test('M1/QM1/LM1 sono identificati da label stabili e ne leggono la geometria da
   assert.match(css, /\.floorplan-weather-card, \.floorplan-weather-current/);
   assert.match(css, /\.floorplan-weather-current-details/);
   assert.match(css, /grid-template-rows: repeat\(3, minmax\(0, 1fr\)\); align-items: center/);
-  assert.match(floorplan, /weatherMinicardDimensions\(weatherCurrentBox, weatherCardBox\)/);
+  assert.match(floorplan, /weatherMinicardDimensions\(weatherCurrentBox, weatherCardBox, weatherIconBox\)/);
   assert.match(css, /font-size: var\(--weather-current-temperature-size\)/);
   assert.match(css, /font-size: var\(--weather-current-condition-size\)/);
   assert.match(css, /font-size: var\(--weather-current-apparent-size\)/);

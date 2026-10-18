@@ -210,6 +210,23 @@ export class HomeZigbeeSensorRuntime {
       reason: available ? null : !snapshot.updatedAt ? 'no_data' : !this.connected ? 'broker_offline' : snapshot.confirmed !== true ? 'historical' : 'stale',
     };
   }
+  setSirenConfiguration(input = {}) {
+    const siren = this.config.siren;
+    if (!siren?.setTopic || !this.client || !this.connected || this.stopped) return Promise.reject(new Error('Sirena non disponibile'));
+    const payload = {};
+    if (typeof input.soundEnabled === 'boolean') payload.alarm_sound_enable = input.soundEnabled ? 'ON' : 'OFF';
+    if (typeof input.lightEnabled === 'boolean') payload.alarm_light_enable = input.lightEnabled ? 'ON' : 'OFF';
+    if (['siren_classic', 'siren_steady', 'siren_rising', 'siren_warning', 'siren_rapid', 'siren_emergency', 'tone_chirp', 'tone_hi_lo', 'tone_intermittent', 'tone_pulse', 'chime_doorbell', 'chime_classic_clock', 'chime_electronic_clock', 'chime_bright', 'chime_soft'].includes(input.soundType)) payload.alarm_sound_type = input.soundType;
+    if (['low', 'medium', 'high', 'max'].includes(input.volumeLevel)) payload.alarm_volume_level = input.volumeLevel;
+    if (Number.isInteger(input.duration) && input.duration >= 1 && input.duration <= 900) payload.alarm_duration = input.duration;
+    if (!Object.keys(payload).length || Object.keys(payload).length !== Object.keys(input).length) return Promise.reject(new Error('Configurazione sirena non valida'));
+    return new Promise((resolve, reject) => this.client.publish(siren.setTopic, JSON.stringify(payload), { qos: 0 }, error => error ? reject(error) : resolve({ pending: true, expected: payload })));
+  }
+  setSirenActive(active) {
+    const siren = this.config.siren;
+    if (!siren?.setTopic || !this.client || !this.connected || this.stopped || typeof active !== 'boolean') return Promise.reject(new Error('Sirena non disponibile'));
+    return new Promise((resolve, reject) => this.client.publish(siren.setTopic, JSON.stringify({ siren_on: active ? 'ON' : 'OFF' }), { qos: 0 }, error => error ? reject(error) : resolve({ published: true })));
+  }
   readLedbarSnapshot() {
     const snapshot = this.ledbar || { state: null, brightness: null, updatedAt: null };
     const age = this.now() - Date.parse(snapshot.updatedAt);

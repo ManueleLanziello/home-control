@@ -17,7 +17,7 @@ export function normalizeSirenPayload(payload, previous = {}, updatedAt = new Da
     ['alarm_sound_enable', 'soundEnabled', onOffOrNull],
     ['alarm_light_enable', 'lightEnabled', onOffOrNull],
     ['tamper', 'tamper', booleanOrNull],
-    ['alarm_sound_type', 'soundType', enumOrNull(['burglar', 'fire', 'emergency', 'police', 'panic', 'doorbell'])],
+    ['alarm_sound_type', 'soundType', enumOrNull(['siren_classic', 'siren_steady', 'siren_rising', 'siren_warning', 'siren_rapid', 'siren_emergency', 'tone_chirp', 'tone_hi_lo', 'tone_intermittent', 'tone_pulse', 'chime_doorbell', 'chime_classic_clock', 'chime_electronic_clock', 'chime_bright', 'chime_soft'])],
     ['alarm_volume_level', 'volumeLevel', enumOrNull(['low', 'medium', 'high', 'max'])],
     ['alarm_duration', 'duration', value => integerOrNull(value, 1, 900)],
     ['linkquality', 'linkQuality', value => integerOrNull(value, 0, 255)],

@@ -23,6 +23,8 @@ import { ZIGBEE_SENSOR_CONFIG } from './config/zigbee-sensors.js';
 import { WEATHER_CONFIG } from './config/weather.js';
 import { WeatherService } from './src/weather-service.js';
 import { AlarmRuntime } from './src/alarm-runtime.js';
+import { AlarmAuthorization } from './src/alarm-auth.js';
+import { AlarmSirenController } from './src/alarm-siren-controller.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_ROOT = path.join(ROOT, 'public');
@@ -209,6 +211,8 @@ export function createHomeControlServer({
   cameraWakeScheduler = null,
   weatherService = null,
   alarmStore = new AlarmRuntime({ filePath: ALARM_STATE_FILE }),
+  alarmAuthorization = new AlarmAuthorization(),
+  alarmSirenController = null,
 } = {}) {
   let activeThermostatRuntime = thermostatRuntime;
   let observedThermostatRuntime = null;
@@ -219,6 +223,7 @@ export function createHomeControlServer({
   const doorContactEventClients = new Set();
   const motionSensorEventClients = new Set();
   const alarmEventClients = new Set();
+  const sirenController = alarmSirenController || new AlarmSirenController({ send: active => zigbeeRuntime?.setSirenActive(active), logError: () => {} });
   const publishAlarmEvent = event => {
     const payload = `id: ${event.id}\ndata: ${JSON.stringify(event)}\n\n`;
     for (const client of alarmEventClients) { try { client.write(payload); } catch { alarmEventClients.delete(client); } }
@@ -227,7 +232,7 @@ export function createHomeControlServer({
     const payload = `event: state\ndata: ${JSON.stringify({ siren: zigbeeRuntime?.readSirenSnapshot?.() || null })}\n\n`;
     for (const client of alarmEventClients) { try { client.write(payload); } catch { alarmEventClients.delete(client); } }
   };
-  const unsubscribeAlarm = alarmStore.subscribe(publishAlarmEvent);
+  const unsubscribeAlarm = alarmStore.subscribe(event => { publishAlarmEvent(event); if (event.type === 'active') sirenController.activate(); });
   const publishLedbarState = () => {
     const payload = `data: ${JSON.stringify(zigbeeRuntime?.readLedbarSnapshot?.() || null)}\n\n`;
     for (const client of ledbarEventClients) {
@@ -448,6 +453,24 @@ export function createHomeControlServer({
       if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
       return sendJson(response, 200, { ...(await alarmStore.read()), serverNow: Date.now() });
     }
+    if (url.pathname === '/api/alarm/siren/authorize') {
+      if (request.method !== 'POST') return sendJson(response, 405, { error: 'Metodo non consentito' });
+      const session = alarmAuthorization.createSirenSession((await readJson(request))?.password, request);
+      return session ? sendJson(response, 200, session) : sendJson(response, 401, { error: 'Autorizzazione non valida' });
+    }
+    if (url.pathname === '/api/alarm/siren/session') {
+      if (request.method !== 'DELETE') return sendJson(response, 405, { error: 'Metodo non consentito' });
+      alarmAuthorization.revokeSirenSession(String(request.headers.authorization || '').replace(/^Bearer\s+/i, ''));
+      return sendJson(response, 204, {});
+    }
+    if (url.pathname === '/api/alarm/siren/config') {
+      if (request.method !== 'PUT') return sendJson(response, 405, { error: 'Metodo non consentito' });
+      const token = String(request.headers.authorization || '').replace(/^Bearer\s+/i, '');
+      if (!alarmAuthorization.consumeSirenSession(token)) return sendJson(response, 401, { error: 'Autorizzazione non valida' });
+      const payload = await readJson(request);
+      try { return sendJson(response, 202, await zigbeeRuntime?.setSirenConfiguration(payload)); }
+      catch (error) { return sendJson(response, 400, { error: error.message === 'Sirena non disponibile' ? error.message : 'Configurazione sirena non valida' }); }
+    }
     if (url.pathname === '/api/alarm/events') {
       if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
       const snapshot = await alarmStore.read(); const lastId = Number(request.headers['last-event-id']);
@@ -459,7 +482,9 @@ export function createHomeControlServer({
     }
     if (url.pathname === '/api/alarm/mode') {
       if (request.method !== 'PUT') return sendJson(response, 405, { error: 'Metodo non consentito' });
-      try { return sendJson(response, 200, await alarmStore.selectMode((await readJson(request)).mode)); }
+      const payload = await readJson(request);
+      if (payload?.mode === 'none' && !alarmAuthorization.verify(payload.password, request)) return sendJson(response, 401, { error: 'Autorizzazione non valida' });
+      try { const wasActive = (await alarmStore.read()).intrusion?.active === true; const next = await alarmStore.selectMode(payload?.mode); if (payload?.mode === 'none') void sirenController.stop({ force: wasActive }); return sendJson(response, 200, next); }
       catch (error) { return sendJson(response, 409, { error: error.message, blocked: error.blocked || [] }); }
     }
     if (url.pathname === '/api/alarm/settings') {

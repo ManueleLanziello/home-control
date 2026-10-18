@@ -39,7 +39,8 @@ test('il frontend conserva soltanto il payload normalizzato ricevuto', () => {
 
 test('la configurazione esclude il dispositivo ritirato D13 e usa etichette, mai coordinate', () => {
   assert.equal(floorplanConfig.mappings.devices, 'LAYER-DISPOSITIVI.svg');
-  const activeMarkers = Array.from({ length: 18 }, (_, index) => index + 1).filter(index => index !== 13);
+  // D11/D12 are camera inventory entries, rendered by the dedicated camera layer.
+  const activeMarkers = Array.from({ length: 18 }, (_, index) => index + 1).filter(index => ![11, 12, 13].includes(index));
   assert.deepEqual(floorplanConfig.devices.map(device => device.id), activeMarkers.map(index => `D${index}`));
   assert.deepEqual(floorplanConfig.devices.map(device => device.marker.label), activeMarkers.map(String));
 });

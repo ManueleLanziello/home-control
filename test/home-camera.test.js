@@ -198,7 +198,7 @@ test('a C2 snapshot error is isolated from C1 and the rest of Home-Control', asy
     const snapshot = await runtime.snapshot();
     assert.equal(snapshot.C1.status, 'READY'); assert.equal(snapshot.C1.available, false);
     assert.equal(snapshot.C2.status, 'ERROR'); assert.equal(snapshot.C2.available, false); assert.equal(snapshot.C2.alias, 'Pond');
-    assert.equal(snapshot.C2.battery.available, false); assert.equal(snapshot.C2.events.available, false);
+    assert.equal(snapshot.C2.battery.available, false); assert.equal(snapshot.C2.events.available, true);
   } finally { await runtime.close(); }
 });
 
@@ -222,16 +222,18 @@ test('telemetria read-only C1/C2 è indipendente, in cache e non blocca lo snaps
   try {
     const initial = await runtime.snapshot();
     assert.equal(initial.C1.battery.available, false);
-    assert.equal(initial.C2.events.available, false);
+  // Gli eventi provengono dal registro locale degli eventi non letti.
+  assert.equal(initial.C2.events.available, true);
     assert.deepEqual(calls, []);
     await runtime.refreshTelemetryForLive(records[0]);
     const updated = await runtime.snapshot();
     assert.equal(updated.C1.online, true);
     assert.equal(updated.C2.online, null);
     assert.deepEqual(updated.C1.battery, { available: true, percent: 72, charging: true });
-    assert.deepEqual(updated.C1.events, { available: true, count: 3, windowHours: 12 });
+    // Il conteggio UI viene dal registro locale degli eventi non letti, non dalla telemetria grezza.
+    assert.deepEqual(updated.C1.events, { available: true, count: 0, windowHours: 12 });
     assert.equal(updated.C2.battery.available, false);
-    assert.equal(updated.C2.events.available, false);
+    assert.equal(updated.C2.events.available, true);
     assert.deepEqual(calls, ['192.0.2.1']);
   } finally { await runtime.close(); }
 });
@@ -409,7 +411,8 @@ test('getter Alarm/Events falliti non cancellano Privacy, Detection e batteria',
     assert.equal(state.detection, false);
     assert.equal(state.alarm.enabled, true);
     assert.equal(state.battery.percent, 77);
-    assert.equal(state.events.count, 3);
+    // Event badges use the local unread-event store, not stale telemetry counts.
+    assert.equal(state.events.count, 0);
   } finally { await runtime.close(); }
 });
 
