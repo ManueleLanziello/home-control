@@ -38,6 +38,7 @@ export function createFloorplanState() {
     ledbar: { state: null, brightness: null, online: false, available: false, updatedAt: null },
     doorContacts: {},
     motionSensor: null,
+    siren: null,
     devices: {},
     mobileDevices: [],
   };
@@ -171,6 +172,7 @@ export function createFloorplanState() {
       if (home.ledbar) state.ledbar = { ...state.ledbar, ...home.ledbar };
       state.doorContacts = home.doorContacts && typeof home.doorContacts === 'object' ? structuredClone(home.doorContacts) : {};
       state.motionSensor = home.motionSensor && typeof home.motionSensor === 'object' ? structuredClone(home.motionSensor) : null;
+      state.siren = home.siren && typeof home.siren === 'object' ? structuredClone(home.siren) : null;
       if (home.devices && typeof home.devices === 'object') state.devices = structuredClone(home.devices);
       state.mobileDevices = Array.isArray(home.mobileDevices) ? structuredClone(home.mobileDevices) : [];
       for (const listener of listeners) listener(this.snapshot());

@@ -223,6 +223,10 @@ export function createHomeControlServer({
     const payload = `id: ${event.id}\ndata: ${JSON.stringify(event)}\n\n`;
     for (const client of alarmEventClients) { try { client.write(payload); } catch { alarmEventClients.delete(client); } }
   };
+  const publishAlarmSirenState = () => {
+    const payload = `event: state\ndata: ${JSON.stringify({ siren: zigbeeRuntime?.readSirenSnapshot?.() || null })}\n\n`;
+    for (const client of alarmEventClients) { try { client.write(payload); } catch { alarmEventClients.delete(client); } }
+  };
   const unsubscribeAlarm = alarmStore.subscribe(publishAlarmEvent);
   const publishLedbarState = () => {
     const payload = `data: ${JSON.stringify(zigbeeRuntime?.readLedbarSnapshot?.() || null)}\n\n`;
@@ -284,6 +288,7 @@ export function createHomeControlServer({
     readZigbeeSensors: zigbeeRuntime ? () => zigbeeRuntime.readSnapshot() : null,
     readZigbeeDoorContacts: zigbeeRuntime ? () => zigbeeRuntime.readDoorContactSnapshot() : null,
     readZigbeeMotionSensor: zigbeeRuntime ? () => zigbeeRuntime.readMotionSensorSnapshot() : null,
+    readZigbeeSiren: zigbeeRuntime ? () => zigbeeRuntime.readSirenSnapshot() : null,
     readZigbeeLedbar: zigbeeRuntime ? () => zigbeeRuntime.readLedbarSnapshot() : null,
     readZigbeeLights: zigbeeRuntime ? () => zigbeeRuntime.readLightsSnapshot() : null,
     readCameras: () => cameras.snapshot(),
@@ -296,6 +301,7 @@ export function createHomeControlServer({
     const pending = alarmStore.syncSensors?.({
       doorContacts: zigbeeRuntime?.readDoorContactSnapshot?.() || {},
       motionSensor: zigbeeRuntime?.readMotionSensorSnapshot?.() || null,
+      siren: zigbeeRuntime?.readSirenSnapshot?.() || null,
     });
     pending?.catch(() => {});
   };
@@ -305,7 +311,8 @@ export function createHomeControlServer({
     if (kind === 'lights' || kind === 'connection') publishLightState();
     if (kind === 'doorContacts' || kind === 'connection') publishDoorContactState();
     if (kind === 'motionSensor' || kind === 'connection') publishMotionSensorState();
-    if (kind === 'doorContacts' || kind === 'motionSensor' || kind === 'connection') void synchronizeAlarmSensors();
+    if (kind === 'siren' || kind === 'connection') publishAlarmSirenState();
+    if (kind === 'doorContacts' || kind === 'motionSensor' || kind === 'siren' || kind === 'connection') void synchronizeAlarmSensors();
   });
   void synchronizeAlarmSensors();
   if (ownerEnabled()) void startPondRuntime();
@@ -446,6 +453,7 @@ export function createHomeControlServer({
       const snapshot = await alarmStore.read(); const lastId = Number(request.headers['last-event-id']);
       response.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
       response.write('retry: 2000\n\n');
+      response.write(`event: state\ndata: ${JSON.stringify({ siren: zigbeeRuntime?.readSirenSnapshot?.() || null })}\n\n`);
       if (Number.isInteger(lastId)) for (const event of snapshot.events.filter(item => Number(item.id) > lastId)) response.write(`id: ${event.id}\ndata: ${JSON.stringify(event)}\n\n`);
       alarmEventClients.add(response); request.on('close', () => alarmEventClients.delete(response)); return;
     }

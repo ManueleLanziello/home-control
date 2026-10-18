@@ -28,7 +28,7 @@ function fixture() {
 
 test('MQTT sottoscrive sensori, LB1 e luci configurate senza alterare il parsing dei sensori', () => {
   const f = fixture(); f.runtime.start(); f.client.emit('connect');
-  assert.deepEqual(f.subscriptions[0], ['zigbee2mqtt/SmartHomeS1', 'zigbee2mqtt/SmartHomeS2', 'zigbee2mqtt/SmartHomeS4', 'zigbee2mqtt/sala-dw1', 'zigbee2mqtt/sala-dw2', 'zigbee2mqtt/sala-dw3', 'zigbee2mqtt/cucina-dw4', 'zigbee2mqtt/cucina-dw5', 'zigbee2mqtt/camera-dw6', 'zigbee2mqtt/bagno-dw7', 'zigbee2mqtt/cameretta-dw8', 'zigbee2mqtt/sala-pr1', 'zigbee2mqtt/bridge/devices', 'zigbee2mqtt/SmartHomeLB1', 'zigbee2mqtt/cucina-L1', 'zigbee2mqtt/camera-L2', 'zigbee2mqtt/bagno-L5', 'zigbee2mqtt/cameretta-L6', 'zigbee2mqtt/giardino-L8', 'zigbee2mqtt/terrazzo-L11']);
+  assert.deepEqual(f.subscriptions[0], ['zigbee2mqtt/SmartHomeS1', 'zigbee2mqtt/SmartHomeS2', 'zigbee2mqtt/SmartHomeS4', 'zigbee2mqtt/sala-dw1', 'zigbee2mqtt/sala-dw2', 'zigbee2mqtt/sala-dw3', 'zigbee2mqtt/cucina-dw4', 'zigbee2mqtt/cucina-dw5', 'zigbee2mqtt/camera-dw6', 'zigbee2mqtt/bagno-dw7', 'zigbee2mqtt/cameretta-dw8', 'zigbee2mqtt/sala-pr1', 'zigbee2mqtt/terrazzo-SR1', 'zigbee2mqtt/bridge/devices', 'zigbee2mqtt/SmartHomeLB1', 'zigbee2mqtt/cucina-L1', 'zigbee2mqtt/camera-L2', 'zigbee2mqtt/bagno-L5', 'zigbee2mqtt/cameretta-L6', 'zigbee2mqtt/giardino-L8', 'zigbee2mqtt/terrazzo-L11']);
   for (const [id, temperature] of [['S1', 20], ['S2', 21], ['S4', 23]]) {
     f.message(`zigbee2mqtt/SmartHome${id}`, { temperature, humidity: 49.9, battery: 100, linkquality: 192 });
     const snapshot = f.runtime.readSnapshot()[id];

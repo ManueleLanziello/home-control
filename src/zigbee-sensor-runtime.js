@@ -2,6 +2,7 @@ import { normalizeSnzb02pPayload } from '@smarthome/core';
 import { ZIGBEE_SENSOR_CONFIG } from '../config/zigbee-sensors.js';
 import { normalizeDoorContactPayload, normalizeZigbeeDeviceIdentity } from './zigbee-door-contact.js';
 import { normalizeMotionSensorPayload } from './zigbee-motion-sensor.js';
+import { normalizeSirenPayload } from './zigbee-siren.js';
 
 export class HomeZigbeeSensorRuntime {
   constructor({ connect, config = ZIGBEE_SENSOR_CONFIG, now = Date.now } = {}) {
@@ -18,12 +19,15 @@ export class HomeZigbeeSensorRuntime {
     this.doorIdentities = new Map();
     this.motionSensor = null;
     this.motionIdentity = null;
+    this.siren = null;
+    this.sirenIdentity = null;
     this.ledbar = null;
     this.lights = new Map();
     this.listeners = new Set();
     this.topics = new Map(config.sensors.map(sensor => [sensor.topic, sensor]));
     this.doorContactTopics = new Map((config.doorContacts || []).map(contact => [contact.topic, contact]));
     this.motionSensorTopic = config.motionSensor?.topic;
+    this.sirenTopic = config.siren?.topic;
     this.ledbarTopic = config.ledbar?.topic;
     this.lightTopics = new Map((config.lights || []).map(light => [light.topic, light]));
   }
@@ -46,7 +50,7 @@ export class HomeZigbeeSensorRuntime {
         this.connectionActive = true;
         const cycle = ++this.connectionCycle;
         let completed = false;
-        this.client.subscribe([...this.topics.keys(), ...this.doorContactTopics.keys(), this.motionSensorTopic, this.config.bridgeDevicesTopic, this.ledbarTopic, ...this.lightTopics.keys()].filter(Boolean), { qos: 0 }, (error, granted) => {
+        this.client.subscribe([...this.topics.keys(), ...this.doorContactTopics.keys(), this.motionSensorTopic, this.sirenTopic, this.config.bridgeDevicesTopic, this.ledbarTopic, ...this.lightTopics.keys()].filter(Boolean), { qos: 0 }, (error, granted) => {
           if (this.stopped || !this.connectionActive || cycle !== this.connectionCycle || completed) return;
           completed = true;
           this.connected = !error && !granted?.some(subscription => subscription.qos === 128);
@@ -71,7 +75,7 @@ export class HomeZigbeeSensorRuntime {
         const sensor = this.topics.get(topic);
         const doorContact = this.doorContactTopics.get(topic);
         const light = this.lightTopics.get(topic);
-        if ((!sensor && !doorContact && topic !== this.motionSensorTopic && topic !== this.config.bridgeDevicesTopic && topic !== this.ledbarTopic && !light) || this.stopped) return;
+        if ((!sensor && !doorContact && topic !== this.motionSensorTopic && topic !== this.sirenTopic && topic !== this.config.bridgeDevicesTopic && topic !== this.ledbarTopic && !light) || this.stopped) return;
         let payload;
         try { payload = JSON.parse(bytes.toString()); } catch { return; }
         if (topic === this.config.bridgeDevicesTopic) {
@@ -83,8 +87,11 @@ export class HomeZigbeeSensorRuntime {
           }
           const motionDevice = payload.find(item => item?.friendly_name === this.config.motionSensor?.friendlyName);
           this.motionIdentity = normalizeZigbeeDeviceIdentity(motionDevice);
+          const sirenDevice = payload.find(item => item?.friendly_name === this.config.siren?.friendlyName);
+          this.sirenIdentity = normalizeZigbeeDeviceIdentity(sirenDevice);
           this.notify('doorContacts');
           this.notify('motionSensor');
+          this.notify('siren');
           return;
         }
         if (topic === this.ledbarTopic) {
@@ -118,6 +125,13 @@ export class HomeZigbeeSensorRuntime {
           if (!snapshot) return;
           this.motionSensor = snapshot;
           this.notify('motionSensor');
+          return;
+        }
+        if (topic === this.sirenTopic) {
+          const snapshot = normalizeSirenPayload(payload, this.siren || {}, new Date(this.now()).toISOString(), packet.retain);
+          if (!snapshot) return;
+          this.siren = snapshot;
+          this.notify('siren');
           return;
         }
         const snapshot = normalizeSnzb02pPayload(payload, { updatedAt: new Date(this.now()).toISOString() });
@@ -175,6 +189,23 @@ export class HomeZigbeeSensorRuntime {
       id: sensor.id, friendlyName: sensor.friendlyName, topic: sensor.topic, model: sensor.model, manufacturer: sensor.manufacturer, protocol: 'Zigbee',
       identity: { ieeeAddress: identity?.ieeeAddress ?? null }, identityStatus, reportedModel: identity?.model ?? null, reportedManufacturer: identity?.manufacturer ?? null,
       occupancy: snapshot.occupancy ?? null, motionTimeout: snapshot.motionTimeout ?? null, illumination: snapshot.illumination ?? null, battery: snapshot.battery ?? null, voltage: snapshot.voltage ?? null, linkQuality: snapshot.linkQuality ?? null,
+      updatedAt: snapshot.updatedAt ?? null, online: available, available, confirmed: snapshot.confirmed === true,
+      reason: available ? null : !snapshot.updatedAt ? 'no_data' : !this.connected ? 'broker_offline' : snapshot.confirmed !== true ? 'historical' : 'stale',
+    };
+  }
+  readSirenSnapshot() {
+    const siren = this.config.siren;
+    if (!siren) return null;
+    const snapshot = this.siren || { sirenOn: null, powerSupplyMode: null, battery: null, soundEnabled: null, lightEnabled: null, tamper: null, soundType: null, volumeLevel: null, duration: null, linkQuality: null, updatedAt: null, confirmed: false };
+    const age = this.now() - Date.parse(snapshot.updatedAt);
+    const fresh = Number.isFinite(age) && age >= 0 && age <= this.config.freshnessMs;
+    const identity = this.sirenIdentity;
+    const identityStatus = !identity ? 'unknown' : identity.model !== siren.model || identity.manufacturer !== siren.manufacturer ? 'model_mismatch' : 'verified';
+    const available = this.connected && snapshot.confirmed === true && fresh;
+    return {
+      id: siren.id, friendlyName: siren.friendlyName, topic: siren.topic, model: siren.model, manufacturer: siren.manufacturer, protocol: 'Zigbee',
+      identity: { ieeeAddress: identity?.ieeeAddress ?? null }, identityStatus, reportedModel: identity?.model ?? null, reportedManufacturer: identity?.manufacturer ?? null,
+      sirenOn: snapshot.sirenOn ?? null, powerSupplyMode: snapshot.powerSupplyMode ?? null, battery: snapshot.battery ?? null, soundEnabled: snapshot.soundEnabled ?? null, lightEnabled: snapshot.lightEnabled ?? null, tamper: snapshot.tamper ?? null, tamperState: snapshot.tamper === true ? 'detected' : snapshot.tamper === false ? 'normal' : 'unknown', soundType: snapshot.soundType ?? null, volumeLevel: snapshot.volumeLevel ?? null, duration: snapshot.duration ?? null, linkQuality: snapshot.linkQuality ?? null,
       updatedAt: snapshot.updatedAt ?? null, online: available, available, confirmed: snapshot.confirmed === true,
       reason: available ? null : !snapshot.updatedAt ? 'no_data' : !this.connected ? 'broker_offline' : snapshot.confirmed !== true ? 'historical' : 'stale',
     };

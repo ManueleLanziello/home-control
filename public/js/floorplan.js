@@ -856,6 +856,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     const render = state => {
       alarmControls.setDoorContacts(state.doorContacts);
       alarmControls.setMotionSensor(state.motionSensor);
+      alarmControls.setSiren(state.siren);
       for (const room of config.rooms) {
         const on = state.lights[room.lightId] === true;
         if (imageLayers.has(room.on)) imageLayers.get(room.on).hidden = !on;

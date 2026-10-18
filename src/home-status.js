@@ -66,8 +66,8 @@ export function normalizeCiarraState(snapshot, now = Date.now()) {
 }
 
 export class HomeStatusRuntime {
-  constructor({ hardwareStore, roleStore, readThermostat, readHood = null, readZigbeeSensors = null, readZigbeeDoorContacts = null, readZigbeeMotionSensor = null, readZigbeeLedbar = null, readZigbeeLights = null, createSensorRuntime, readCameras = null, readPresence = null, now = Date.now, cacheMs = 30_000, timeoutMs = 12_000 }) {
-    Object.assign(this, { hardwareStore, roleStore, readThermostat, readHood, readZigbeeSensors, readZigbeeDoorContacts, readZigbeeMotionSensor, readZigbeeLedbar, readZigbeeLights, readCameras, now, cacheMs, timeoutMs });
+  constructor({ hardwareStore, roleStore, readThermostat, readHood = null, readZigbeeSensors = null, readZigbeeDoorContacts = null, readZigbeeMotionSensor = null, readZigbeeSiren = null, readZigbeeLedbar = null, readZigbeeLights = null, createSensorRuntime, readCameras = null, readPresence = null, now = Date.now, cacheMs = 30_000, timeoutMs = 12_000 }) {
+    Object.assign(this, { hardwareStore, roleStore, readThermostat, readHood, readZigbeeSensors, readZigbeeDoorContacts, readZigbeeMotionSensor, readZigbeeSiren, readZigbeeLedbar, readZigbeeLights, readCameras, now, cacheMs, timeoutMs });
     this.presenceRuntime = new NetworkPresenceRuntime({ now });
     this.readPresence = readPresence || this.presenceRuntime.readInventory.bind(this.presenceRuntime);
     this.createSensorRuntime = createSensorRuntime || (device => new HomeDewinRuntime({ device, client: new TuyaCloudClient({
@@ -142,6 +142,8 @@ export class HomeStatusRuntime {
     try { zigbeeDoorContacts = this.readZigbeeDoorContacts?.(); } catch { /* MQTT must not block the Home snapshot. */ }
     let zigbeeMotionSensor;
     try { zigbeeMotionSensor = this.readZigbeeMotionSensor?.(); } catch { /* MQTT must not block the Home snapshot. */ }
+    let zigbeeSiren;
+    try { zigbeeSiren = this.readZigbeeSiren?.(); } catch { /* MQTT must not block the Home snapshot. */ }
     let zigbeeLights;
     try { zigbeeLights = this.readZigbeeLights?.(); } catch { /* MQTT must not block the Home snapshot. */ }
     const entries = await Promise.all(Object.entries(HOME_ROLES).map(async ([id, role]) => {
@@ -214,6 +216,7 @@ export class HomeStatusRuntime {
       lights: Object.fromEntries(Object.entries(values).filter(([id]) => id.startsWith('L'))),
       doorContacts: zigbeeDoorContacts || {},
       motionSensor: zigbeeMotionSensor || null,
+      siren: zigbeeSiren || null,
       cameras,
       devices: normalizeDeviceStatuses(deviceInventory, { selfOnline: true, ledbar, hood, thermostat, cameras, zigbee: zigbeeSensors, dewin: inventoryDewin, presence }, this.now()),
       mobileDevices: normalizeMobilePresence(inventory, presence),
