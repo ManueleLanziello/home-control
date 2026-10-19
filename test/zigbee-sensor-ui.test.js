@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bindSensorPopupTrigger, sensorReadingLines, sensorPopupRows, showSensorPopup, updateSensorPopup } from '../public/js/sensor-popup.js';
+import { bindSensorPopupTrigger, minimumTemperatureFromDraft, sensorReadingLines, sensorPopupRows, showSensorPopup, updateSensorPopup } from '../public/js/sensor-popup.js';
 
 class Element extends EventTarget {
   constructor(tag) { super(); this.tagName = tag; this.dataset = {}; this.children = []; this.attributes = {}; this.classList = { add() {} }; this.open = false; }
@@ -66,4 +66,39 @@ test('S3 apre il popup Avatto con i soli dati disponibili e la sua soglia grafic
   assert.equal(dialog.querySelector('[data-sensor-model]').textContent, 'Termostato Avatto');
   const rows = dialog.querySelector('[data-sensor-details]').children.map(row => row.children[0].textContent);
   assert.ok(rows.includes('Temperatura')); assert.ok(rows.includes('Stato')); assert.ok(!rows.includes('Batteria'));
+});
+
+test('bozza soglia resta locale durante refresh, accetta virgola e si scarta alla chiusura', async t => {
+  const previousDocument = globalThis.document;
+  const body = new Element('body');
+  globalThis.document = { body, createElement: tag => new Element(tag), querySelector: () => body.children[0] };
+  t.after(() => { globalThis.document = previousDocument; });
+  let saved = null;
+  showSensorPopup('S1', sensor, { minimumTemperature: 18, saveMinimumTemperature: async (id, value) => { saved = { id, value }; return value; } });
+  const dialog = body.children[0]; const input = dialog.querySelector('[data-sensor-minimum-temperature]');
+  assert.equal(input.value, '18');
+  input.value = ''; input.dispatchEvent(new Event('input'));
+  updateSensorPopup({ S1: { ...sensor, temperature: 20 } }, { minimumTemperatures: { S1: 18 }, saveMinimumTemperature: dialog._sensorOptions.saveMinimumTemperature });
+  assert.equal(input.value, '');
+  input.value = '16,5'; input.dispatchEvent(new Event('input'));
+  assert.equal(minimumTemperatureFromDraft(input.value), 16.5);
+  dialog.querySelector('[data-sensor-threshold-form]').dispatchEvent(new Event('submit', { cancelable: true }));
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(saved, { id: 'S1', value: 16.5 });
+  assert.equal(input.value, '16.5');
+  dialog.dispatchEvent(new Event('close'));
+  assert.equal(dialog._thresholdEditing, false);
+});
+
+test('bozza non valida non viene convertita né persa', t => {
+  const previousDocument = globalThis.document;
+  const body = new Element('body');
+  globalThis.document = { body, createElement: tag => new Element(tag), querySelector: () => body.children[0] };
+  t.after(() => { globalThis.document = previousDocument; });
+  showSensorPopup('S2', sensor, { minimumTemperature: 18, saveMinimumTemperature: async () => { throw Error('non deve salvare'); } });
+  const dialog = body.children[0]; const input = dialog.querySelector('[data-sensor-minimum-temperature]');
+  input.value = '16,5.2'; input.dispatchEvent(new Event('input'));
+  dialog.querySelector('[data-sensor-threshold-form]').dispatchEvent(new Event('submit', { cancelable: true }));
+  assert.equal(input.value, '16,5.2');
+  assert.equal(dialog.querySelector('[data-sensor-threshold-status]').textContent, 'Inserisci una soglia valida');
 });

@@ -4,6 +4,12 @@ const temperatureOf = sensor => Number.isFinite(sensor?.temperature) ? sensor.te
 const sensorName = (id, sensor) => sensor?.name || (id === 'S3' ? 'Avatto — Salotto' : `SmartHome${id}`);
 const sensorModel = (id, sensor) => id === 'S3' ? 'Termostato Avatto' : sensor?.model || 'SONOFF SNZB-02P';
 
+export function minimumTemperatureFromDraft(draft) {
+  const text = String(draft ?? '').trim();
+  if (!text) return null;
+  return Number(text.replace(',', '.'));
+}
+
 export function sensorReadingLines(sensor = {}) {
   return [`${number(temperatureOf(sensor))} °C`, `${number(sensor.humidity)} %`];
 }
@@ -33,20 +39,35 @@ function renderPopup(dialog, id, sensor = {}, options = {}) {
     details.append(row);
   }
   const input = dialog.querySelector('[data-sensor-minimum-temperature]');
-  input.value = Number.isFinite(options.minimumTemperature) ? String(options.minimumTemperature) : '';
+  const preserveDraft = options.preserveThresholdDraft === true && dialog._thresholdEditing === true;
+  if (!preserveDraft) {
+    input.value = Number.isFinite(options.minimumTemperature) ? String(options.minimumTemperature) : '';
+    dialog._thresholdDraft = input.value;
+    dialog._thresholdEditing = false;
+    dialog.querySelector('[data-sensor-threshold-status]').textContent = '';
+  }
   input.disabled = typeof options.saveMinimumTemperature !== 'function';
   dialog.querySelector('[data-sensor-threshold-save]').disabled = input.disabled;
-  dialog.querySelector('[data-sensor-threshold-status]').textContent = '';
 }
 
 function bindThresholdForm(dialog) {
+  dialog.querySelector('[data-sensor-minimum-temperature]').addEventListener('input', event => {
+    dialog._thresholdEditing = true;
+    dialog._thresholdDraft = event.target.value;
+  });
   dialog.querySelector('[data-sensor-threshold-form]').addEventListener('submit', async event => {
     event.preventDefault();
     const input = dialog.querySelector('[data-sensor-minimum-temperature]');
     const status = dialog.querySelector('[data-sensor-threshold-status]');
-    const value = input.value.trim() === '' ? null : Number(input.value);
+    const value = minimumTemperatureFromDraft(input.value);
     if (value !== null && !Number.isFinite(value)) { status.textContent = 'Inserisci una soglia valida'; return; }
-    try { await dialog._sensorOptions?.saveMinimumTemperature?.(dialog.dataset.sensorId, value); status.textContent = value === null ? 'Soglia rimossa' : 'Soglia salvata'; }
+    try {
+      const saved = await dialog._sensorOptions?.saveMinimumTemperature?.(dialog.dataset.sensorId, value);
+      input.value = saved === null ? '' : String(saved);
+      dialog._thresholdDraft = input.value;
+      dialog._thresholdEditing = false;
+      status.textContent = value === null ? 'Soglia rimossa' : 'Soglia salvata';
+    }
     catch (error) { status.textContent = error.message || 'Soglia non salvata'; }
   });
 }
@@ -58,9 +79,10 @@ export function showSensorPopup(id, sensor, options = {}) {
     dialog.dataset.sensorDialog = '';
     dialog.className = 'sensor-dialog';
     dialog.setAttribute('aria-labelledby', 'sensor-popup-name');
-    dialog.innerHTML = '<header><div><h2 id="sensor-popup-name" data-sensor-name></h2><p data-sensor-model></p></div><button type="button" data-sensor-close aria-label="Chiudi sensore">X</button></header><section data-sensor-details></section><form class="sensor-threshold-form" data-sensor-threshold-form><fieldset><legend>ALLARME TEMPERATURA MINIMA</legend><label>Soglia minima <span><input data-sensor-minimum-temperature type="number" step="0.1" min="-50" max="80" inputmode="decimal"><em>°C</em></span></label><small data-sensor-threshold-status></small><button type="submit" data-sensor-threshold-save>SALVA</button></fieldset></form>';
+    dialog.innerHTML = '<header><div><h2 id="sensor-popup-name" data-sensor-name></h2><p data-sensor-model></p></div><button type="button" data-sensor-close aria-label="Chiudi sensore">X</button></header><section data-sensor-details></section><form class="sensor-threshold-form" data-sensor-threshold-form><fieldset><legend>ALLARME TEMPERATURA MINIMA</legend><label>Soglia minima <span><input data-sensor-minimum-temperature type="text" inputmode="decimal" autocomplete="off"><em>°C</em></span></label><small data-sensor-threshold-status></small><button type="submit" data-sensor-threshold-save>SALVA</button></fieldset></form>';
     dialog.querySelector('[data-sensor-close]').addEventListener('click', () => dialog.close());
     dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });
+    dialog.addEventListener('close', () => { dialog._thresholdDraft = ''; dialog._thresholdEditing = false; });
     bindThresholdForm(dialog);
     document.body.append(dialog);
   }
@@ -73,6 +95,7 @@ export function updateSensorPopup(sensors, options = {}) {
   if (dialog?.open) renderPopup(dialog, dialog.dataset.sensorId, sensors[dialog.dataset.sensorId], {
     minimumTemperature: options.minimumTemperatures?.[dialog.dataset.sensorId] ?? dialog._sensorOptions?.minimumTemperature ?? null,
     saveMinimumTemperature: options.saveMinimumTemperature ?? dialog._sensorOptions?.saveMinimumTemperature,
+    preserveThresholdDraft: true,
   });
 }
 
