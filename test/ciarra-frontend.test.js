@@ -29,7 +29,11 @@ test('icona planimetria usa solo CAPPAON e CAPPAOFF e conserva lo stato durante 
 
 test('popup CAPPA eredita il modal CALDAIA e offre controlli indipendenti power fan e luce', async () => {
   const [html, script, style] = await Promise.all([read('../public/index.html'), read('../public/js/dashboard.js'), read('../public/floorplan.css')]);
+  const modal = html.match(/<dialog class="boiler-modal cappa-modal"[\s\S]*?<\/dialog>/)?.[0] || '';
   assert.match(html, /class="boiler-modal cappa-modal"/);
+  assert.match(modal, /data-cappa-modal-close[^>]*><img src="design\/close\.svg"/);
+  assert.equal((modal.match(/boiler-popup-section cappa-control/g) || []).length, 3);
+  assert.doesNotMatch(modal, /CIARRA CBCW6736N|data-cappa-online|Stato operativo|Ultimo aggiornamento/);
   assert.equal((html.match(/data-cappa-fan-speed=/g) || []).length, 5);
   assert.equal((html.match(/data-cappa-light=/g) || []).length, 3);
   assert.match(html, /design\/ventola\.svg/);
@@ -45,4 +49,5 @@ test('popup CAPPA eredita il modal CALDAIA e offre controlli indipendenti power 
   assert.match(script, /syncCappaFanPresentation/);
   assert.doesNotMatch(script, /fanSpeed[\s\S]{0,80}\/api\/hood\/power/);
   assert.match(style, /\.boiler-modal \{ width: min\(780px/);
+  assert.doesNotMatch(style, /\.boiler-modal\.cappa-modal/);
 });

@@ -87,8 +87,8 @@ test('popup CALDAIA usa sezioni indipendenti e QD1 resta sincronizzata allo stat
   assert.match(floorplan, /event\.stopPropagation\(\)/);
   assert.match(style, /height: clamp\(252px, 30\.8vw, 294px\)/);
   assert.match(style, /height: clamp\(180px, calc\(100dvh - 570px\), 250px\)/);
-  assert.match(floorplanStyle, /\[data-boiler-modal\] \.boiler-modal-toolbar button \{ display: grid; width: 40px; height: 40px/);
-  assert.match(floorplanStyle, /\[data-boiler-modal\] \.boiler-modal-toolbar button img \{ box-sizing: content-box; width: 18px; height: 18px/);
+  assert.match(floorplanStyle, /:is\(\[data-boiler-modal\], \[data-cappa-modal\]\) \.boiler-modal-toolbar button \{ display: grid; width: 40px; height: 40px/);
+  assert.match(floorplanStyle, /:is\(\[data-boiler-modal\], \[data-cappa-modal\]\) \.boiler-modal-toolbar button img \{ box-sizing: content-box; width: 18px; height: 18px/);
   assert.doesNotMatch(dashboard, /boiler-modal-card-frame/);
 });
 

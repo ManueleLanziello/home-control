@@ -184,8 +184,8 @@ button.floorplan-marker { pointer-events: auto; cursor: pointer; }
 @keyframes alarm-flash { 50% { border-color: var(--alarm-border-color, #e55663); background: var(--alarm-background, rgba(155, 31, 40, .72)); box-shadow: var(--alarm-shadow, 0 0 18px rgb(229 86 99 / 80%)); } }
 .alarm-dialog { width: min(480px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); box-sizing: border-box; padding: 18px; border: 1px solid #3c718c; border-radius: 20px; background: #081522; color: #e5f3fc; }
 .alarm-dialog [data-alarm-message] { white-space: pre-line; line-height: 1.45; }
-.alarm-dialog::backdrop { background: #0009; }.alarm-dialog header { display:flex; justify-content:space-between; align-items:center; gap:12px; }.alarm-dialog header small { display:block; margin-top:3px; color:#ffcf8b; font-size:.7rem; }.alarm-dialog header button { width:34px; height:34px; border:1px solid #476b83; border-radius:9px; background:#132d40; color:inherit; font-size:1.3rem; cursor:pointer; }
-.alarm-dialog > label { display:flex; justify-content:space-between; gap:12px; margin-top:12px; padding:10px; border-radius:10px; background:#071826; font-size:.85rem; }.alarm-dialog select { color:inherit; background:#132d40; border:1px solid #476b83; border-radius:6px; }.alarm-modes { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }.alarm-mode { display:grid; gap:5px; justify-items:center; padding:9px 4px; border:1px solid #284e64; border-radius:11px; color:#cfe8f4; background:#071826; cursor:pointer; }.alarm-mode img { width:48px; height:48px; object-fit:contain; }.alarm-mode.is-active { border-color:#29df92; box-shadow:0 0 12px rgb(41 223 146 / 30%); }.alarm-problems { margin-top:12px; padding:10px; border-radius:10px; color:#ffd5d8; background:rgba(155,31,40,.35); font-size:.82rem; }
+.alarm-dialog::backdrop { background: #0009; }.alarm-dialog header { display:flex; justify-content:space-between; align-items:center; gap:12px; }.alarm-dialog header button { display:grid; width:40px; height:40px; padding:6px; place-items:center; border:0; border-radius:9px; background:transparent; cursor:pointer; }.alarm-dialog header button img { box-sizing:content-box; width:18px; height:18px; padding:5px; border:1px solid #476b83; border-radius:8px; background:#132d40; object-fit:contain; }
+.alarm-dialog > label { display:flex; justify-content:space-between; gap:12px; margin-top:12px; padding:10px; border-radius:10px; background:#071826; font-size:.85rem; }.alarm-dialog select { color:inherit; background:#132d40; border:1px solid #476b83; border-radius:6px; }.alarm-modes { display:grid; grid-template-columns:repeat(3,1fr); gap:13px; }.alarm-mode { display:grid; gap:7px; justify-items:center; padding:12px 5px; border:1px solid #284e64; border-radius:11px; color:#cfe8f4; background:#071826; cursor:pointer; }.alarm-mode img { width:64px; height:64px; object-fit:contain; }.alarm-mode.is-active { border-color:#29df92; box-shadow:0 0 12px rgb(41 223 146 / 30%); }.alarm-problems { margin-top:12px; padding:10px; border-radius:10px; color:#ffd5d8; background:rgba(155,31,40,.35); font-size:.82rem; }
 .alarm-audio { display:grid; gap:9px; margin-top:12px; padding:11px; border:1px solid #284e64; border-radius:10px; background:#071826; font-size:.82rem; }.alarm-audio > strong { color:#cfe8f4; }.alarm-audio label { display:flex; align-items:center; gap:8px; }.alarm-audio input[type="range"] { flex:1; accent-color:#29df92; }.alarm-audio button { justify-self:start; padding:6px 10px; border:1px solid #476b83; border-radius:7px; color:#e5f3fc; background:#132d40; cursor:pointer; }.alarm-audio small { color:#ffcf8b; }
 @media (prefers-reduced-motion: reduce) { .floorplan-marker-alarm-card.is-alarm, .floorplan-marker-alarm-sensor.is-alarm, .floorplan-marker-camera.is-alarm { animation:none; border-color:#e55663; } }
 .pond-cards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; padding:16px; }.pond-card { display:grid; justify-items:center; gap:12px; padding:18px; border:1px solid #39738e; border-radius:16px; background:#0b2233; }.pond-card>img,.pond-power-icon img { width:64px; height:64px; object-fit:contain; }.pond-card h2 { margin:0; font-size:1rem; }.pond-power-icon { min-width:64px; min-height:64px; border:0; background:transparent; color:#9cc3d3; font-size:2.5rem; line-height:1; cursor:pointer; }.pond-power-icon:disabled { opacity:.5; cursor:default; }
@@ -197,10 +197,10 @@ button.floorplan-marker { pointer-events: auto; cursor: pointer; }
 .boiler-modal-toolbar button { width: 38px; height: 38px; border: 1px solid #476b83; border-radius: 10px; background: #132d40; color: #e5f3fc; cursor: pointer; }
 .boiler-modal-toolbar button img { width: 100%; height: 100%; object-fit: contain; }
 .boiler-modal-content { padding: 0 16px 16px; min-width: 0; }
-[data-boiler-modal] .boiler-modal-toolbar { min-height: 52px; padding: 6px 14px 6px 18px; }
-[data-boiler-modal] .boiler-modal-toolbar button { display: grid; width: 40px; height: 40px; padding: 6px; place-items: center; border: 0; background: transparent; }
-[data-boiler-modal] .boiler-modal-toolbar button img { box-sizing: content-box; width: 18px; height: 18px; padding: 5px; border: 1px solid #476b83; border-radius: 8px; background: #132d40; }
-[data-boiler-modal] .boiler-modal-content { display: grid; gap: 14px; }
+:is([data-boiler-modal], [data-cappa-modal]) .boiler-modal-toolbar { min-height: 52px; padding: 6px 14px 6px 18px; }
+:is([data-boiler-modal], [data-cappa-modal]) .boiler-modal-toolbar button { display: grid; width: 40px; height: 40px; padding: 6px; place-items: center; border: 0; background: transparent; }
+:is([data-boiler-modal], [data-cappa-modal]) .boiler-modal-toolbar button img { box-sizing: content-box; width: 18px; height: 18px; padding: 5px; border: 1px solid #476b83; border-radius: 8px; background: #132d40; }
+:is([data-boiler-modal], [data-cappa-modal]) .boiler-modal-content { display: grid; gap: 14px; }
 .boiler-popup-section { min-width: 0; padding: 16px; border: 1px solid rgba(82, 155, 211, .4); border-radius: 18px; background: linear-gradient(145deg, rgba(9, 35, 58, .82), rgba(5, 20, 35, .9)); box-shadow: inset 0 0 25px rgba(24, 122, 199, .08); }
 .boiler-popup-today .boiler-schedule { margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
 .boiler-popup-today .boiler-status-row { margin: 14px 0 0; padding: 12px; border-color: rgba(82, 155, 211, .3); }
@@ -208,11 +208,8 @@ button.floorplan-marker { pointer-events: auto; cursor: pointer; }
 .boiler-modal .thermostat-period input { width: 100%; }
 body:has(.boiler-modal[open]) { overflow: hidden; }
 
-.cappa-card { box-sizing: border-box; width: min(100%, 510px); min-height: 560px; margin: 0 auto; padding: 22px; }
-.cappa-card-header { grid-template-columns: 76px minmax(0, 1fr) auto; align-items: center; }
-.cappa-card-header p { margin: 3px 0 0; color: #8eacbd; }
-.cappa-main-icon { width: 68px; height: 68px; object-fit: contain; }
-.cappa-control { margin-top: 18px; padding: 18px; border: 1px solid #284e64; border-radius: 18px; background: #071826; }
+.cappa-modal-content { align-content: start; justify-items: center; }
+.cappa-control { box-sizing: border-box; width: min(100%, 510px); margin: 0; padding: 18px; border-color: #284e64; background: #071826; }
 .cappa-control h3 { margin: 0 0 12px; font-size: .95rem; text-transform: uppercase; letter-spacing: .08em; }
 .cappa-control-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
 .cappa-control-heading h3 { margin: 0; }
@@ -228,27 +225,10 @@ body:has(.boiler-modal[open]) { overflow: hidden; }
 .cappa-light-control > div:first-child { display: flex; align-items: center; gap: 12px; }
 .cappa-light-control > div:first-child h3 { margin: 0; }
 .cappa-light-control .cappa-selector { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 12px; }
-.cappa-footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 20px; margin-top: 18px; color: #8eacbd; font-size: .8rem; }
 .cappa-message { min-height: 1.2em; margin: 12px 0 0; color: #ffbc7d; text-align: center; }
 
 @media (max-width: 540px) {
-  .cappa-card { min-height: 0; padding: 14px; }
-  .cappa-card-header { grid-template-columns: 58px minmax(0, 1fr); }
-  .cappa-card-header .static-status { grid-column: 1 / -1; justify-self: start; }
-  .cappa-main-icon { width: 52px; height: 52px; }
-  .cappa-control { margin-top: 12px; padding: 13px; }
-}
-
-@media (hover: none) and (pointer: coarse) {
-  .boiler-modal.cappa-modal {
-    position: fixed;
-    inset: 12px;
-    width: auto;
-    max-width: none;
-    height: auto;
-    max-height: none;
-    margin: 0;
-  }
+  .cappa-control { margin: 0; padding: 13px; }
 }
 
 button[data-floorplan-light] { user-select: none; touch-action: manipulation; }

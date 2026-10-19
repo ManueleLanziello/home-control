@@ -40,3 +40,12 @@ test('only PR1 blinks orange for movement while alarm priority remains red', asy
   assert.equal(alarmVisualState('PR1', { available: false, batteryLow: true, motion: true }), 'unknown');
   assert.equal(alarmVisualState('PR1', { available: true, batteryLow: true, motion: true }), 'battery-low');
 });
+
+test('popup ANTIFURTO usa close.svg e card modalità ingrandite senza cambiare la logica', async () => {
+  const [css, floorplan] = await Promise.all([readFile(new URL('../public/floorplan.css', import.meta.url), 'utf8'), readFile(new URL('../public/js/alarm-floorplan.js', import.meta.url), 'utf8')]);
+  assert.match(floorplan, /homeControlPath\('\/design\/close\.svg'\)/);
+  assert.doesNotMatch(floorplan, /STATI ZIGBEE REALI/);
+  assert.match(css, /\.alarm-dialog header button \{ display:grid; width:40px; height:40px/);
+  assert.match(css, /\.alarm-mode img \{ width:64px; height:64px/);
+  assert.match(css, /\.alarm-mode \{ display:grid; gap:7px; justify-items:center; padding:12px 5px/);
+});
