@@ -185,7 +185,7 @@ body { min-height: 100vh; margin: 0; background: radial-gradient(circle at 50% 2
   [data-boiler-modal] .boiler-mode-selector { margin-top: 14px; padding-block: 12px; }
   [data-boiler-modal] .boiler-mode > span { width: 60px; height: 60px; }
   [data-boiler-modal] .boiler-schedule { margin-top: 14px; padding: 14px; }
-  [data-boiler-modal] .boiler-schedule-chart { height: clamp(342px, 36vw, 390px); }
+  [data-boiler-modal] .boiler-schedule-chart { height: clamp(300px, 33vw, 330px); }
 }
 .thermostat-body { min-height: 100vh; margin: 0; color: #dceefa; background: radial-gradient(circle at 30% 0%, rgba(11,83,126,.28), transparent 34%), #050b12; font-family: "Trebuchet MS", sans-serif; }
 .thermostat-shell { width: min(1500px, calc(100% - 32px)); margin: 0 auto; padding: 24px 0 42px; }
