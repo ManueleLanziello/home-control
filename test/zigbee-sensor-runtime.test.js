@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter, once } from 'node:events';
-import { HomeZigbeeSensorRuntime } from '../src/zigbee-sensor-runtime.js';
+import { HomeZigbeeSensorRuntime, normalizeSnzb02ldPayload } from '../src/zigbee-sensor-runtime.js';
+import { ZIGBEE_SENSOR_CONFIG } from '../config/zigbee-sensors.js';
 import { HomeStatusRuntime } from '../src/home-status.js';
 import { createFloorplanState } from '../public/js/floorplan-state.js';
 import { createHomeControlServer } from '../server.js';
@@ -28,7 +29,7 @@ function fixture() {
 
 test('MQTT sottoscrive sensori, LB1 e luci configurate senza alterare il parsing dei sensori', () => {
   const f = fixture(); f.runtime.start(); f.client.emit('connect');
-  assert.deepEqual(f.subscriptions[0], ['zigbee2mqtt/SmartHomeS1', 'zigbee2mqtt/SmartHomeS2', 'zigbee2mqtt/SmartHomeS4', 'zigbee2mqtt/sala-dw1', 'zigbee2mqtt/sala-dw2', 'zigbee2mqtt/sala-dw3', 'zigbee2mqtt/cucina-dw4', 'zigbee2mqtt/cucina-dw5', 'zigbee2mqtt/camera-dw6', 'zigbee2mqtt/bagno-dw7', 'zigbee2mqtt/cameretta-dw8', 'zigbee2mqtt/sala-pr1', 'zigbee2mqtt/terrazzo-SR1', 'zigbee2mqtt/bridge/devices', 'zigbee2mqtt/SmartHomeLB1', 'zigbee2mqtt/cucina-L1', 'zigbee2mqtt/camera-L2', 'zigbee2mqtt/bagno-L5', 'zigbee2mqtt/cameretta-L6', 'zigbee2mqtt/giardino-L8', 'zigbee2mqtt/terrazzo-L11']);
+  assert.deepEqual(f.subscriptions[0], ['zigbee2mqtt/SmartHomeS1', 'zigbee2mqtt/SmartHomeS2', 'zigbee2mqtt/SmartHomeS4', 'zigbee2mqtt/pond-temp-acqua', 'zigbee2mqtt/sala-dw1', 'zigbee2mqtt/sala-dw2', 'zigbee2mqtt/sala-dw3', 'zigbee2mqtt/cucina-dw4', 'zigbee2mqtt/cucina-dw5', 'zigbee2mqtt/camera-dw6', 'zigbee2mqtt/bagno-dw7', 'zigbee2mqtt/cameretta-dw8', 'zigbee2mqtt/sala-pr1', 'zigbee2mqtt/terrazzo-SR1', 'zigbee2mqtt/bridge/devices', 'zigbee2mqtt/SmartHomeLB1', 'zigbee2mqtt/cucina-L1', 'zigbee2mqtt/camera-L2', 'zigbee2mqtt/bagno-L5', 'zigbee2mqtt/cameretta-L6', 'zigbee2mqtt/giardino-L8', 'zigbee2mqtt/terrazzo-L11']);
   for (const [id, temperature] of [['S1', 20], ['S2', 21], ['S4', 23]]) {
     f.message(`zigbee2mqtt/SmartHome${id}`, { temperature, humidity: 49.9, battery: 100, linkquality: 192 });
     const snapshot = f.runtime.readSnapshot()[id];
@@ -40,6 +41,24 @@ test('MQTT sottoscrive sensori, LB1 e luci configurate senza alterare il parsing
   f.message('zigbee2mqtt/SmartHomeS1', { temperature: 'wrong', humidity: 50 });
   f.client.emit('message', 'zigbee2mqtt/SmartHomeS1', Buffer.from('invalid JSON'));
   assert.deepEqual(f.runtime.readSnapshot(), before);
+  f.runtime.close();
+});
+
+test('S5 usa pond-temp-acqua, accetta solo temperatura e non considera online un retained', () => {
+  const f = fixture(); f.runtime.start(); f.client.emit('connect');
+  assert.deepEqual(ZIGBEE_SENSOR_CONFIG.sensors.find(sensor => sensor.id === 'S5'), {
+    id: 'S5', name: 'SONOFF — Temperatura acqua', friendlyName: 'pond-temp-acqua', topic: 'zigbee2mqtt/pond-temp-acqua', ieeeAddress: '0xa4c1380cd121ffff', model: 'SNZB-02LD', manufacturer: 'SONOFF', humidity: false, requiresConfirmedMessage: true,
+  });
+  assert.equal(normalizeSnzb02ldPayload({ temperature: 12.4, battery: 87, linkquality: 93 }, { updatedAt: '2026-09-16T12:00:00Z', confirmed: true }).humidity, null);
+  assert.equal(normalizeSnzb02ldPayload({ battery: 87 }), null);
+  f.client.emit('message', 'zigbee2mqtt/pond-temp-acqua', Buffer.from(JSON.stringify({ temperature: 12.4, battery: 87, linkquality: 93 })), { retain: true });
+  assert.equal(f.runtime.readSnapshot().S5.online, false);
+  f.message('zigbee2mqtt/pond-temp-acqua', { temperature: 12.4, battery: 87, linkquality: 93 });
+  const sensor = f.runtime.readSnapshot().S5;
+  assert.equal(sensor.temperature, 12.4); assert.equal(sensor.battery, 87); assert.equal(sensor.linkQuality, 93);
+  assert.equal(sensor.humidity, null); assert.equal(sensor.online, true); assert.equal(sensor.available, true);
+  f.client.emit('message', 'zigbee2mqtt/bridge/devices', Buffer.from(JSON.stringify([{ friendly_name: 'pond-temp-acqua', ieee_address: '0xa4c1380cd121ffff', definition: { model: 'SNZB-02LD', vendor: 'SONOFF' } }])));
+  assert.equal(f.runtime.readSnapshot().S5.identityStatus, 'verified');
   f.runtime.close();
 });
 
@@ -74,6 +93,7 @@ test('MQTT errore/disconnessione/reconnect e cleanup non duplicano client', () =
 test('Home snapshot Zigbee completo e LS3/S3 continuano a provenire dal WT200', async () => {
   const f = fixture(); f.runtime.start(); f.client.emit('connect');
   for (const id of ['S1', 'S2', 'S4']) f.message(`zigbee2mqtt/SmartHome${id}`, { temperature: 27.8, humidity: 49.9, battery: 100, linkquality: 192 });
+  f.message('zigbee2mqtt/pond-temp-acqua', { temperature: 12.4, battery: 87, linkquality: 93 });
   let cloudReads = 0;
   const home = new HomeStatusRuntime({ now: f.now, hardwareStore: { async read() { return { devices: [] }; } },
     roleStore: { async read() { return {}; } }, readZigbeeSensors: () => f.runtime.readSnapshot(),
@@ -87,6 +107,9 @@ test('Home snapshot Zigbee completo e LS3/S3 continuano a provenire dal WT200', 
     assert.equal(sensor.battery, 100); assert.equal(sensor.linkQuality, 192); assert.equal(sensor.online, true);
     assert.equal(sensor.model, 'SONOFF SNZB-02P'); assert.equal(sensor.protocol, 'Zigbee');
   }
+  assert.deepEqual(snapshot.sensors.S5, {
+    temperature: 12.4, humidity: null, battery: 87, linkQuality: 93, name: 'SONOFF — Temperatura acqua', model: 'SNZB-02LD', protocol: 'Zigbee', source: 'zigbee', configured: true, requiresFreshness: true, online: true, available: true, value: 12.4, updatedAt: new Date(f.now()).toISOString(), reason: null,
+  });
   assert.equal(snapshot.sensors.S3.value, 22); assert.equal(snapshot.sensors.S3.source, 'thermostat');
   assert.equal(cloudReads, 0);
   const store = createFloorplanState(); store.applyHomeSnapshot(snapshot);

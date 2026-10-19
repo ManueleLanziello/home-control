@@ -1,8 +1,8 @@
 const number = value => Number.isFinite(value)
   ? new Intl.NumberFormat('it-IT', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(value) : '—';
 const temperatureOf = sensor => Number.isFinite(sensor?.temperature) ? sensor.temperature : sensor?.value;
-const sensorName = (id, sensor) => sensor?.name || (id === 'S3' ? 'Avatto — Salotto' : `SmartHome${id}`);
-const sensorModel = (id, sensor) => id === 'S3' ? 'Termostato Avatto' : sensor?.model || 'SONOFF SNZB-02P';
+const sensorName = (id, sensor) => sensor?.name || (id === 'S3' ? 'Avatto — Salotto' : id === 'S5' ? 'SONOFF — Temperatura acqua' : `SmartHome${id}`);
+const sensorModel = (id, sensor) => id === 'S3' ? 'Termostato Avatto' : sensor?.model || (id === 'S5' ? 'SNZB-02LD' : 'SONOFF SNZB-02P');
 
 export function minimumTemperatureFromDraft(draft) {
   const text = String(draft ?? '').trim();
@@ -16,7 +16,7 @@ export function sensorReadingLines(sensor = {}) {
 
 export function sensorPopupRows(sensor = {}, id = 'S1') {
   const rows = [['Temperatura', `${number(temperatureOf(sensor))} °C`]];
-  if (id !== 'S3' || Number.isFinite(sensor.humidity)) rows.push(['Umidità', `${number(sensor.humidity)} %`]);
+  if (id !== 'S3' && id !== 'S5' && Number.isFinite(sensor.humidity)) rows.push(['Umidità', `${number(sensor.humidity)} %`]);
   if (id !== 'S3' || Number.isFinite(sensor.battery)) rows.push(['Batteria', Number.isFinite(sensor.battery) ? `${sensor.battery} %` : '—']);
   if (id !== 'S3' || Number.isFinite(sensor.linkQuality)) rows.push(['Segnale Zigbee (LQI)', Number.isFinite(sensor.linkQuality) ? String(sensor.linkQuality) : '—']);
   rows.push(['Stato', sensor.online === true && sensor.available === true ? 'Online' : 'Offline'], ['Ultimo aggiornamento', Number.isFinite(Date.parse(sensor.updatedAt)) ? new Intl.DateTimeFormat('it-IT', { dateStyle: 'short', timeStyle: 'medium' }).format(new Date(sensor.updatedAt)) : '—']);

@@ -30,6 +30,16 @@ test('LS SONOFF mostra soltanto temperatura e umidita su due righe', () => {
   assert.ok(!rows.some(([key]) => /calibration|OTA|IEEE|update/i.test(key)));
 });
 
+test('S5 mostra soltanto la temperatura acqua e i dati Zigbee realmente disponibili', () => {
+  const water = { name: 'SONOFF — Temperatura acqua', temperature: 12.4, battery: 87, linkQuality: 93, online: true, available: true, updatedAt: '2026-09-16T12:00:00Z', model: 'SNZB-02LD', protocol: 'Zigbee' };
+  const rows = sensorPopupRows(water, 'S5');
+  assert.equal(rows[0][0], 'Temperatura'); assert.equal(rows[0][1], '12,4 °C');
+  assert.ok(rows.some(([key, value]) => key === 'Batteria' && value === '87 %'));
+  assert.ok(rows.some(([key, value]) => key === 'Segnale Zigbee (LQI)' && value === '93'));
+  assert.ok(rows.some(([key, value]) => key === 'Protocollo' && value === 'Zigbee'));
+  assert.ok(!rows.some(([key]) => key === 'Umidità'));
+});
+
 test('icona e label aprono lo stesso popup, dati aggiornati e chiusura normale', t => {
   const previousDocument = globalThis.document;
   const body = new Element('body');

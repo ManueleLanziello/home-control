@@ -2,9 +2,10 @@ export const ZIGBEE_SENSOR_CONFIG = Object.freeze({
   brokerUrl: 'mqtt://localhost:1883',
   freshnessMs: 120 * 60 * 1000,
   sensors: Object.freeze([
-    Object.freeze({ id: 'S1', name: 'SmartHomeS1', topic: 'zigbee2mqtt/SmartHomeS1' }),
-    Object.freeze({ id: 'S2', name: 'SmartHomeS2', topic: 'zigbee2mqtt/SmartHomeS2' }),
-    Object.freeze({ id: 'S4', name: 'SmartHomeS4', topic: 'zigbee2mqtt/SmartHomeS4' }),
+    Object.freeze({ id: 'S1', name: 'SmartHomeS1', friendlyName: 'SmartHomeS1', topic: 'zigbee2mqtt/SmartHomeS1', model: 'SONOFF SNZB-02P', zigbeeModel: 'SNZB-02P', manufacturer: 'SONOFF', humidity: true }),
+    Object.freeze({ id: 'S2', name: 'SmartHomeS2', friendlyName: 'SmartHomeS2', topic: 'zigbee2mqtt/SmartHomeS2', model: 'SONOFF SNZB-02P', zigbeeModel: 'SNZB-02P', manufacturer: 'SONOFF', humidity: true }),
+    Object.freeze({ id: 'S4', name: 'SmartHomeS4', friendlyName: 'SmartHomeS4', topic: 'zigbee2mqtt/SmartHomeS4', model: 'SONOFF SNZB-02P', zigbeeModel: 'SNZB-02P', manufacturer: 'SONOFF', humidity: true }),
+    Object.freeze({ id: 'S5', name: 'SONOFF — Temperatura acqua', friendlyName: 'pond-temp-acqua', topic: 'zigbee2mqtt/pond-temp-acqua', ieeeAddress: '0xa4c1380cd121ffff', model: 'SNZB-02LD', manufacturer: 'SONOFF', humidity: false, requiresConfirmedMessage: true }),
   ]),
   doorContacts: Object.freeze([
     ['DW1', 'sala-dw1'], ['DW2', 'sala-dw2'], ['DW3', 'sala-dw3'], ['DW4', 'cucina-dw4'],

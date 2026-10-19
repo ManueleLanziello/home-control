@@ -147,7 +147,7 @@ export class HomeStatusRuntime {
     let zigbeeLights;
     try { zigbeeLights = this.readZigbeeLights?.(); } catch { /* MQTT must not block the Home snapshot. */ }
     const entries = await Promise.all(Object.entries(HOME_ROLES).map(async ([id, role]) => {
-      if (this.readZigbeeSensors && ['S1', 'S2', 'S4'].includes(id)) {
+      if (ZIGBEE_SENSOR_CONFIG.sensors.some(sensor => sensor.id === id)) {
         const sensor = zigbeeSensors?.[id];
         const age = this.now() - Date.parse(sensor?.updatedAt);
         const online = sensor?.online === true && age >= 0 && age <= ZIGBEE_SENSOR_CONFIG.freshnessMs;
@@ -155,7 +155,7 @@ export class HomeStatusRuntime {
         const available = online && temperature !== null && sensor?.available !== false;
         return [id, { temperature, humidity: finite(sensor?.humidity), battery: finite(sensor?.battery),
           linkQuality: finite(sensor?.linkQuality), name: sensor?.name ?? `SmartHome${id}`,
-          model: 'SONOFF SNZB-02P', protocol: 'Zigbee', source: 'zigbee', configured: true,
+          model: sensor?.model ?? ZIGBEE_SENSOR_CONFIG.sensors.find(item => item.id === id)?.model ?? null, protocol: 'Zigbee', source: 'zigbee', configured: true,
           requiresFreshness: true,
           online, available, value: available ? temperature : null,
           updatedAt: sensor?.updatedAt ?? null, reason: available ? null : sensor?.updatedAt ? 'offline' : 'no_data' }];
