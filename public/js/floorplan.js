@@ -155,6 +155,12 @@ export function shapeForLabel(source, label) {
 export const temperatureReadingColor = value => !Number.isFinite(value) ? '#fff' : value < 21 ? '#17c8f4' : value <= 23 ? '#29df92' : '#ff9d3d';
 export const humidityReadingColor = value => Number.isFinite(value) && value > 50 ? '#17c8f4' : '#fff';
 export const sensorReadingFontSize = referenceBox => referenceBox.height * .34;
+// Match the alarm's conservative availability and 20% low-battery threshold.
+export function sensorVisualState(sensor = {}) {
+  if (sensor.available !== true || sensor.online !== true) return 'offline';
+  if (sensor.batteryLow === true || (Number.isFinite(sensor.battery) && sensor.battery <= 20)) return 'battery-low';
+  return 'online';
+}
 export function cameraBatteryIcon({ percent, charging } = {}) {
   if (charging === true) return config.icons.batteryCharging;
   if (!Number.isFinite(percent)) return null;
@@ -638,6 +644,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     mobileMonitor.className = 'floorplan-mobile-monitor';
     mobileMonitor.setAttribute('aria-label', 'Dispositivi mobili');
     placeHtml(deviceMapping, config.mobileMonitor.marker, mobileMonitor);
+    const sensorMarkers = new Map();
     const sensorReadings = new Map();
     const sensorHumidityReadings = new Map();
     const sensorProbeReadings = new Map();
@@ -648,6 +655,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
       element.classList.add('floorplan-marker-sensor');
       element.append(createIcon(assets, config.icons.sensor, '🌡'));
       placeHtml(sensorMapping, sensor.marker, element);
+      sensorMarkers.set(sensor.id, element);
       const box = sensorMapping.box(sensor.reading);
       const text = svgElement('text', { x: box.x + box.width / 2, y: box.y + box.height / 2, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': sensorTypography.fontSize, class: 'floorplan-reading' });
       text.dataset.sensorReading = sensor.id;
@@ -879,6 +887,12 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
       }
       for (const sensor of config.sensors) {
         const value = state.sensors[sensor.id];
+        const marker = sensorMarkers.get(sensor.id);
+        const visualState = sensorVisualState(state.sensorDetails[sensor.id]);
+        if (marker) {
+          marker.dataset.sensorState = visualState;
+          marker.setAttribute('aria-label', `Temperatura ${sensor.room}: ${visualState === 'online' ? 'online' : visualState === 'battery-low' ? 'batteria scarica' : 'offline o stato sconosciuto'}`);
+        }
         const reading = sensorReadings.get(sensor.id);
         renderFloorplanReading(reading, value, '°C', temperatureReadingColor(value));
         const probeReading = sensorProbeReadings.get(sensor.id);

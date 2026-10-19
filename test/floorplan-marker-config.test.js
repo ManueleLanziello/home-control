@@ -9,7 +9,7 @@ import { validateHardwareRegistry } from '../src/hardware-registry.js';
 import { normalizeMobilePresence } from '../src/home-status.js';
 
 globalThis.window = { addEventListener() {} };
-const { cameraBatteryIcon, renderCameraIcon, shapeForLabel, humidityReadingColor, renderFloorplanReading, sensorReadingFontSize, temperatureReadingColor } = await import('../public/js/floorplan.js');
+const { cameraBatteryIcon, renderCameraIcon, shapeForLabel, humidityReadingColor, renderFloorplanReading, sensorReadingFontSize, sensorVisualState, temperatureReadingColor } = await import('../public/js/floorplan.js');
 const { mobileDeviceIcon } = await import('../public/js/floorplan.js');
 
 test('DM personal icons survive registry/Home normalization with unchanged presence and type fallbacks', async () => {
@@ -261,8 +261,31 @@ test('LAYER-09 mantiene le identità C1/C2 sulle rispettive posizioni grafiche e
   }
 });
 
-test('marker dispositivi 11 e 12 non vengono più renderizzati', () => {
-  assert.ok(!floorplanConfig.devices.some(device => ['D11', 'D12'].includes(device.id)));
+test('marker dispositivi rimossi dal layer non vengono più renderizzati', async () => {
+  const { labels } = await labelsIn('LAYER-DISPOSITIVI.svg');
+  const retired = ['D14', 'D15', 'D16', 'D17', 'D18'];
+  for (const id of retired) {
+    assert.equal(floorplanConfig.devices.some(device => device.id === id), false, id);
+    assert.equal(includesLabel(labels, id.slice(1)), false, id);
+  }
+  assert.equal(includesLabel(labels, 'DM'), true);
+});
+
+test('S1–S5 usano lo stato visivo conservativo dei sensori', async () => {
+  assert.equal(sensorVisualState({ available: true, online: true, battery: 100 }), 'online');
+  assert.equal(sensorVisualState({ available: true, online: true, battery: 20 }), 'battery-low');
+  assert.equal(sensorVisualState({ available: true, online: true, batteryLow: true, battery: 100 }), 'battery-low');
+  assert.equal(sensorVisualState({ available: false, online: true, battery: 5 }), 'offline');
+  assert.equal(sensorVisualState({ available: true, online: false, battery: 5 }), 'offline');
+  assert.equal(sensorVisualState({ available: true, online: true }), 'online');
+
+  const [floorplan, css] = await Promise.all([
+    readFile(new URL('../public/js/floorplan.js', import.meta.url), 'utf8'),
+    readFile(new URL('../public/floorplan.css', import.meta.url), 'utf8'),
+  ]);
+  assert.match(floorplan, /marker\.dataset\.sensorState = visualState/);
+  assert.match(floorplan, /sensorVisualState\(state\.sensorDetails\[sensor\.id\]\)/);
+  for (const state of ['online', 'battery-low', 'offline']) assert.match(css, new RegExp(`\\.floorplan-marker-sensor\\[data-sensor-state="${state}"\\]`));
 });
 
 test('icone batteria camera rispettano soglie esatte e priorità ricarica', () => {

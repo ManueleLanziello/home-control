@@ -47,10 +47,10 @@ export const floorplanConfig = {
     const prefix = id.toLowerCase();
     return { id, room, marker: labeledMarker(markerId), controls: { detection: labeledMarker(prefix + 'b'), battery: labeledMarker(prefix + 'd'), events: labeledMarker(prefix + 'e') } };
   }),
-  // LAYER-DISPOSITIVI labels its markers 1…18 except retired D11–D13; the inventory prefix is D.
+  // LAYER-DISPOSITIVI labels its markers except retired graphics; the inventory prefix is D.
   // Geometry always comes from its SVG; no coordinate or DOM order is copied here.
   devices: Array.from({ length: 18 }, (_, index) => index + 1)
-    .filter(index => ![11, 12, 13].includes(index))
+    .filter(index => ![11, 12, 13, 14, 15, 16, 17, 18].includes(index))
     .map(index => ({ id: `D${index}`, marker: labeledMarker(String(index)) })),
   boiler: { marker: labeledMarker('D1'), card: labeledMarker('QD1'), target: '.boiler-card', settings: '.boiler-settings-link' },
   cappa: { id: 'K1', marker: marker(0) },
