@@ -161,6 +161,11 @@ export function sensorVisualState(sensor = {}) {
   if (sensor.batteryLow === true || (Number.isFinite(sensor.battery) && sensor.battery <= 20)) return 'battery-low';
   return 'online';
 }
+export function sensorTemperatureAlertState(sensor = {}, minimumTemperature, wasActive = false) {
+  const temperature = Number.isFinite(sensor.value) ? sensor.value : sensor.temperature;
+  if (sensor.available !== true || sensor.online !== true || !Number.isFinite(temperature) || !Number.isFinite(minimumTemperature)) return false;
+  return wasActive ? temperature < minimumTemperature + .5 : temperature < minimumTemperature;
+}
 export function cameraBatteryIcon({ percent, charging } = {}) {
   if (charging === true) return config.icons.batteryCharging;
   if (!Number.isFinite(percent)) return null;
@@ -517,9 +522,13 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
   const mappings = [];
   let floorplanClock;
   try {
+    const thresholdRequest = fetch(homeControlPath('/api/sensor-thresholds'), { cache: 'no-store' })
+      .then(response => response.ok ? response.json() : { thresholds: {} })
+      .catch(() => ({ thresholds: {} }));
     const response = await fetch(homeControlPath('/api/floorplan/assets'), { cache: 'no-store' });
     if (!response.ok) throw new Error('Elenco asset non disponibile');
     const assets = new Set((await response.json()).assets);
+    let sensorThresholds = (await thresholdRequest).thresholds || {};
     const required = [...Object.values(config.backgrounds), ...config.rooms.filter(room => !room.optional).flatMap(room => [room.on, room.off]), ...Object.values(config.mappings).filter(name => name !== config.mappings.clock), ...Object.values(config.ledbar.layers), config.icons.ledbarOn, config.icons.ledbarOff, config.icons.cappaOn, config.icons.cappaOff, config.icons.pondPumpOn, config.icons.pondPumpOff, config.icons.pondHeaterOn, config.icons.pondHeaterOff, config.icons.pondManual, config.icons.pondThermostat, config.icons.alarm, config.icons.antiOff, config.icons.antiOn, config.icons.alarmNone, config.icons.alarmPartial, config.icons.alarmComplete, config.icons.alarmDoor, config.icons.alarmMotion, ...Object.values(config.mobileMonitor.icons)];
     const missing = required.filter(name => !assets.has(name));
     if (missing.length) throw new Error('Asset planimetria mancanti: ' + missing.join(', '));
@@ -648,10 +657,20 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     const sensorReadings = new Map();
     const sensorHumidityReadings = new Map();
     const sensorProbeReadings = new Map();
+    const activeTemperatureAlerts = new Map();
+    const saveMinimumTemperature = async (id, minimumTemperature) => {
+      const response = await fetch(homeControlPath(`/api/sensors/${id}/minimum-temperature`), {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ minimumTemperature }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Soglia non salvata');
+      sensorThresholds = result.thresholds || {};
+      render(store.snapshot());
+      return sensorThresholds[id] ?? null;
+    };
     const sensorTypography = { fontSize: sensorReadingFontSize(sensorMapping.box(config.sensors.find(sensor => sensor.id === 'S3').reading)) };
     for (const sensor of config.sensors) {
-      const zigbee = ['S1', 'S2', 'S4'].includes(sensor.id);
-      const element = markerElement('Temperatura ' + sensor.room, zigbee);
+      const element = markerElement('Temperatura ' + sensor.room, true);
       element.classList.add('floorplan-marker-sensor');
       element.append(createIcon(assets, config.icons.sensor, '🌡'));
       placeHtml(sensorMapping, sensor.marker, element);
@@ -659,12 +678,12 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
       const box = sensorMapping.box(sensor.reading);
       const text = svgElement('text', { x: box.x + box.width / 2, y: box.y + box.height / 2, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': sensorTypography.fontSize, class: 'floorplan-reading' });
       text.dataset.sensorReading = sensor.id;
-      if (zigbee) {
-        text.setAttribute('aria-label', 'Apri sensore ' + sensor.room);
-        const opener = () => showSensorPopup(sensor.id, store.snapshot().sensorDetails[sensor.id]);
-        bindSensorPopupTrigger(element, opener);
-        bindSensorPopupTrigger(text, opener);
-      }
+      text.setAttribute('aria-label', 'Apri sensore ' + sensor.room);
+      const opener = () => showSensorPopup(sensor.id, store.snapshot().sensorDetails[sensor.id], {
+        minimumTemperature: sensorThresholds[sensor.id] ?? null, saveMinimumTemperature,
+      });
+      bindSensorPopupTrigger(element, opener);
+      bindSensorPopupTrigger(text, opener);
       sensorMapping.overlay.append(text);
       sensorReadings.set(sensor.id, text);
       if (sensor.probeReading) {
@@ -678,7 +697,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
         const humidityBox = sensorMapping.box(sensor.humidityReading);
         const humidity = svgElement('text', { x: humidityBox.x + humidityBox.width / 2, y: humidityBox.y + humidityBox.height / 2, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': sensorTypography.fontSize, class: 'floorplan-reading' });
         humidity.dataset.sensorHumidityReading = sensor.id;
-        if (zigbee) bindSensorPopupTrigger(humidity, () => showSensorPopup(sensor.id, store.snapshot().sensorDetails[sensor.id]));
+        bindSensorPopupTrigger(humidity, opener);
         sensorMapping.overlay.append(humidity);
         sensorHumidityReadings.set(sensor.id, humidity);
       }
@@ -888,10 +907,13 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
       for (const sensor of config.sensors) {
         const value = state.sensors[sensor.id];
         const marker = sensorMarkers.get(sensor.id);
-        const visualState = sensorVisualState(state.sensorDetails[sensor.id]);
+        const details = state.sensorDetails[sensor.id];
+        const temperatureAlert = sensorTemperatureAlertState(details, sensorThresholds[sensor.id], activeTemperatureAlerts.get(sensor.id) === true);
+        activeTemperatureAlerts.set(sensor.id, temperatureAlert);
+        const visualState = temperatureAlert ? 'temperature-low' : sensorVisualState(details);
         if (marker) {
           marker.dataset.sensorState = visualState;
-          marker.setAttribute('aria-label', `Temperatura ${sensor.room}: ${visualState === 'online' ? 'online' : visualState === 'battery-low' ? 'batteria scarica' : 'offline o stato sconosciuto'}`);
+          marker.setAttribute('aria-label', `Temperatura ${sensor.room}: ${visualState === 'temperature-low' ? 'temperatura sotto soglia' : visualState === 'online' ? 'online' : visualState === 'battery-low' ? 'batteria scarica' : 'offline o stato sconosciuto'}`);
         }
         const reading = sensorReadings.get(sensor.id);
         renderFloorplanReading(reading, value, '°C', temperatureReadingColor(value));
@@ -974,7 +996,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
       previousLedbarOn = ledbarOn;
       if (Number.isInteger(ledbar.brightness)) ledbarSlider.value = String(ledbar.brightness);
       ledbarSlider.disabled = ledbar.online === false && ledbar.state === null;
-      updateSensorPopup(state.sensorDetails);
+      updateSensorPopup(state.sensorDetails, { minimumTemperatures: sensorThresholds, saveMinimumTemperature });
       open.setAttribute('aria-label', 'Apri CALDAIA completa · ' + (state.boiler.on === null ? 'stato non disponibile' : state.boiler.on ? 'riscaldamento ON' : 'riscaldamento OFF') + ' · ' + (state.boiler.mode || 'modalità non disponibile'));
       renderBoilerMini(open, state.boiler);
       const cappaPower = typeof state.hood.power === 'boolean' ? state.hood.power : previousCappaPower ?? false;

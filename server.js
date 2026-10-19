@@ -25,6 +25,7 @@ import { WeatherService } from './src/weather-service.js';
 import { AlarmRuntime } from './src/alarm-runtime.js';
 import { AlarmAuthorization } from './src/alarm-auth.js';
 import { AlarmSirenController } from './src/alarm-siren-controller.js';
+import { SensorThresholdStore } from './src/sensor-threshold-store.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_ROOT = path.join(ROOT, 'public');
@@ -36,6 +37,7 @@ const HARDWARE_FILE = path.join(ROOT, 'data', 'config', 'hardware.json');
 const LOCAL_HARDWARE_FILE = path.join(ROOT, 'data', 'config', 'hardware-local.json');
 const ROLE_FILE = path.join(ROOT, 'data', 'config', 'device-roles.json');
 const ALARM_STATE_FILE = path.join(ROOT, 'data', 'config', 'alarm-state.json');
+const SENSOR_THRESHOLDS_FILE = path.join(ROOT, 'data', 'config', 'sensor-thresholds.json');
 
 const STATIC_FILES = new Map([
   ['/', ['index.html', 'text/html; charset=utf-8']],
@@ -211,6 +213,7 @@ export function createHomeControlServer({
   cameraWakeScheduler = null,
   weatherService = null,
   alarmStore = new AlarmRuntime({ filePath: ALARM_STATE_FILE }),
+  sensorThresholdStore = new SensorThresholdStore({ filePath: SENSOR_THRESHOLDS_FILE }),
   alarmAuthorization = new AlarmAuthorization(),
   alarmSirenController = null,
 } = {}) {
@@ -357,6 +360,17 @@ export function createHomeControlServer({
         return sendJson(response, 200, snapshot);
       }
       catch { return sendJson(response, 503, { error: 'Stato casa non disponibile' }); }
+    }
+    if (url.pathname === '/api/sensor-thresholds') {
+      if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
+      return sendJson(response, 200, await sensorThresholdStore.read());
+    }
+    const sensorThresholdMatch = /^\/api\/sensors\/(S[1-5])\/minimum-temperature$/.exec(url.pathname);
+    if (sensorThresholdMatch) {
+      if (request.method !== 'PUT') return sendJson(response, 405, { error: 'Metodo non consentito' });
+      const minimumTemperature = (await readJson(request))?.minimumTemperature;
+      try { return sendJson(response, 200, await sensorThresholdStore.set(sensorThresholdMatch[1], minimumTemperature === null ? null : Number(minimumTemperature))); }
+      catch (error) { return sendJson(response, 400, { error: error.message }); }
     }
     if (url.pathname === '/api/cameras/event-alerts') {
       if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });

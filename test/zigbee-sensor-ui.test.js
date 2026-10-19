@@ -8,8 +8,8 @@ class Element extends EventTarget {
   append(...children) { this.children.push(...children); }
   replaceChildren(...children) { this.children = children; }
   set innerHTML(value) {
-    this.parts = Object.fromEntries([...value.matchAll(/data-sensor-(name|model|close|details)/g)]
-      .map(match => [`[data-sensor-${match[1]}]`, new Element(match[1] === 'close' ? 'button' : 'div')]));
+    this.parts = Object.fromEntries([...value.matchAll(/data-sensor-(name|model|close|details|threshold-form|minimum-temperature|threshold-status|threshold-save)/g)]
+      .map(match => [`[data-sensor-${match[1]}]`, new Element(match[1] === 'close' || match[1] === 'threshold-save' ? 'button' : match[1] === 'threshold-form' ? 'form' : match[1] === 'minimum-temperature' ? 'input' : 'div')]));
   }
   querySelector(selector) { return this.parts[selector]; }
   showModal() { this.open = true; }
@@ -17,7 +17,7 @@ class Element extends EventTarget {
 }
 
 const sensor = { name: 'SmartHomeS1', temperature: 27.8, humidity: 49.9, battery: 100, linkQuality: 192,
-  online: true, updatedAt: '2026-09-16T12:00:00Z', model: 'SONOFF SNZB-02P', protocol: 'Zigbee' };
+  online: true, available: true, updatedAt: '2026-09-16T12:00:00Z', model: 'SONOFF SNZB-02P', protocol: 'Zigbee' };
 
 test('LS SONOFF mostra soltanto temperatura e umidita su due righe', () => {
   assert.deepEqual(sensorReadingLines(sensor), ['27,8 °C', '49,9 %']);
@@ -53,4 +53,17 @@ test('icona e label aprono lo stesso popup, dati aggiornati e chiusura normale',
   label.dispatchEvent(keyboard); assert.equal(dialog.open, true); assert.equal(keyboard.defaultPrevented, true);
   assert.equal(label.attributes.tabindex, '0'); assert.equal(label.attributes.role, 'button');
   dialog.dispatchEvent(new Event('click')); assert.equal(dialog.open, false);
+});
+
+test('S3 apre il popup Avatto con i soli dati disponibili e la sua soglia grafica', t => {
+  const previousDocument = globalThis.document;
+  const body = new Element('body');
+  globalThis.document = { body, createElement: tag => new Element(tag), querySelector: () => body.children[0] };
+  t.after(() => { globalThis.document = previousDocument; });
+  showSensorPopup('S3', { value: 19.2, online: true, available: true, updatedAt: '2026-09-16T12:00:00Z' }, { minimumTemperature: 18, saveMinimumTemperature: async () => {} });
+  const dialog = body.children[0];
+  assert.equal(dialog.querySelector('[data-sensor-name]').textContent, 'Avatto — Salotto');
+  assert.equal(dialog.querySelector('[data-sensor-model]').textContent, 'Termostato Avatto');
+  const rows = dialog.querySelector('[data-sensor-details]').children.map(row => row.children[0].textContent);
+  assert.ok(rows.includes('Temperatura')); assert.ok(rows.includes('Stato')); assert.ok(!rows.includes('Batteria'));
 });

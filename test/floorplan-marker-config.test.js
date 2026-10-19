@@ -9,7 +9,7 @@ import { validateHardwareRegistry } from '../src/hardware-registry.js';
 import { normalizeMobilePresence } from '../src/home-status.js';
 
 globalThis.window = { addEventListener() {} };
-const { cameraBatteryIcon, renderCameraIcon, shapeForLabel, humidityReadingColor, renderFloorplanReading, sensorReadingFontSize, sensorVisualState, temperatureReadingColor } = await import('../public/js/floorplan.js');
+const { cameraBatteryIcon, renderCameraIcon, shapeForLabel, humidityReadingColor, renderFloorplanReading, sensorReadingFontSize, sensorTemperatureAlertState, sensorVisualState, temperatureReadingColor } = await import('../public/js/floorplan.js');
 const { mobileDeviceIcon } = await import('../public/js/floorplan.js');
 
 test('DM personal icons survive registry/Home normalization with unchanged presence and type fallbacks', async () => {
@@ -284,8 +284,29 @@ test('S1–S5 usano lo stato visivo conservativo dei sensori', async () => {
     readFile(new URL('../public/floorplan.css', import.meta.url), 'utf8'),
   ]);
   assert.match(floorplan, /marker\.dataset\.sensorState = visualState/);
-  assert.match(floorplan, /sensorVisualState\(state\.sensorDetails\[sensor\.id\]\)/);
+  assert.match(floorplan, /sensorVisualState\(details\)/);
   for (const state of ['online', 'battery-low', 'offline']) assert.match(css, new RegExp(`\\.floorplan-marker-sensor\\[data-sensor-state="${state}"\\]`));
+});
+
+test('allarme minima temperatura ha soglie indipendenti, isteresi e priorità offline', async () => {
+  for (const id of ['S1', 'S2', 'S3', 'S4', 'S5']) {
+    assert.equal(sensorTemperatureAlertState({ available: true, online: true, value: 17.9 }, 18), true, id);
+    assert.equal(sensorTemperatureAlertState({ available: true, online: true, value: 18 }, 18), false, id);
+    assert.equal(sensorTemperatureAlertState({ available: true, online: true, value: 18.3 }, 18, true), true, id);
+    assert.equal(sensorTemperatureAlertState({ available: true, online: true, value: 18.5 }, 18, true), false, id);
+    assert.equal(sensorTemperatureAlertState({ available: false, online: true, value: 10 }, 18), false, id);
+    assert.equal(sensorTemperatureAlertState({ available: true, online: false, value: 10 }, 18), false, id);
+    assert.equal(sensorTemperatureAlertState({ available: true, online: true, value: null }, 18), false, id);
+  }
+  const [floorplan, css] = await Promise.all([
+    readFile(new URL('../public/js/floorplan.js', import.meta.url), 'utf8'),
+    readFile(new URL('../public/floorplan.css', import.meta.url), 'utf8'),
+  ]);
+  assert.match(floorplan, /temperatureAlert \? 'temperature-low' : sensorVisualState/);
+  assert.match(floorplan, /api\/sensors\/\$\{id\}\/minimum-temperature/);
+  assert.doesNotMatch(floorplan, /api\/thermostat\/(?:setpoint|mode)/);
+  for (const color of ['rgb\\(41 223 146 \/ 40%\\)', 'rgb\\(255 229 106 \/ 40%\\)', 'rgb\\(119 136 150 \/ 40%\\)']) assert.match(css, new RegExp(color));
+  assert.match(css, /floorplan-sensor-temperature-alert 1\.5s/);
 });
 
 test('icone batteria camera rispettano soglie esatte e priorità ricarica', () => {
