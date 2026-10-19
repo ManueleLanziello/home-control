@@ -22,6 +22,7 @@ const dashboardHtmlPath = new URL('../public/index.html', import.meta.url);
 const dashboardScriptPath = new URL('../public/js/dashboard.js', import.meta.url);
 const floorplanScriptPath = new URL('../public/js/floorplan.js', import.meta.url);
 const stylePath = new URL('../public/style.css', import.meta.url);
+const floorplanStylePath = new URL('../public/floorplan.css', import.meta.url);
 
 test('popup CALDAIA espone soltanto i tre week pattern consentiti', async () => {
   const html = await readFile(htmlPath, 'utf8');
@@ -59,14 +60,22 @@ test('editing delle celle non ricrea gli input e protegge il rendering schedule 
   assert.doesNotMatch(script.match(/scheduleForm\?\.addEventListener\('input'[\s\S]*?\n  }\);/)?.[0] || '', /render(?:Draft|Editor)\(/);
 });
 
-test('dashboard CALDAIA usa il nuovo set icone e QD1 resta sincronizzata allo stato esistente', async () => {
-  const [html, dashboard, floorplan, style] = await Promise.all([
+test('popup CALDAIA usa sezioni indipendenti e QD1 resta sincronizzata allo stato esistente', async () => {
+  const [html, dashboard, floorplan, style, floorplanStyle] = await Promise.all([
     readFile(dashboardHtmlPath, 'utf8'),
     readFile(dashboardScriptPath, 'utf8'),
     readFile(floorplanScriptPath, 'utf8'),
     readFile(stylePath, 'utf8'),
+    readFile(floorplanStylePath, 'utf8'),
   ]);
-  for (const icon of ['close', 'boiler', 'manual', 'auto', 'smart', 'prog', 'nofire']) assert.match(html, new RegExp(`design/${icon}\\.svg`));
+  const boilerModal = html.match(/<dialog class="boiler-modal"[\s\S]*?<\/dialog>/)?.[0] || '';
+  for (const icon of ['close', 'manual', 'auto', 'smart', 'prog', 'nofire']) assert.match(html, new RegExp(`design/${icon}\\.svg`));
+  assert.doesNotMatch(html, /design\/boiler\.svg/);
+  assert.match(html, /boiler-popup-section boiler-popup-overview/);
+  assert.match(html, /boiler-popup-section boiler-popup-today/);
+  assert.match(html, /boiler-popup-section boiler-popup-weekly/);
+  assert.doesNotMatch(html, /boiler-modal-card-frame/);
+  assert.doesNotMatch(boilerModal, /Ultimo aggiornamento/);
   assert.equal((html.match(/class="boiler-tile-icon"/g) || []).length, 0);
   assert.match(dashboard, /heatingActive === true \? 'fire\.svg' : 'nofire\.svg'/);
   assert.match(floorplan, /boiler\.on === true \? 'fire\.svg' : 'nofire\.svg'/);
@@ -77,6 +86,10 @@ test('dashboard CALDAIA usa il nuovo set icone e QD1 resta sincronizzata allo st
   assert.doesNotMatch(floorplan, /settings\.textContent/);
   assert.match(floorplan, /event\.stopPropagation\(\)/);
   assert.match(style, /height: clamp\(252px, 30\.8vw, 294px\)/);
+  assert.match(style, /height: clamp\(180px, calc\(100dvh - 570px\), 250px\)/);
+  assert.match(floorplanStyle, /\[data-boiler-modal\] \.boiler-modal-toolbar button \{ display: grid; width: 40px; height: 40px/);
+  assert.match(floorplanStyle, /\[data-boiler-modal\] \.boiler-modal-toolbar button img \{ box-sizing: content-box; width: 18px; height: 18px/);
+  assert.doesNotMatch(dashboard, /boiler-modal-card-frame/);
 });
 
 test('setpoint usa un solo transaction state e scarta status appartenenti a revisioni precedenti', async () => {

@@ -197,9 +197,14 @@ button.floorplan-marker { pointer-events: auto; cursor: pointer; }
 .boiler-modal-toolbar button { width: 38px; height: 38px; border: 1px solid #476b83; border-radius: 10px; background: #132d40; color: #e5f3fc; cursor: pointer; }
 .boiler-modal-toolbar button img { width: 100%; height: 100%; object-fit: contain; }
 .boiler-modal-content { padding: 0 16px 16px; min-width: 0; }
-.boiler-modal-card-frame { display: grid; justify-items: center; width: 100%; }
-.boiler-modal .boiler-card { width: max(510px, 100%); max-width: none; height: auto; zoom: var(--boiler-card-scale, 1); }
-.boiler-modal [data-boiler-editor-host] { scroll-margin-top: 70px; }
+[data-boiler-modal] .boiler-modal-toolbar { min-height: 52px; padding: 6px 14px 6px 18px; }
+[data-boiler-modal] .boiler-modal-toolbar button { display: grid; width: 40px; height: 40px; padding: 6px; place-items: center; border: 0; background: transparent; }
+[data-boiler-modal] .boiler-modal-toolbar button img { box-sizing: content-box; width: 18px; height: 18px; padding: 5px; border: 1px solid #476b83; border-radius: 8px; background: #132d40; }
+[data-boiler-modal] .boiler-modal-content { display: grid; gap: 14px; }
+.boiler-popup-section { min-width: 0; padding: 16px; border: 1px solid rgba(82, 155, 211, .4); border-radius: 18px; background: linear-gradient(145deg, rgba(9, 35, 58, .82), rgba(5, 20, 35, .9)); box-shadow: inset 0 0 25px rgba(24, 122, 199, .08); }
+.boiler-popup-today .boiler-schedule { margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
+.boiler-popup-today .boiler-status-row { margin: 14px 0 0; padding: 12px; border-color: rgba(82, 155, 211, .3); }
+.boiler-popup-weekly { padding: 0; border: 0; background: transparent; box-shadow: none; scroll-margin-top: 70px; }
 .boiler-modal .thermostat-period input { width: 100%; }
 body:has(.boiler-modal[open]) { overflow: hidden; }
 

@@ -581,8 +581,6 @@ function initBoilerModal() {
   });
   const open = async section => {
     if (!modal.open) modal.showModal();
-    const frame = modal.querySelector('.boiler-modal-card-frame');
-    frame.style.setProperty('--boiler-card-scale', Math.min(1, frame.clientWidth / 510));
     if (section !== 'programming') modal.scrollTop = 0;
     await loadEditor();
     if (modal.open && section === 'programming') {
@@ -599,10 +597,6 @@ function initBoilerModal() {
   });
   modal.querySelector('.boiler-settings-link').addEventListener('click', event => { event.preventDefault(); void open('programming'); });
   document.addEventListener('home-control:open-boiler', event => void open(event.detail?.section));
-  const frame = modal.querySelector('.boiler-modal-card-frame');
-  new ResizeObserver(() => {
-    if (modal.open) frame.style.setProperty('--boiler-card-scale', Math.min(1, frame.clientWidth / 510));
-  }).observe(frame);
 }
 
 function initCappaModal() {
