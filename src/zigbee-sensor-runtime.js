@@ -38,6 +38,7 @@ export class HomeZigbeeSensorRuntime {
     this.sirenIdentity = null;
     this.ledbar = null;
     this.lights = new Map();
+    this.lightIdentities = new Map();
     this.listeners = new Set();
     this.topics = new Map(config.sensors.map(sensor => [sensor.topic, sensor]));
     this.doorContactTopics = new Map((config.doorContacts || []).map(contact => [contact.topic, contact]));
@@ -109,6 +110,11 @@ export class HomeZigbeeSensorRuntime {
           this.motionIdentity = normalizeZigbeeDeviceIdentity(motionDevice);
           const sirenDevice = payload.find(item => item?.friendly_name === this.config.siren?.friendlyName);
           this.sirenIdentity = normalizeZigbeeDeviceIdentity(sirenDevice);
+          for (const light of this.config.lights || []) {
+            const device = payload.find(item => item?.friendly_name === light.name);
+            const identity = normalizeZigbeeDeviceIdentity(device);
+            if (identity) this.lightIdentities.set(light.id, identity);
+          }
           this.notify('doorContacts');
           this.notify('sensors');
           this.notify('motionSensor');
@@ -274,11 +280,13 @@ export class HomeZigbeeSensorRuntime {
   readLightsSnapshot() {
     return Object.fromEntries((this.config.lights || []).map(light => {
       const snapshot = this.lights.get(light.id) || { state: null, updatedAt: null };
+      const identity = this.lightIdentities.get(light.id) || null;
       const age = this.now() - Date.parse(snapshot.updatedAt);
       const fresh = Number.isFinite(age) && age >= 0 && age <= this.config.freshnessMs;
       const known = ['ON', 'OFF'].includes(snapshot.state);
       const available = this.connected && known;
-      return [light.id, { id: light.id, name: light.name, state: snapshot.state, updatedAt: snapshot.updatedAt, known, fresh, online: available, available }];
+      const identityStatus = !light.ieeeAddress ? null : !identity ? 'unknown' : identity.ieeeAddress !== light.ieeeAddress ? 'ieee_mismatch' : identity.model !== light.model || identity.manufacturer !== light.manufacturer ? 'model_mismatch' : 'verified';
+      return [light.id, { id: light.id, name: light.name, state: snapshot.state, updatedAt: snapshot.updatedAt, known, fresh, online: available, available, identity: { ieeeAddress: identity?.ieeeAddress ?? null }, identityStatus, reportedModel: identity?.model ?? null, reportedManufacturer: identity?.manufacturer ?? null }];
     }));
   }
   setLightPower(id, on) {

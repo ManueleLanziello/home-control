@@ -90,21 +90,21 @@ function labelStart(nodes, label) {
 
 test('mapping SVG aggiornati usano label semantiche, non geometrie fragili', async () => {
   const [lights, sensors, boiler, weather, clock, devices] = await Promise.all(['LAYER-07-LUCI.svg', 'LAYER-08-SENSORI.svg', 'LAYER-10-CALDAIA.svg', 'LAYER-13-METEO.svg', 'LAYER-22-OROLOGIO.svg', 'LAYER-DISPOSITIVI.svg'].map(labelsIn));
-  for (const id of ['L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7', 'L8', 'L9', 'L10', 'L11', 'L12']) assert.equal(includesLabel(lights.labels, id), true, id);
+  for (const id of ['L1', 'L2', 'L5', 'L6', 'L7', 'L8', 'L9', 'L10', 'L11', 'L12']) assert.equal(includesLabel(lights.labels, id), true, id);
   for (const id of ['S1', 'S2', 'S3', 'S4', 'S5', 'LS1', 'LS2', 'LS3', 'LS4', 'LS25']) assert.equal(includesLabel(sensors.labels, id), true, id);
   for (const id of ['D1', 'QD1']) assert.equal(includesLabel(boiler.labels, id), true, id);
   for (const id of ['M1', 'QM1', 'LM1']) assert.equal(includesLabel(weather.labels, id), true, id);
   assert.equal(includesLabel(clock.labels, 'CLK1'), true);
   assert.equal(includesLabel(devices.labels, 'DM'), true);
-  assert.deepEqual(floorplanConfig.lights.map(light => light.id), ['L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7', 'L8', 'L9', 'L10', 'L11', 'L12']);
-  assert.deepEqual(floorplanConfig.rooms.map(room => room.lightId), ['L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7']);
-  assert.deepEqual(floorplanConfig.lights.slice(7).map(light => light.localOnly === true), [false, true, true, false, true]);
+  assert.deepEqual(floorplanConfig.lights.map(light => light.id), ['L1', 'L2', 'L5', 'L6', 'L7', 'L8', 'L9', 'L10', 'L11', 'L12']);
+  assert.deepEqual(floorplanConfig.rooms.map(room => room.lightId), ['L1', 'L2', 'L5', 'L6', 'L7']);
+  assert.deepEqual(floorplanConfig.lights.slice(5).map(light => light.localOnly === true), [false, true, true, false, false]);
   assert.deepEqual(floorplanConfig.sensors.map(sensor => [sensor.reading.label, sensor.humidityReading?.label || null]), [['LS1', 'LU1'], ['LS2', 'LU2'], ['LS3', null], ['LS4', 'LU4'], ['LS25', null]]);
   for (const marker of [...floorplanConfig.lights, ...floorplanConfig.sensors].map(item => item.marker).concat(floorplanConfig.boiler.marker, floorplanConfig.boiler.card, floorplanConfig.weather.marker, floorplanConfig.weather.card, floorplanConfig.weather.currentCard, floorplanConfig.clock.marker)) assert.ok(marker.label);
   assert.deepEqual(floorplanConfig.mobileMonitor, { marker: { label: 'DM' }, icons: { phone: 'phone.svg', tablet: 'tablet.svg' } });
 });
 
-test('L7 usa soltanto il nuovo layer ON; L8 e L11 sono Zigbee, L9/L10/L12 restano locali', () => {
+test('L7 usa soltanto il nuovo layer ON; L8, L11 e L12 sono Zigbee, L9/L10 restano locali', () => {
   const store = createFloorplanState();
   store.applyHomeSnapshot({ lights: { L1: { source: 'simulation', state: false } } });
 
@@ -117,6 +117,7 @@ test('L7 usa soltanto il nuovo layer ON; L8 e L11 sono Zigbee, L9/L10/L12 restan
   assert.equal(state.lightSources.L9, 'simulation');
   assert.equal(state.lightSources.L8, 'unavailable');
   assert.equal(state.lightSources.L11, 'unavailable');
+  assert.equal(state.lightSources.L12, 'unavailable');
   assert.equal(floorplanConfig.rooms.some(room => room.lightId === 'L8'), false);
   assert.equal(floorplanConfig.rooms.some(room => room.lightId === 'L12'), false);
   assert.deepEqual(floorplanConfig.rooms.at(-1), { lightId: 'L7', on: 'LAYER-L7-ON.svg', optional: true });
@@ -145,7 +146,7 @@ test('L8-L12 usano overlay full-plan indipendenti e conservano lo stato attraver
   store.applyHomeSnapshot({ lights: { L8: { source: 'zigbee', available: true, state: 'ON' }, L11: { source: 'zigbee', available: true, state: 'ON' } } });
   store.setLight('L10', true);
   const beforeBaseChange = store.snapshot().lights;
-  assert.deepEqual(beforeBaseChange, { L1: null, L2: null, L3: null, L4: null, L5: null, L6: null, L7: null, L8: true, L9: false, L10: true, L11: true, L12: false });
+  assert.deepEqual(beforeBaseChange, { L1: null, L2: null, L5: null, L6: null, L7: null, L8: true, L9: false, L10: true, L11: true, L12: null });
   assert.deepEqual(store.snapshot().lights, beforeBaseChange);
 });
 
@@ -179,14 +180,14 @@ test('gli overlay L8-L12 sono serviti come SVG e il bootstrap li tratta come gra
 
 test('il resolver associa correttamente marker e label anche quando le label sono raggruppate', () => {
   const source = markerSource([
-    ['path'], ['path'], ['path'], ['path'], ['path'], ['path'],
-    ['text', 'L1'], ['text', 'L2'], ['text', 'L3'], ['text', 'L4'], ['text', 'L5'], ['text', 'L6'],
+    ['path'], ['path'], ['path'], ['path'],
+    ['text', 'L1'], ['text', 'L2'], ['text', 'L5'], ['text', 'L6'],
     ['path'], ['text', 'L'], ['text', '1'], ['text', '1'],
   ]);
   const paths = source.querySelectorAll('path');
   assert.equal(shapeForLabel(source, 'L1'), paths[0]);
-  assert.equal(shapeForLabel(source, 'L6'), paths[5]);
-  assert.equal(shapeForLabel(source, 'L11'), paths[6]);
+  assert.equal(shapeForLabel(source, 'L6'), paths[3]);
+  assert.equal(shapeForLabel(source, 'L11'), paths[4]);
 });
 
 test('il resolver dei main camera usa la posizione della label, non l ordine dei path', () => {
@@ -224,7 +225,7 @@ test('LAYER-13 associa LM1 al rettangolino immediatamente precedente, non al con
 
 test('gli altri marker semantici restano risolvibili nelle rispettive geometrie', async () => {
   const cases = [
-    ['LAYER-07-LUCI.svg', ['L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7', 'L8', 'L9', 'L10', 'L11', 'L12']],
+    ['LAYER-07-LUCI.svg', ['L1', 'L2', 'L5', 'L6', 'L7', 'L8', 'L9', 'L10', 'L11', 'L12']],
     ['LAYER-08-SENSORI.svg', ['S1', 'S2', 'S3', 'S4', 'S5', 'LS1', 'LS2', 'LS3', 'LS4', 'LS25', 'LU1', 'LU2', 'LU4']],
     ['LAYER-10-CALDAIA.svg', ['D1', 'QD1']],
     ['LAYER-22-OROLOGIO.svg', ['CLK1']],

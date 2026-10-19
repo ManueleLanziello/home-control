@@ -19,7 +19,7 @@ function fixture() {
   client.publish = (topic, payload, options, callback) => { publishes.push([topic, JSON.parse(payload)]); callback(null); };
   client.end = () => {};
   const runtime = new HomeZigbeeSensorRuntime({ now: () => now, connect: () => client });
-  return { runtime, client, subscriptions, publishes, now: () => now, message: payload => client.emit('message', 'zigbee2mqtt/SmartHomeLB1', Buffer.from(JSON.stringify(payload))), l1Message: payload => client.emit('message', 'zigbee2mqtt/cucina-L1', Buffer.from(JSON.stringify(payload))), l2Message: payload => client.emit('message', 'zigbee2mqtt/camera-L2', Buffer.from(JSON.stringify(payload))), lightMessage: payload => client.emit('message', 'zigbee2mqtt/bagno-L5', Buffer.from(JSON.stringify(payload))), l6Message: payload => client.emit('message', 'zigbee2mqtt/cameretta-L6', Buffer.from(JSON.stringify(payload))), l8Message: payload => client.emit('message', 'zigbee2mqtt/giardino-L8', Buffer.from(JSON.stringify(payload))), l11Message: payload => client.emit('message', 'zigbee2mqtt/terrazzo-L11', Buffer.from(JSON.stringify(payload))), sensorMessage: (id, payload) => client.emit('message', `zigbee2mqtt/SmartHome${id}`, Buffer.from(JSON.stringify(payload))), advance: milliseconds => { now += milliseconds; } };
+  return { runtime, client, subscriptions, publishes, now: () => now, message: payload => client.emit('message', 'zigbee2mqtt/SmartHomeLB1', Buffer.from(JSON.stringify(payload))), l1Message: payload => client.emit('message', 'zigbee2mqtt/cucina-L1', Buffer.from(JSON.stringify(payload))), l2Message: payload => client.emit('message', 'zigbee2mqtt/camera-L2', Buffer.from(JSON.stringify(payload))), lightMessage: payload => client.emit('message', 'zigbee2mqtt/bagno-L5', Buffer.from(JSON.stringify(payload))), l6Message: payload => client.emit('message', 'zigbee2mqtt/cameretta-L6', Buffer.from(JSON.stringify(payload))), l8Message: payload => client.emit('message', 'zigbee2mqtt/giardino-L8', Buffer.from(JSON.stringify(payload))), l11Message: payload => client.emit('message', 'zigbee2mqtt/terrazzo-L11', Buffer.from(JSON.stringify(payload))), l12Message: payload => client.emit('message', 'zigbee2mqtt/terrazzo-L12', Buffer.from(JSON.stringify(payload))), sensorMessage: (id, payload) => client.emit('message', `zigbee2mqtt/SmartHome${id}`, Buffer.from(JSON.stringify(payload))), advance: milliseconds => { now += milliseconds; } };
 }
 
 test('LB1 e luci Zigbee richiedono lo stato solo dopo subscribe riuscita, una volta per connessione', () => {
@@ -36,12 +36,13 @@ test('LB1 e luci Zigbee richiedono lo stato solo dopo subscribe riuscita, una vo
   assert.deepEqual(raw.filter(([topic]) => topic.endsWith('cameretta-L6/get')), [['zigbee2mqtt/cameretta-L6/get', '{"state":""}', { qos: 0 }]]);
   assert.deepEqual(raw.filter(([topic]) => topic.endsWith('giardino-L8/get')), [['zigbee2mqtt/giardino-L8/get', '{"state":""}', { qos: 0 }]]);
   assert.deepEqual(raw.filter(([topic]) => topic.endsWith('terrazzo-L11/get')), [['zigbee2mqtt/terrazzo-L11/get', '{"state":""}', { qos: 0 }]]);
+  assert.deepEqual(raw.filter(([topic]) => topic.endsWith('terrazzo-L12/get')), [['zigbee2mqtt/terrazzo-L12/get', '{"state":""}', { qos: 0 }]]);
   assert.equal(raw.filter(([topic]) => /SmartHomeS[124]\/get$/.test(topic)).length, 0);
-  assert.equal(raw.length, 7);
+  assert.equal(raw.length, 8);
   assert.equal(f.runtime.readLedbarSnapshot().known, false);
   f.client.emit('close'); f.client.emit('connect');
-  callbacks[0](null); assert.equal(raw.length, 7);
-  callbacks[1](null); assert.equal(raw.length, 14);
+  callbacks[0](null); assert.equal(raw.length, 8);
+  callbacks[1](null); assert.equal(raw.length, 16);
   assert.deepEqual(raw.filter(([topic]) => topic.endsWith('cucina-L1/get')), [
     ['zigbee2mqtt/cucina-L1/get', '{"state":""}', { qos: 0 }],
     ['zigbee2mqtt/cucina-L1/get', '{"state":""}', { qos: 0 }],
@@ -66,9 +67,13 @@ test('LB1 e luci Zigbee richiedono lo stato solo dopo subscribe riuscita, una vo
     ['zigbee2mqtt/terrazzo-L11/get', '{"state":""}', { qos: 0 }],
     ['zigbee2mqtt/terrazzo-L11/get', '{"state":""}', { qos: 0 }],
   ]);
+  assert.deepEqual(raw.filter(([topic]) => topic.endsWith('terrazzo-L12/get')), [
+    ['zigbee2mqtt/terrazzo-L12/get', '{"state":""}', { qos: 0 }],
+    ['zigbee2mqtt/terrazzo-L12/get', '{"state":""}', { qos: 0 }],
+  ]);
   f.advance(24 * 60 * 60 * 1000);
   for (let i = 0; i < 10; i += 1) f.runtime.readLedbarSnapshot();
-  assert.equal(raw.length, 14);
+  assert.equal(raw.length, 16);
   f.runtime.close();
 });
 
@@ -110,10 +115,11 @@ test('recovery LB1 non introduce timer o polling', async () => {
   assert.doesNotMatch(source, /setInterval|setTimeout/);
 });
 
-test('API luci autorizza gli ID registrati nel config Zigbee', async () => {
+test('API luci autorizza gli ID registrati nel config Zigbee, incluso L12 con identità stabile', async () => {
   const source = await readFile(new URL('../server.js', import.meta.url), 'utf8');
   assert.match(source, /ZIGBEE_SENSOR_CONFIG\.lights\.some\(light => light\.id === lightPowerMatch\[1\]\)/);
-  assert.deepEqual(ZIGBEE_SENSOR_CONFIG.lights.map(light => light.id), ['L1', 'L2', 'L5', 'L6', 'L8', 'L11']);
+  assert.deepEqual(ZIGBEE_SENSOR_CONFIG.lights.map(light => light.id), ['L1', 'L2', 'L5', 'L6', 'L8', 'L11', 'L12']);
+  assert.deepEqual(ZIGBEE_SENSOR_CONFIG.lights.at(-1), { id: 'L12', name: 'terrazzo-L12', topic: 'zigbee2mqtt/terrazzo-L12', setTopic: 'zigbee2mqtt/terrazzo-L12/set', getTopic: 'zigbee2mqtt/terrazzo-L12/get', getPayload: { state: '' }, ieeeAddress: '0x07c31faffffec2a2', model: 'ZBMINIL2', manufacturer: 'SONOFF' });
 });
 
 test('LB1 interpreta MQTT, conserva brightness durante OFF e pubblica i comandi Zigbee2MQTT', async () => {
@@ -177,16 +183,32 @@ test('L6 riceve ON/OFF da cameretta-L6 e pubblica il toggle sul topic Zigbee cor
   assert.equal(f.runtime.readLightsSnapshot().L6.state, 'ON'); f.runtime.close();
 });
 
-test('L8 e L11 ricevono ON/OFF dagli interruttori fisici e pubblicano sui topic Zigbee corretti', async () => {
+test('L8, L11 e L12 ricevono ON/OFF dagli interruttori fisici e pubblicano sui topic Zigbee corretti', async () => {
   const f = fixture(); f.runtime.start(); f.client.emit('connect');
   assert.ok(f.subscriptions[0].includes('zigbee2mqtt/giardino-L8'));
   assert.ok(f.subscriptions[0].includes('zigbee2mqtt/terrazzo-L11'));
-  f.l8Message({ state: 'ON' }); f.l11Message({ state: 'OFF' });
+  assert.ok(f.subscriptions[0].includes('zigbee2mqtt/terrazzo-L12'));
+  f.l8Message({ state: 'ON' }); f.l11Message({ state: 'OFF' }); f.l12Message({ state: 'ON' });
   assert.equal(f.runtime.readLightsSnapshot().L8.state, 'ON');
   assert.equal(f.runtime.readLightsSnapshot().L11.state, 'OFF');
-  await f.runtime.setLightPower('L8', false); await f.runtime.setLightPower('L11', true);
+  assert.equal(f.runtime.readLightsSnapshot().L12.state, 'ON');
+  await f.runtime.setLightPower('L8', false); await f.runtime.setLightPower('L11', true); await f.runtime.setLightPower('L12', false);
   assert.deepEqual(f.publishes.filter(([topic]) => topic === 'zigbee2mqtt/giardino-L8/set'), [['zigbee2mqtt/giardino-L8/set', { state: 'OFF' }]]);
   assert.deepEqual(f.publishes.filter(([topic]) => topic === 'zigbee2mqtt/terrazzo-L11/set'), [['zigbee2mqtt/terrazzo-L11/set', { state: 'ON' }]]);
+  assert.deepEqual(f.publishes.filter(([topic]) => topic === 'zigbee2mqtt/terrazzo-L12/set'), [['zigbee2mqtt/terrazzo-L12/set', { state: 'OFF' }]]);
+  f.runtime.close();
+});
+
+test('L12 resta sconosciuta prima del feedback reale e verifica l’identità bridge', () => {
+  const f = fixture(); f.runtime.start(); f.client.emit('connect');
+  assert.equal(f.runtime.readLightsSnapshot().L12.known, false);
+  assert.equal(f.runtime.readLightsSnapshot().L12.available, false);
+  assert.equal(f.runtime.readLightsSnapshot().L12.identityStatus, 'unknown');
+  f.client.emit('message', 'zigbee2mqtt/bridge/devices', Buffer.from(JSON.stringify([{ friendly_name: 'terrazzo-L12', ieee_address: '0x07c31faffffec2a2', definition: { model: 'ZBMINIL2', vendor: 'SONOFF' } }])));
+  assert.equal(f.runtime.readLightsSnapshot().L12.identityStatus, 'verified');
+  f.l12Message({ state: 'OFF' });
+  assert.equal(f.runtime.readLightsSnapshot().L12.state, 'OFF');
+  assert.equal(f.runtime.readLightsSnapshot().L12.available, true);
   f.runtime.close();
 });
 
@@ -335,9 +357,10 @@ test('LB1 usa state per il toggle e dichiara esplicitamente hit-area SVG e slide
   assert.match(style, /\.floorplan-ledbar-slider \{[^}]*pointer-events: auto;[^}]*touch-action: none;/);
 });
 
-test('L1 resta limitata a Layer-01, LB1 ai Layer-18..21 e Layer-17 è invisibile', async () => {
+test('le room luce attive restano limitate ai layer configurati, LB1 ai Layer-18..21 e Layer-17 è invisibile', async () => {
   const [config, floorplan] = await Promise.all([readFile(new URL('../public/js/floorplan-config.js', import.meta.url), 'utf8'), readFile(new URL('../public/js/floorplan.js', import.meta.url), 'utf8')]);
-  assert.match(config, /lightId: 'L' \+ \(index \+ 1\).*LAYER-' \+ number/);
+  assert.match(config, /rooms: \['L1', 'L2', 'L5', 'L6'\]/);
+  assert.doesNotMatch(config, /lightId: 'L3'|lightId: 'L4'/);
   assert.match(config, /ledbar: \{/);
   assert.match(config, /LAYER-18-OFF\.svg.*LAYER-19-ON-25\.svg.*LAYER-20-ON-75\.svg.*LAYER-21-ON-100\.svg/s);
   assert.match(floorplan, /loadMapping\(config\.mappings\.ledbar/);

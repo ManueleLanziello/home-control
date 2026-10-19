@@ -99,9 +99,9 @@ test('WT200 LAN senza Cloud mantiene misure, modalita, relay e S3',async()=>{
  const home=await new HomeStatusRuntime({...fixture(),readThermostat:async()=>runtime.readSnapshot()}).readSnapshot();
  assert.equal(home.sensors.S3.value,25.9);assert.equal(home.sensors.S3.available,true);assert.equal(home.sensors.S3.online,true);
 });
-test('UI store synchronizes sensors, boiler, all seven simulated lights, and failure fallback',async()=>{
+test('UI store synchronizes sensors, boiler, active simulated lights, and failure fallback',async()=>{
  const h=await new HomeStatusRuntime(fixture()).readSnapshot();const store=createFloorplanState();store.applyHomeSnapshot(h);
- for(let i=1;i<=7;i++){const id='L'+i;store.setLight(id,true);assert.equal(store.snapshot().lights[id],true);store.applyHomeSnapshot(h);assert.equal(store.snapshot().lights[id],true);store.setLight(id,false);assert.equal(store.snapshot().lights[id],false);}
+ for(const id of ['L1','L2','L5','L6','L7']){store.setLight(id,true);assert.equal(store.snapshot().lights[id],true);store.applyHomeSnapshot(h);assert.equal(store.snapshot().lights[id],true);store.setLight(id,false);assert.equal(store.snapshot().lights[id],false);}
  assert.equal(store.snapshot().sensors.S3,22);assert.equal(store.snapshot().boiler.on,true);assert.equal(store.snapshot().boiler.mode,'manual');
  store.applyThermostatSnapshot({heatingActive:false,thermostat:{currentTemperature:21.5,mode:'auto'}});assert.equal(store.snapshot().sensors.S3,21.5);assert.equal(store.snapshot().boiler.on,false);assert.equal(store.snapshot().boiler.mode,'auto');
  store.setLight('L1',true);store.applyHomeSnapshot();assert.equal(store.snapshot().lights.L1,true);assert.equal(store.snapshot().sensors.S3,null);

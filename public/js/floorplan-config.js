@@ -11,9 +11,9 @@ export const floorplanConfig = {
     'neve-giorno': 'LAYER-NEVE-GIORNO.svg', 'neve-notte': 'LAYER-NEVE-NOTTE.svg',
     'ghiacciato-giorno': 'LAYER-GHIACCIATO-GIORNO.svg', 'ghiacciato-notte': 'LAYER-GHIACCIATO-NOTTE.svg',
   },
-  rooms: Array.from({ length: 6 }, (_, index) => {
-    const number = String(index + 1).padStart(2, '0');
-    return { lightId: 'L' + (index + 1), on: 'LAYER-' + number + '-ON.svg', off: 'LAYER-' + number + '-OFF.svg' };
+  rooms: ['L1', 'L2', 'L5', 'L6'].map(lightId => {
+    const number = lightId.slice(1).padStart(2, '0');
+    return { lightId, on: 'LAYER-' + number + '-ON.svg', off: 'LAYER-' + number + '-OFF.svg' };
   }).concat({ lightId: 'L7', on: 'LAYER-L7-ON.svg', optional: true }),
   mappings: { lights: 'LAYER-07-LUCI.svg', sensors: 'LAYER-08-SENSORI.svg', cameras: 'LAYER-09-CAM.svg', boiler: 'LAYER-10-CALDAIA.svg', cappa: 'LAYER-12-CAPPA.svg', weather: 'LAYER-13-METEO.svg', integration: 'LAYER-16-INTEGRAZIONE.svg', ledbar: 'LAYER-17-LED.svg', devices: 'LAYER-DISPOSITIVI.svg', clock: 'LAYER-22-OROLOGIO.svg', pond: 'LAYER-POND.svg', alarm: 'LAYER-ANTIFURTO.svg' },
   clock: { marker: labeledMarker('CLK1') },
@@ -30,9 +30,8 @@ export const floorplanConfig = {
   },
   icons: { lightOn: 'lampon.svg', lightOff: 'lampoff.svg', ledbarOn: 'ledbaron.svg', ledbarOff: 'ledbaroff.svg', sensor: 'temp.svg', camera: 'cam.svg', privacyOn: 'privacyon.svg', privacyOff: 'privacyoff.svg', detectionOn: 'rilevon.svg', detectionOff: 'rilevoff.svg', alarmOn: 'alarmon.svg', alarmOff: 'alarmoff.svg', batteryEmpty: 'solar-panel-battery-empty.svg', batteryLow: 'solar-panel-battery-low.svg', batteryHalf: 'solar-panel-battery-half.svg', batteryHalf2: 'solar-panel-battery-half2.svg', batteryFull: 'solar-panel-battery-full.svg', batteryCharging: 'solar-panel-battery-charging.svg', boiler: 'boiler.svg', cappaOn: 'CAPPAON.svg', cappaOff: 'CAPPAOFF.svg', pondPumpOn: 'pumpon.svg', pondPumpOff: 'pumpoff.svg', pondHeaterOn: 'heateron.svg', pondHeaterOff: 'heateroff.svg', pondManual: 'manual.svg', pondThermostat: 'auto.svg', alarm: 'antifurto.svg', antiOff: 'antoff.svg', antiOn: 'anton.svg', alarmNone: 'nessuno.svg', alarmPartial: 'parziale.svg', alarmComplete: 'completo.svg', alarmDoor: 'porte.svg', alarmMotion: 'movimento.svg' },
   // Semantic labels survive a geometry-only edit of their mapping SVG.
-  lights: ['CUCINA', 'CAMERA', 'SALOTTO', 'DISIMPEGNO', 'BAGNO', 'CAMERETTA', 'GAZEBO', 'GIARDINO', 'ESTERNO 9', 'ESTERNO 10', 'TERRAZZO', 'ESTERNO 12'].map((room, index) => {
-    const id = 'L' + (index + 1);
-    return { id, room, marker: labeledMarker(id), ...(['L9', 'L10', 'L12'].includes(id) ? { localOnly: true } : {}) };
+  lights: [['L1', 'CUCINA'], ['L2', 'CAMERA'], ['L5', 'BAGNO'], ['L6', 'CAMERETTA'], ['L7', 'GAZEBO'], ['L8', 'GIARDINO'], ['L9', 'ESTERNO 9'], ['L10', 'ESTERNO 10'], ['L11', 'TERRAZZO'], ['L12', 'ESTERNO 12']].map(([id, room]) => {
+    return { id, room, marker: labeledMarker(id), ...(['L9', 'L10'].includes(id) ? { localOnly: true } : {}) };
   }),
   // These are full-plan graphical effects, not marker-sized light layers.
   externalLightOverlays: Object.fromEntries(['L8', 'L9', 'L10', 'L11', 'L12'].map(id => [id, 'LAYER-' + id + '-ON.svg'])),

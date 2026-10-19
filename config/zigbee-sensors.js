@@ -22,5 +22,6 @@ export const ZIGBEE_SENSOR_CONFIG = Object.freeze({
     Object.freeze({ id: 'L6', name: 'cameretta-L6', topic: 'zigbee2mqtt/cameretta-L6', setTopic: 'zigbee2mqtt/cameretta-L6/set', getTopic: 'zigbee2mqtt/cameretta-L6/get', getPayload: Object.freeze({ state: '' }) }),
     Object.freeze({ id: 'L8', name: 'giardino-L8', topic: 'zigbee2mqtt/giardino-L8', setTopic: 'zigbee2mqtt/giardino-L8/set', getTopic: 'zigbee2mqtt/giardino-L8/get', getPayload: Object.freeze({ state: '' }) }),
     Object.freeze({ id: 'L11', name: 'terrazzo-L11', topic: 'zigbee2mqtt/terrazzo-L11', setTopic: 'zigbee2mqtt/terrazzo-L11/set', getTopic: 'zigbee2mqtt/terrazzo-L11/get', getPayload: Object.freeze({ state: '' }) }),
+    Object.freeze({ id: 'L12', name: 'terrazzo-L12', topic: 'zigbee2mqtt/terrazzo-L12', setTopic: 'zigbee2mqtt/terrazzo-L12/set', getTopic: 'zigbee2mqtt/terrazzo-L12/get', getPayload: Object.freeze({ state: '' }), ieeeAddress: '0x07c31faffffec2a2', model: 'ZBMINIL2', manufacturer: 'SONOFF' }),
   ]),
 });
