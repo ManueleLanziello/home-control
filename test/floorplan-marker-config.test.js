@@ -150,6 +150,15 @@ test('L8-L12 usano overlay full-plan indipendenti e conservano lo stato attraver
   assert.deepEqual(store.snapshot().lights, beforeBaseChange);
 });
 
+test('L3 e L4 mantengono soltanto i layer OFF permanenti, senza marker o layer ON simulati', async () => {
+  const floorplan = await readFile(new URL('../public/js/floorplan.js', import.meta.url), 'utf8');
+  assert.deepEqual(floorplanConfig.permanentLightLayers, ['LAYER-03-OFF.svg', 'LAYER-04-OFF.svg']);
+  assert.doesNotMatch(floorplanConfig.permanentLightLayers.join(' '), /LAYER-03-ON|LAYER-04-ON/);
+  assert.doesNotMatch(floorplanConfig.lights.map(light => light.id).join(' '), /\bL3\b|\bL4\b/);
+  assert.match(floorplan, /\.\.\.config\.permanentLightLayers/);
+  assert.doesNotMatch(floorplan, /permanentLightLayers[^\n]*\.hidden/);
+});
+
 test('gli overlay L8-L12 sono serviti come SVG e il bootstrap li tratta come grafica opzionale non interattiva', async () => {
   const server = createHomeControlServer({ weatherService: { async getSnapshot() { return {}; } } });
   server.listen(0, '127.0.0.1'); await once(server, 'listening');

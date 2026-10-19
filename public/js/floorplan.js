@@ -529,13 +529,13 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     if (!response.ok) throw new Error('Elenco asset non disponibile');
     const assets = new Set((await response.json()).assets);
     let sensorThresholds = (await thresholdRequest).thresholds || {};
-    const required = [...Object.values(config.backgrounds), ...config.rooms.filter(room => !room.optional).flatMap(room => [room.on, room.off]), ...Object.values(config.mappings).filter(name => name !== config.mappings.clock), ...Object.values(config.ledbar.layers), config.icons.ledbarOn, config.icons.ledbarOff, config.icons.cappaOn, config.icons.cappaOff, config.icons.pondPumpOn, config.icons.pondPumpOff, config.icons.pondHeaterOn, config.icons.pondHeaterOff, config.icons.pondManual, config.icons.pondThermostat, config.icons.alarm, config.icons.antiOff, config.icons.antiOn, config.icons.alarmNone, config.icons.alarmPartial, config.icons.alarmComplete, config.icons.alarmDoor, config.icons.alarmMotion, ...Object.values(config.mobileMonitor.icons)];
+    const required = [...Object.values(config.backgrounds), ...config.permanentLightLayers, ...config.rooms.filter(room => !room.optional).flatMap(room => [room.on, room.off]), ...Object.values(config.mappings).filter(name => name !== config.mappings.clock), ...Object.values(config.ledbar.layers), config.icons.ledbarOn, config.icons.ledbarOff, config.icons.cappaOn, config.icons.cappaOff, config.icons.pondPumpOn, config.icons.pondPumpOff, config.icons.pondHeaterOn, config.icons.pondHeaterOff, config.icons.pondManual, config.icons.pondThermostat, config.icons.alarm, config.icons.antiOff, config.icons.antiOn, config.icons.alarmNone, config.icons.alarmPartial, config.icons.alarmComplete, config.icons.alarmDoor, config.icons.alarmMotion, ...Object.values(config.mobileMonitor.icons)];
     const missing = required.filter(name => !assets.has(name));
     if (missing.length) throw new Error('Asset planimetria mancanti: ' + missing.join(', '));
     const imageLayers = new Map();
     const externalOverlayNames = new Map(Object.entries(config.externalLightOverlays).map(([lightId, name]) => [name, lightId]));
     // Place exterior effects immediately above the base, before every interactive mapping overlay.
-    const staticLayerNames = [...Object.values(config.backgrounds), ...externalOverlayNames.keys(), ...config.rooms.flatMap(room => [room.off, room.on].filter(name => !room.optional || assets.has(name))), ...Object.values(config.ledbar.layers), config.mappings.integration];
+    const staticLayerNames = [...Object.values(config.backgrounds), ...externalOverlayNames.keys(), ...config.permanentLightLayers, ...config.rooms.flatMap(room => [room.off, room.on].filter(name => !room.optional || assets.has(name))), ...Object.values(config.ledbar.layers), config.mappings.integration];
     await Promise.all(staticLayerNames.map(name => new Promise((resolve, reject) => {
       const externalLightId = externalOverlayNames.get(name);
       if (externalLightId && !assets.has(name)) {

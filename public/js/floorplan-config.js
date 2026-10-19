@@ -35,6 +35,8 @@ export const floorplanConfig = {
   }),
   // These are full-plan graphical effects, not marker-sized light layers.
   externalLightOverlays: Object.fromEntries(['L8', 'L9', 'L10', 'L11', 'L12'].map(id => [id, 'LAYER-' + id + '-ON.svg'])),
+  // L3 and L4 have no physical implementation yet, so their OFF artwork is permanent.
+  permanentLightLayers: ['LAYER-03-OFF.svg', 'LAYER-04-OFF.svg'],
   sensors: ['CUCINA', 'CAMERA', 'SALOTTO', 'CAMERETTA', 'ACQUA LAGHETTO'].map((room, index) => {
     const id = 'S' + (index + 1);
     return { id, room, marker: labeledMarker(id), reading: labeledMarker(id === 'S5' ? 'LS25' : 'LS' + (index + 1)), humidityReading: ['S1', 'S2', 'S4'].includes(id) ? labeledMarker('LU' + (index + 1)) : null, futureSource: index === 2 ? 'AVATTO' : null };
