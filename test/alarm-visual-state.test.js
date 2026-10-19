@@ -49,3 +49,13 @@ test('popup ANTIFURTO usa close.svg e card modalità ingrandite senza cambiare l
   assert.match(css, /\.alarm-mode img \{ width:64px; height:64px/);
   assert.match(css, /\.alarm-mode \{ display:grid; gap:7px; justify-items:center; padding:12px 5px/);
 });
+
+test('popup SR1 mantiene la configurazione esistente e aggiunge pausa e numero cicli', async () => {
+  const floorplan = await readFile(new URL('../public/js/alarm-floorplan.js', import.meta.url), 'utf8');
+  assert.match(floorplan, /name="duration"[^>]*min="1"[^>]*max="900"/);
+  assert.match(floorplan, /Pausa <span><input name="pauseSeconds" type="number" min="0" max="900"/);
+  assert.match(floorplan, /Numero cicli <input name="cycleCount" type="number" min="1" max="20" step="1"/);
+  assert.match(floorplan, /pauseSeconds: Number\(data\.get\('pauseSeconds'\)\)/);
+  assert.match(floorplan, /cycleCount: Number\(data\.get\('cycleCount'\)\)/);
+  assert.match(floorplan, /result\.durationSeconds \* 1000/);
+});

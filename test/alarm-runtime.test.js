@@ -3,7 +3,7 @@ import test from 'node:test';
 import { mkdtemp } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { AlarmRuntime } from '../src/alarm-runtime.js';
+import { AlarmRuntime, DEFAULT_SIREN_SETTINGS, normalizeSirenSettings } from '../src/alarm-runtime.js';
 import { createHomeControlServer } from '../server.js';
 
 const DW_IDS = ['DW1', 'DW2', 'DW3', 'DW4', 'DW5', 'DW6', 'DW7', 'DW8'];
@@ -14,6 +14,15 @@ const fixture = async () => {
   const sensors = () => ({ doorContacts: Object.fromEntries(DW_IDS.map(id => [id, { available: true, contact: true, updatedAt: new Date(now).toISOString() }])), motionSensor: { available: true, confirmed: true, occupancy: false, updatedAt: new Date(now).toISOString() } });
   return { store, sensors, setNow: value => { now = value; }, now: () => now, filePath: path.join(directory, 'alarm.json') };
 };
+
+test('configurazione SR1 applica i valori predefiniti, valida i cicli e persiste senza alterare impostazioni precedenti', async () => {
+  const f = await fixture(); const initial = await f.store.read(); assert.deepEqual(initial.sirenSettings, DEFAULT_SIREN_SETTINGS);
+  const saved = await f.store.setSirenSettings({ duration: 45, pauseSeconds: 12, cycleCount: 3 });
+  assert.deepEqual(saved.sirenSettings, { ...DEFAULT_SIREN_SETTINGS, duration: 45, pauseSeconds: 12, cycleCount: 3 });
+  const restarted = new AlarmRuntime({ filePath: f.filePath, now: f.now }); assert.deepEqual((await restarted.read()).sirenSettings, saved.sirenSettings);
+  assert.deepEqual(normalizeSirenSettings({ duration: 60 }, { soundEnabled: true, lightEnabled: false, soundType: 'siren_warning', volumeLevel: 'high' }), { soundEnabled: true, lightEnabled: false, soundType: 'siren_warning', volumeLevel: 'high', duration: 60, pauseSeconds: 30, cycleCount: 5 });
+  assert.throws(() => normalizeSirenSettings({ soundEnabled: false, lightEnabled: false })); assert.throws(() => normalizeSirenSettings({ pauseSeconds: -1 })); assert.throws(() => normalizeSirenSettings({ cycleCount: 1.5 }));
+});
 
 test('disinserito conserva i sensori reali ma non genera intrusioni', async () => {
   const f = await fixture(); const input = f.sensors(); input.doorContacts.DW2.contact = false;

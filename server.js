@@ -22,7 +22,7 @@ import { HomeZigbeeSensorRuntime } from './src/zigbee-sensor-runtime.js';
 import { ZIGBEE_SENSOR_CONFIG } from './config/zigbee-sensors.js';
 import { WEATHER_CONFIG } from './config/weather.js';
 import { WeatherService } from './src/weather-service.js';
-import { AlarmRuntime } from './src/alarm-runtime.js';
+import { AlarmRuntime, normalizeSirenSettings } from './src/alarm-runtime.js';
 import { AlarmAuthorization } from './src/alarm-auth.js';
 import { AlarmSirenController } from './src/alarm-siren-controller.js';
 import { SensorThresholdStore } from './src/sensor-threshold-store.js';
@@ -226,7 +226,8 @@ export function createHomeControlServer({
   const doorContactEventClients = new Set();
   const motionSensorEventClients = new Set();
   const alarmEventClients = new Set();
-  const sirenController = alarmSirenController || new AlarmSirenController({ send: active => zigbeeRuntime?.setSirenActive(active), logError: () => {} });
+  const physicalSirenSettings = settings => ({ soundEnabled: settings.soundEnabled, lightEnabled: settings.lightEnabled, soundType: settings.soundType, volumeLevel: settings.volumeLevel, duration: settings.duration });
+  const sirenController = alarmSirenController || new AlarmSirenController({ send: active => zigbeeRuntime?.setSirenActive(active), configure: settings => zigbeeRuntime?.setSirenConfiguration(physicalSirenSettings(settings)), logError: () => {} });
   const publishAlarmEvent = event => {
     const payload = `id: ${event.id}\ndata: ${JSON.stringify(event)}\n\n`;
     for (const client of alarmEventClients) { try { client.write(payload); } catch { alarmEventClients.delete(client); } }
@@ -237,7 +238,7 @@ export function createHomeControlServer({
   };
   const unsubscribeAlarm = alarmStore.subscribe(event => {
     publishAlarmEvent(event);
-    if (event.type === 'active') sirenController.activate();
+    if (event.type === 'active') void alarmStore.read().then(snapshot => snapshot.intrusion?.active === true && sirenController.activate(snapshot.sirenSettings));
     else if (['arming', 'partial', 'armed', 'intrusion'].includes(event.type)) void sirenController.stopTest?.();
   });
   const publishLedbarState = () => {
@@ -319,6 +320,7 @@ export function createHomeControlServer({
   };
   const unsubscribeZigbee = zigbeeRuntime?.subscribeState(kind => {
     homeStatus?.invalidate();
+    if (kind === 'connection' && zigbeeRuntime?.connected === true) void sirenController.retryPendingStop?.();
     if (kind === 'ledbar' || kind === 'connection') publishLedbarState();
     if (kind === 'lights' || kind === 'connection') publishLightState();
     if (kind === 'doorContacts' || kind === 'connection') publishDoorContactState();
@@ -486,7 +488,12 @@ export function createHomeControlServer({
       const token = String(request.headers.authorization || '').replace(/^Bearer\s+/i, '');
       if (!alarmAuthorization.consumeSirenSession(token)) return sendJson(response, 401, { error: 'Autorizzazione non valida' });
       const payload = await readJson(request);
-      try { return sendJson(response, 202, await zigbeeRuntime?.setSirenConfiguration(payload)); }
+      try {
+        const current = await alarmStore.read(); const settings = normalizeSirenSettings(payload, current.sirenSettings);
+        const result = current.intrusion?.active === true ? { pending: true, deferred: true } : await zigbeeRuntime?.setSirenConfiguration(physicalSirenSettings(settings));
+        await alarmStore.setSirenSettings(settings);
+        return sendJson(response, 202, { ...result, settings });
+      }
       catch (error) { return sendJson(response, 400, { error: error.message === 'Sirena non disponibile' ? error.message : 'Configurazione sirena non valida' }); }
     }
     if (url.pathname === '/api/alarm/siren/test') {
@@ -500,8 +507,8 @@ export function createHomeControlServer({
       const snapshot = await alarmStore.read();
       if (snapshot.mode !== 'none' || snapshot.intrusion?.active) return sendJson(response, 409, { error: 'Test consentito soltanto con antifurto disinserito' });
       try {
-        const started = await sirenController.startTest?.();
-        return started ? sendJson(response, 202, { testActive: true, durationSeconds: 3 }) : sendJson(response, 409, { error: 'Test sirena non disponibile' });
+        const started = await sirenController.startTest?.(snapshot.sirenSettings);
+        return started ? sendJson(response, 202, { testActive: true, durationSeconds: snapshot.sirenSettings?.duration || 30 }) : sendJson(response, 409, { error: 'Test sirena non disponibile' });
       } catch { return sendJson(response, 503, { error: 'Sirena non disponibile' }); }
     }
     if (url.pathname === '/api/alarm/events') {

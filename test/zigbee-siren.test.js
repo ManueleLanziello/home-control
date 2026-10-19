@@ -39,6 +39,13 @@ test('SR1 pubblica solo le cinque impostazioni autorizzate e mai siren_on', asyn
   await assert.rejects(f.runtime.setSirenConfiguration({ sirenOn: true })); assert.equal(sirenWrites[0][1].includes('siren_on'), false);
 });
 
+test('SR1 pubblica ON e OFF esclusivamente sul topic della sirena', async () => {
+  const f = fixture(); f.runtime.start(); f.client.emit('connect');
+  await f.runtime.setSirenActive(true); await f.runtime.setSirenActive(false);
+  const writes = f.publications.filter(([topic]) => topic === 'zigbee2mqtt/terrazzo-SR1/set').map(([, payload]) => JSON.parse(payload));
+  assert.deepEqual(writes, [{ siren_on: 'ON' }, { siren_on: 'OFF' }]);
+});
+
 test('SR1 preserva pacchetti parziali, tratta retained come storico e segnala offline', () => {
   const f = fixture(); f.runtime.start(); f.client.emit('connect');
   f.message({ battery: 88, alarm_volume_level: 'low' }, { retain: true });
