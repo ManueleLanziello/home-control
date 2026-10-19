@@ -176,6 +176,17 @@ body { min-height: 100vh; margin: 0; background: radial-gradient(circle at 50% 2
 .boiler-status-icon--warm { fill: #ff902f; stroke: #ffc180; filter: drop-shadow(0 0 6px rgba(255,127,31,.58)); }
 .boiler-updated { display: flex; align-items: center; justify-content: center; gap: 7px; margin-top: 12px; color: #8ba5b7; font-size: clamp(.61rem, .76vw, .72rem); }
 .boiler-updated svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+@media (hover: none) and (pointer: coarse) and (min-width: 700px) {
+  [data-boiler-modal] .boiler-card { padding: 22px; }
+  [data-boiler-modal] .boiler-card-header { margin-bottom: 14px; }
+  [data-boiler-modal] .boiler-temperature { min-height: 132px; padding-block: 12px; }
+  [data-boiler-modal] .boiler-temperature strong { margin: 10px 0; }
+  [data-boiler-modal] .boiler-disabled-controls, [data-boiler-modal] .boiler-minmax { margin-top: 6px; }
+  [data-boiler-modal] .boiler-mode-selector { margin-top: 14px; padding-block: 12px; }
+  [data-boiler-modal] .boiler-mode > span { width: 60px; height: 60px; }
+  [data-boiler-modal] .boiler-schedule { margin-top: 14px; padding: 14px; }
+  [data-boiler-modal] .boiler-schedule-chart { height: clamp(342px, 36vw, 390px); }
+}
 .thermostat-body { min-height: 100vh; margin: 0; color: #dceefa; background: radial-gradient(circle at 30% 0%, rgba(11,83,126,.28), transparent 34%), #050b12; font-family: "Trebuchet MS", sans-serif; }
 .thermostat-shell { width: min(1500px, calc(100% - 32px)); margin: 0 auto; padding: 24px 0 42px; }
 .thermostat-page-header { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 18px; margin-bottom: 20px; }
