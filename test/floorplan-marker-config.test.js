@@ -9,7 +9,7 @@ import { validateHardwareRegistry } from '../src/hardware-registry.js';
 import { normalizeMobilePresence } from '../src/home-status.js';
 
 globalThis.window = { addEventListener() {} };
-const { cameraBatteryIcon, renderCameraIcon, shapeForLabel, humidityReadingColor, renderFloorplanReading, sensorReadingFontSize, sensorTemperatureAlertState, sensorVisualState, temperatureReadingColor } = await import('../public/js/floorplan.js');
+const { cameraBatteryIcon, renderCameraIcon, shapeForLabel, humidityReadingColor, renderFloorplanReading, sensorReadingFontSize, sensorTemperatureAlertState, sensorVisualState, showPermanentLayers, temperatureReadingColor } = await import('../public/js/floorplan.js');
 const { mobileDeviceIcon } = await import('../public/js/floorplan.js');
 
 test('DM personal icons survive registry/Home normalization with unchanged presence and type fallbacks', async () => {
@@ -156,7 +156,13 @@ test('L3 e L4 mantengono soltanto i layer OFF permanenti, senza marker o layer O
   assert.doesNotMatch(floorplanConfig.permanentLightLayers.join(' '), /LAYER-03-ON|LAYER-04-ON/);
   assert.doesNotMatch(floorplanConfig.lights.map(light => light.id).join(' '), /\bL3\b|\bL4\b/);
   assert.match(floorplan, /\.\.\.config\.permanentLightLayers/);
-  assert.doesNotMatch(floorplan, /permanentLightLayers[^\n]*\.hidden/);
+  const layers = new Map(floorplanConfig.permanentLightLayers.map(name => [name, { hidden: true }]));
+  showPermanentLayers(layers, floorplanConfig.permanentLightLayers);
+  assert.deepEqual([...layers.values()].map(layer => layer.hidden), [false, false]);
+  for (const layer of layers.values()) layer.hidden = true;
+  showPermanentLayers(layers, floorplanConfig.permanentLightLayers);
+  assert.deepEqual([...layers.values()].map(layer => layer.hidden), [false, false]);
+  assert.match(floorplan, /const render = state => \{\s*showPermanentLayers\(imageLayers, config\.permanentLightLayers\);/);
 });
 
 test('gli overlay L8-L12 sono serviti come SVG e il bootstrap li tratta come grafica opzionale non interattiva', async () => {

@@ -36,6 +36,13 @@ export function ledbarLayerFor({ state, brightness } = {}) {
   return 'high';
 }
 
+export function showPermanentLayers(imageLayers, names = []) {
+  for (const name of names) {
+    const image = imageLayers.get(name);
+    if (image) image.hidden = false;
+  }
+}
+
 export function updateFloorplanWeather(snapshot) {
   weatherSnapshot = snapshot;
   renderWeatherSnapshot(snapshot);
@@ -564,6 +571,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
       imageLayers.set(name, image);
       image.src = assetUrl(name);
     })));
+    showPermanentLayers(imageLayers, config.permanentLightLayers);
     const background = imageLayers.get(config.backgrounds['sereno-giorno']);
     stage.style.setProperty('--floorplan-ratio', background.naturalWidth + ' / ' + background.naturalHeight);
     stage.style.setProperty('--floorplan-width-ratio', String(background.naturalWidth / background.naturalHeight));
@@ -881,6 +889,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     let previousCappaPower;
     let previousLedbarOn;
     const render = state => {
+      showPermanentLayers(imageLayers, config.permanentLightLayers);
       alarmControls.setDoorContacts(state.doorContacts);
       alarmControls.setMotionSensor(state.motionSensor);
       alarmControls.setSiren(state.siren);
