@@ -235,7 +235,7 @@ body:has(.boiler-modal[open]) { overflow: hidden; }
 }
 
 @media (hover: none) and (pointer: coarse) {
-  .boiler-modal {
+  .boiler-modal.cappa-modal {
     position: fixed;
     inset: 12px;
     width: auto;
