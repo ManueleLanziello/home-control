@@ -16,6 +16,7 @@ import { initFloorplan, refreshPondStatus, updateFloorplanWeather } from './floo
 import { createFloorplanState } from './floorplan-state.js';
 import { renderWt200Schedule, selectWt200PeriodsForDate } from './boiler-schedule.js';
 import { homeControlPath } from '../base-path.js';
+import { initSettings } from '../settings.js';
 
 const THERMOSTAT_CACHE_KEY = 'home-control:thermostat-snapshot';
 const THERMOSTAT_REFRESH_MS = 5_000;
@@ -30,6 +31,7 @@ let boilerEditor = null;
 let thermostatMutation = createThermostatMutationState();
 let thermostatRefreshPromise = null;
 let cappaSaving = false;
+let settingsPanelPromise = null;
 const FLOORPLAN_VIEWBOX = { x: 1763.5, y: 1736.5, width: 1656, height: 1723 };
 const REFERENCE_VIEWBOX = { x: 925, y: 1730, width: 3343, height: 1731 };
 
@@ -629,6 +631,48 @@ function initCappaModal() {
   });
 }
 
+function initSettingsModal() {
+  const modal = document.querySelector('[data-settings-modal]');
+  if (!modal) return;
+  const content = modal.querySelector('[data-settings-modal-content]');
+  const close = () => modal.close();
+  modal.querySelector('[data-settings-modal-close]').addEventListener('click', close);
+  modal.addEventListener('click', event => {
+    if (event.target !== modal) return;
+    const box = modal.getBoundingClientRect();
+    if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) close();
+  });
+
+  const loadPanel = () => {
+    if (settingsPanelPromise) return settingsPanelPromise;
+    settingsPanelPromise = fetch(homeControlPath('/settings'), { cache: 'no-store' })
+      .then(async response => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const page = new DOMParser().parseFromString(await response.text(), 'text/html');
+        const settingsContent = page.querySelector('[data-settings-content]');
+        if (!settingsContent) throw new Error('Contenuto impostazioni non disponibile');
+        content.replaceChildren(document.importNode(settingsContent, true));
+        initSettings(content.querySelector('[data-settings-content]'));
+      })
+      .catch(error => {
+        settingsPanelPromise = null;
+        content.textContent = `Impossibile caricare le impostazioni: ${error.message}`;
+      });
+    return settingsPanelPromise;
+  };
+
+  const open = async () => {
+    if (!modal.open) modal.showModal();
+    await loadPanel();
+  };
+  document.addEventListener('click', event => {
+    const trigger = event.target.closest('.floorplan-integration-options');
+    if (!trigger) return;
+    event.preventDefault();
+    void open();
+  });
+}
+
 function fitFloorplanToViewport() {
   const stage = document.querySelector('[data-layered-floorplan]');
   const shell = document.querySelector('.dashboard-shell');
@@ -652,6 +696,7 @@ function fitFloorplanToViewport() {
 function renderDashboard() {
   initBoilerModal();
   initCappaModal();
+  initSettingsModal();
   fitFloorplanToViewport();
   floorplanReady = initFloorplan({ store: floorplanStore });
   renderExternalLights();

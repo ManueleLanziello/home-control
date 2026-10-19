@@ -11,70 +11,38 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <main class="shell settings-shell">
-    <header class="hero settings-hero">
-      <a class="back-link" href="./" aria-label="Torna alla dashboard">← Dashboard</a>
-      <p class="eyebrow">HOME CONTROL</p>
-      <h1>Impostazioni</h1>
-      <p class="subtitle">Configurazione locale della casa intelligente</p>
+  <main class="shell settings-shell settings-page-shell">
+    <header class="settings-route-header">
+      <h1>IMPOSTAZIONI</h1>
     </header>
 
-    <section class="settings-section" aria-labelledby="diagnostics-heading">
-      <div class="section-heading"><div><p class="eyebrow">DIAGNOSTICA</p><h2 id="diagnostics-heading">Stato dashboard</h2></div></div>
-      <div id="home-diagnostics" class="diagnostics-grid" aria-live="polite"><p class="empty-settings">Caricamento stato…</p></div>
-    </section>
-
-    <section class="settings-section" aria-labelledby="pond-plugs-heading">
-      <div class="section-heading"><div><p class="eyebrow">LAGHETTO</p><h2 id="pond-plugs-heading">Prese Smart</h2></div></div>
-      <form id="pond-plug-form" class="sensor-form">
-        <input type="hidden" name="id"><label>Alias<input name="alias" required maxlength="80"></label><label>Modello<select name="model"><option value="P105">TP-Link Tapo P105</option></select></label><label>IP<input name="ip" required inputmode="url"></label><label>MAC (facoltativo)<input name="mac" maxlength="32"></label><button class="primary-link" type="submit">Salva presa</button><button id="pond-plug-cancel" type="button" hidden>Annulla</button>
-      </form>
-      <p class="settings-note">Assegna dinamicamente Pompa e Riscaldatore. La verifica è obbligatoria prima dell’uso operativo.</p>
-      <div id="pond-plug-devices" class="sensor-devices" aria-live="polite"><div class="empty-settings"><strong>Nessuna presa configurata</strong></div></div>
-    </section>
-
-    <section class="settings-section" aria-labelledby="devices-heading">
-      <div class="section-heading">
-        <div>
-          <p class="eyebrow">DISPOSITIVI</p>
-          <h2 id="devices-heading">Sensori Dewin</h2>
-        </div>
-      </div>
+    <div class="settings-content" data-settings-content>
       <p id="settings-status" class="settings-message" aria-live="polite"></p>
-      <form id="sensor-form" class="sensor-form">
-        <input type="hidden" name="id">
-        <label>Nome<input name="alias" required maxlength="80" placeholder="Es. Dewin Cucina"></label>
-        <label>ID Tuya<input name="tuyaDeviceId" required maxlength="160" autocomplete="off"></label>
-        <button class="primary-link" type="submit">Salva sensore</button>
-        <button id="sensor-cancel" type="button" hidden>Annulla</button>
-      </form>
-      <p class="settings-note">S1 Cucina, S2 Camera, S4 Cameretta e S5 Giardino sono assegnabili. S3 resta riservato al termostato WT200.</p>
-      <div id="sensor-devices" class="sensor-devices" aria-live="polite">
-        <div class="empty-settings"><strong>Nessun sensore configurato</strong></div>
-      </div>
-    </section>
 
-    <section class="settings-section" aria-labelledby="cameras-heading">
-      <div class="section-heading">
-        <div>
-          <p class="eyebrow">TELECAMERE</p>
-          <h2 id="cameras-heading">Telecamere locali</h2>
-        </div>
-      </div>
-      <form id="camera-form" class="sensor-form">
-        <input type="hidden" name="id">
-        <label>Nome<input name="alias" required maxlength="80" placeholder="Es. Terrazzo"></label>
-        <label>IP locale<input name="ip" required maxlength="80" inputmode="url" placeholder="192.168.1.50"></label>
-        <label>MAC (facoltativo)<input name="mac" maxlength="32" autocomplete="off"></label>
-        <label>Posizione<select name="role"><option value="none">Nessuna posizione</option><option value="camera_terrazzo">C1 · Terrazzo</option><option value="camera_pond">C2 · Laghetto</option></select></label>
-        <button class="primary-link" type="submit">Salva camera</button>
-        <button id="camera-cancel" type="button" hidden>Annulla</button>
-      </form>
-      <p class="settings-note">C1 e C2 sono gestite direttamente da Home-Control.</p>
-      <div id="camera-devices" class="sensor-devices" aria-live="polite">
-        <div class="empty-settings"><strong>Nessuna camera locale configurata</strong></div>
-      </div>
-    </section>
+      <section class="settings-section" aria-labelledby="pond-plugs-heading">
+        <div class="section-heading"><div><p class="eyebrow">LAGHETTO</p><h2 id="pond-plugs-heading">Prese Smart</h2></div></div>
+        <form id="pond-plug-form" class="sensor-form">
+          <input type="hidden" name="id"><label>Alias<input name="alias" required maxlength="80"></label><label>Modello<select name="model"><option value="P105">TP-Link Tapo P105</option></select></label><label>IP<input name="ip" required inputmode="url"></label><label>MAC (facoltativo)<input name="mac" maxlength="32"></label><button class="primary-link" type="submit">Salva presa</button><button id="pond-plug-cancel" type="button" hidden>Annulla</button>
+        </form>
+        <p class="settings-note">Assegna dinamicamente Pompa e Riscaldatore. La verifica è obbligatoria prima dell’uso operativo.</p>
+        <div id="pond-plug-devices" class="sensor-devices" aria-live="polite"><div class="empty-settings"><strong>Nessuna presa configurata</strong></div></div>
+      </section>
+
+      <section class="settings-section" aria-labelledby="cameras-heading">
+        <div class="section-heading"><div><p class="eyebrow">TELECAMERE</p><h2 id="cameras-heading">Telecamere locali</h2></div></div>
+        <form id="camera-form" class="sensor-form">
+          <input type="hidden" name="id">
+          <label>Nome<input name="alias" required maxlength="80" placeholder="Es. Terrazzo"></label>
+          <label>IP locale<input name="ip" required maxlength="80" inputmode="url" placeholder="192.168.1.50"></label>
+          <label>MAC (facoltativo)<input name="mac" maxlength="32" autocomplete="off"></label>
+          <label>Posizione<select name="role"><option value="none">Nessuna posizione</option><option value="camera_terrazzo">C1 · Terrazzo</option><option value="camera_pond">C2 · Laghetto</option></select></label>
+          <button class="primary-link" type="submit">Salva camera</button>
+          <button id="camera-cancel" type="button" hidden>Annulla</button>
+        </form>
+        <p class="settings-note">C1 e C2 sono gestite direttamente da Home-Control.</p>
+        <div id="camera-devices" class="sensor-devices" aria-live="polite"><div class="empty-settings"><strong>Nessuna camera locale configurata</strong></div></div>
+      </section>
+    </div>
   </main>
   <script type="module" src="settings.js"></script>
   <script type="module" src="pwa.js"></script>

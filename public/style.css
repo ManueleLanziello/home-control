@@ -285,6 +285,16 @@ body { min-height: 100vh; margin: 0; background: radial-gradient(circle at 50% 2
 .diagnostic-item span { color: #82958f; font-size: .82rem; }
 .sensor-device { display: grid; gap: 5px; padding: 14px; border: 1px solid rgba(97,213,164,.22); border-radius: 12px; background: rgba(18,29,34,.55); }
 .sensor-device > span, .sensor-device > small { color: #82958f; font-size: .78rem; }
+.settings-page-shell { width: min(850px, calc(100% - 32px)); }
+.settings-route-header { margin-bottom: 28px; }
+.settings-route-header h1 { color: #e5f3fc; font-size: clamp(1.6rem, 4vw, 2.5rem); letter-spacing: .08em; }
+.settings-content { display: grid; gap: 28px; }
+.settings-content .settings-section { padding-top: 0; }
+
+@media (max-width: 700px) {
+  .settings-page-shell { width: min(100% - 24px, 850px); padding-top: 28px; }
+  .settings-content { gap: 22px; }
+}
 
 @media (orientation: portrait) {
   .dashboard-header { grid-template-columns: 1fr auto; }
