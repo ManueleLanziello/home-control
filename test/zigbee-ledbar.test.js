@@ -37,12 +37,13 @@ test('LB1 e luci Zigbee richiedono lo stato solo dopo subscribe riuscita, una vo
   assert.deepEqual(raw.filter(([topic]) => topic.endsWith('giardino-L8/get')), [['zigbee2mqtt/giardino-L8/get', '{"state":""}', { qos: 0 }]]);
   assert.deepEqual(raw.filter(([topic]) => topic.endsWith('terrazzo-L11/get')), [['zigbee2mqtt/terrazzo-L11/get', '{"state":""}', { qos: 0 }]]);
   assert.deepEqual(raw.filter(([topic]) => topic.endsWith('terrazzo-L12/get')), [['zigbee2mqtt/terrazzo-L12/get', '{"state":""}', { qos: 0 }]]);
+  assert.deepEqual(raw.filter(([topic]) => topic.endsWith('pond-temp-acqua/get')), [['zigbee2mqtt/pond-temp-acqua/get', '{"temperature":""}', { qos: 0 }]]);
   assert.equal(raw.filter(([topic]) => /SmartHomeS[124]\/get$/.test(topic)).length, 0);
-  assert.equal(raw.length, 8);
+  assert.equal(raw.length, 9);
   assert.equal(f.runtime.readLedbarSnapshot().known, false);
   f.client.emit('close'); f.client.emit('connect');
-  callbacks[0](null); assert.equal(raw.length, 8);
-  callbacks[1](null); assert.equal(raw.length, 16);
+  callbacks[0](null); assert.equal(raw.length, 9);
+  callbacks[1](null); assert.equal(raw.length, 18);
   assert.deepEqual(raw.filter(([topic]) => topic.endsWith('cucina-L1/get')), [
     ['zigbee2mqtt/cucina-L1/get', '{"state":""}', { qos: 0 }],
     ['zigbee2mqtt/cucina-L1/get', '{"state":""}', { qos: 0 }],
@@ -71,9 +72,13 @@ test('LB1 e luci Zigbee richiedono lo stato solo dopo subscribe riuscita, una vo
     ['zigbee2mqtt/terrazzo-L12/get', '{"state":""}', { qos: 0 }],
     ['zigbee2mqtt/terrazzo-L12/get', '{"state":""}', { qos: 0 }],
   ]);
+  assert.deepEqual(raw.filter(([topic]) => topic.endsWith('pond-temp-acqua/get')), [
+    ['zigbee2mqtt/pond-temp-acqua/get', '{"temperature":""}', { qos: 0 }],
+    ['zigbee2mqtt/pond-temp-acqua/get', '{"temperature":""}', { qos: 0 }],
+  ]);
   f.advance(24 * 60 * 60 * 1000);
   for (let i = 0; i < 10; i += 1) f.runtime.readLedbarSnapshot();
-  assert.equal(raw.length, 16);
+  assert.equal(raw.length, 18);
   f.runtime.close();
 });
 

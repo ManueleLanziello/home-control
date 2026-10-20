@@ -99,6 +99,16 @@ test('WT200 LAN senza Cloud mantiene misure, modalita, relay e S3',async()=>{
  const home=await new HomeStatusRuntime({...fixture(),readThermostat:async()=>runtime.readSnapshot()}).readSnapshot();
  assert.equal(home.sensors.S3.value,25.9);assert.equal(home.sensors.S3.available,true);assert.equal(home.sensors.S3.online,true);
 });
+test('S3 conserva una misura LAN recente durante un errore, ma la nasconde dopo 90 secondi', () => {
+ const snapshot={online:false,lanUpdatedAt:stamp,temperatureUpdatedAt:stamp,updatedAt:stamp,thermostat:{currentTemperature:22}};
+ const recent=normalizeThermostat(snapshot,time+89_999);
+ assert.equal(recent.online,false);assert.equal(recent.thermostat.currentTemperature,22);assert.equal(recent.temperatureUpdatedAt,stamp);
+ const stale=normalizeThermostat(snapshot,time+90_001);
+ assert.equal(stale.online,false);assert.equal(stale.thermostat.currentTemperature,null);assert.equal(stale.temperatureUpdatedAt,null);
+ const store=createFloorplanState();store.applyThermostatSnapshot(recent);store.applyThermostatSnapshot({online:false,thermostat:{}});
+ assert.equal(store.snapshot().sensors.S3,22);
+ store.applyThermostatSnapshot(stale);assert.equal(store.snapshot().sensors.S3,null);
+});
 test('UI store synchronizes sensors, boiler, active simulated lights, and failure fallback',async()=>{
  const h=await new HomeStatusRuntime(fixture()).readSnapshot();const store=createFloorplanState();store.applyHomeSnapshot(h);
  for(const id of ['L1','L2','L5','L6','L7']){store.setLight(id,true);assert.equal(store.snapshot().lights[id],true);store.applyHomeSnapshot(h);assert.equal(store.snapshot().lights[id],true);store.setLight(id,false);assert.equal(store.snapshot().lights[id],false);}

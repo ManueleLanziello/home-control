@@ -22,18 +22,26 @@ function unavailableCloudSnapshot(deviceId) {
   };
 }
 
-export function mergeWt200Snapshots({ cloudSnapshot = null, lanSnapshot = null, persistedSchedule = null, deviceId = null }) {
+export function mergeWt200Snapshots({ cloudSnapshot = null, lanSnapshot = null, persistedSchedule = null, deviceId = null, lanOnline = lanSnapshot !== null, lastTemperatureMeasurement = null }) {
   const cloud = cloudSnapshot || unavailableCloudSnapshot(deviceId);
   const deviceSchedule = cloudSnapshot?.schedule || lanSnapshot?.schedule || null;
+  const lanTemperature = lanSnapshot?.thermostat?.currentTemperature;
+  const measuredTemperature = Number.isFinite(lanTemperature)
+    ? { value: lanTemperature, updatedAt: lanSnapshot?.updatedAt ?? null }
+    : lastTemperatureMeasurement;
   return {
     ...cloud,
     deviceId: cloud.deviceId ?? lanSnapshot?.deviceId ?? deviceId,
-    online: lanSnapshot !== null || cloud.online === true,
+    online: lanOnline || cloud.online === true,
     cloudUpdatedAt: cloud.online === true ? cloud.updatedAt : null,
     lanUpdatedAt: lanSnapshot?.updatedAt ?? null,
-    thermostat: lanSnapshot?.thermostat ?? cloudSnapshot?.thermostat ?? cloud.thermostat,
+    thermostat: {
+      ...(lanSnapshot?.thermostat ?? cloudSnapshot?.thermostat ?? cloud.thermostat),
+      ...(Number.isFinite(measuredTemperature?.value) ? { currentTemperature: measuredTemperature.value } : {}),
+    },
+    temperatureUpdatedAt: measuredTemperature?.updatedAt ?? null,
     scheduleSource: deviceSchedule ? 'device' : persistedSchedule?.schedule ? 'persisted' : null,
-    heatingActive: lanSnapshot?.heatingActive ?? null,
+    heatingActive: lanOnline ? lanSnapshot?.heatingActive ?? null : null,
     rawDps: lanSnapshot?.rawDps ?? null,
     schedule: deviceSchedule || persistedSchedule?.schedule || null,
     updatedAt: cloud.updatedAt ?? lanSnapshot?.updatedAt ?? persistedSchedule?.updatedAt ?? null,
@@ -64,6 +72,7 @@ export class HomeWt200Runtime {
     this.lanEventDevice = null;
     this.stateListeners = new Set();
     this.latestLanSnapshot = null;
+    this.latestTemperatureMeasurement = null;
     this.persistenceQueue = Promise.resolve();
     this.mutationQueue = Promise.resolve();
     this.lanAdapter?.subscribeState?.((snapshot, metadata) => this.publishLanState(snapshot, metadata));
@@ -108,6 +117,7 @@ export class HomeWt200Runtime {
     if (!this.lanAdapter) return null;
     const snapshot = await this.lanAdapter.read(options);
     this.latestLanSnapshot = snapshot;
+    this.rememberTemperatureMeasurement(snapshot);
     this.bindLanSchedulePersistence();
     if (snapshot.schedule) await this.persistLanSchedule();
     return snapshot;
@@ -120,14 +130,22 @@ export class HomeWt200Runtime {
 
   publishLanState(lanSnapshot, metadata = {}) {
     this.latestLanSnapshot = lanSnapshot;
+    this.rememberTemperatureMeasurement(lanSnapshot);
     const snapshot = mergeWt200Snapshots({
       lanSnapshot,
       persistedSchedule: this.persistedSchedule,
       deviceId: this.deviceId,
+      lastTemperatureMeasurement: this.latestTemperatureMeasurement,
     });
     for (const listener of this.stateListeners) {
       try { listener(snapshot, metadata); } catch { /* A UI subscriber must not break LAN state capture. */ }
     }
+  }
+
+  rememberTemperatureMeasurement(snapshot) {
+    const value = snapshot?.thermostat?.currentTemperature;
+    if (!Number.isFinite(value)) return;
+    this.latestTemperatureMeasurement = { value, updatedAt: snapshot.updatedAt ?? this.now() };
   }
 
   async readSnapshot() {
@@ -135,9 +153,11 @@ export class HomeWt200Runtime {
     const [lanResult] = await Promise.allSettled([this.readLanSnapshot()]);
     const lanSnapshot = lanResult.status === 'fulfilled' ? lanResult.value : null;
     if (!lanSnapshot) {
-      return mergeWt200Snapshots({ persistedSchedule, deviceId: this.deviceId });
+      // A failed LAN read makes the device unavailable, but does not erase a
+      // separately timestamped measurement before its normal freshness limit.
+      return mergeWt200Snapshots({ persistedSchedule, deviceId: this.deviceId, lanOnline: false, lastTemperatureMeasurement: this.latestTemperatureMeasurement });
     }
-    const merged = mergeWt200Snapshots({ lanSnapshot, persistedSchedule, deviceId: this.deviceId });
+    const merged = mergeWt200Snapshots({ lanSnapshot, persistedSchedule, deviceId: this.deviceId, lastTemperatureMeasurement: this.latestTemperatureMeasurement });
     if (merged.scheduleSource === 'device'
       && (merged.schedule?.raw !== persistedSchedule?.schedule?.raw
         || merged.schedule?.weekPattern !== persistedSchedule?.schedule?.weekPattern)) {

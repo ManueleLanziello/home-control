@@ -11,9 +11,10 @@ function fixture() {
   let now = Date.parse('2026-09-16T12:00:00Z');
   const client = new EventEmitter();
   const subscriptions = [];
+  const publishes = [];
   let ends = 0;
   client.subscribe = (topics, options, callback) => { subscriptions.push(topics); callback(null); };
-  client.publish = (topic, payload, options, callback) => callback(null);
+  client.publish = (topic, payload, options, callback) => { publishes.push({ topic, payload, options }); callback(null); };
   client.end = force => { assert.equal(force, true); ends += 1; };
   let connects = 0;
   const runtime = new HomeZigbeeSensorRuntime({ now: () => now, connect: (url, options) => {
@@ -23,7 +24,7 @@ function fixture() {
     connects += 1; return client;
   } });
   const message = (topic, payload) => client.emit('message', topic, Buffer.from(JSON.stringify(payload)));
-  return { runtime, client, message, subscriptions, advance: ms => { now += ms; }, now: () => now,
+  return { runtime, client, message, subscriptions, publishes, advance: ms => { now += ms; }, now: () => now,
     ends: () => ends, connects: () => connects };
 }
 
@@ -47,7 +48,7 @@ test('MQTT sottoscrive sensori, LB1 e luci configurate senza alterare il parsing
 test('S5 usa pond-temp-acqua, accetta solo temperatura e non considera online un retained', () => {
   const f = fixture(); f.runtime.start(); f.client.emit('connect');
   assert.deepEqual(ZIGBEE_SENSOR_CONFIG.sensors.find(sensor => sensor.id === 'S5'), {
-    id: 'S5', name: 'SONOFF — Temperatura acqua', friendlyName: 'pond-temp-acqua', topic: 'zigbee2mqtt/pond-temp-acqua', ieeeAddress: '0xa4c1380cd121ffff', model: 'SNZB-02LD', manufacturer: 'SONOFF', humidity: false, requiresConfirmedMessage: true,
+    id: 'S5', name: 'SONOFF — Temperatura acqua', friendlyName: 'pond-temp-acqua', topic: 'zigbee2mqtt/pond-temp-acqua', getTopic: 'zigbee2mqtt/pond-temp-acqua/get', getPayload: { temperature: '' }, ieeeAddress: '0xa4c1380cd121ffff', model: 'SNZB-02LD', manufacturer: 'SONOFF', humidity: false, requiresConfirmedMessage: true,
   });
   assert.equal(normalizeSnzb02ldPayload({ temperature: 12.4, battery: 87, linkquality: 93 }, { updatedAt: '2026-09-16T12:00:00Z', confirmed: true }).humidity, null);
   assert.equal(normalizeSnzb02ldPayload({ battery: 87 }), null);
@@ -59,6 +60,22 @@ test('S5 usa pond-temp-acqua, accetta solo temperatura e non considera online un
   assert.equal(sensor.humidity, null); assert.equal(sensor.online, true); assert.equal(sensor.available, true);
   f.client.emit('message', 'zigbee2mqtt/bridge/devices', Buffer.from(JSON.stringify([{ friendly_name: 'pond-temp-acqua', ieee_address: '0xa4c1380cd121ffff', definition: { model: 'SNZB-02LD', vendor: 'SONOFF' } }])));
   assert.equal(f.runtime.readSnapshot().S5.identityStatus, 'verified');
+  f.runtime.close();
+});
+
+test('S5 richiede una sola temperatura iniziale per connessione e per riconnessione', () => {
+  const f = fixture(); f.runtime.start(); f.client.emit('connect');
+  const requests = () => f.publishes.filter(({ topic }) => topic === 'zigbee2mqtt/pond-temp-acqua/get');
+  assert.deepEqual(requests().map(({ payload }) => payload), [JSON.stringify({ temperature: '' })]);
+  f.client.emit('connect');
+  assert.equal(requests().length, 1);
+  f.client.emit('close'); f.client.emit('connect');
+  assert.deepEqual(requests().map(({ payload }) => payload), [JSON.stringify({ temperature: '' }), JSON.stringify({ temperature: '' })]);
+  assert.equal(f.runtime.readSnapshot().S5.available, false);
+  f.client.emit('message', 'zigbee2mqtt/pond-temp-acqua', Buffer.from(JSON.stringify({ battery: 87 })), { retain: false });
+  assert.equal(f.runtime.readSnapshot().S5.available, false);
+  f.message('zigbee2mqtt/pond-temp-acqua', { temperature: 12.4, battery: 87 });
+  assert.equal(f.runtime.readSnapshot().S5.available, true);
   f.runtime.close();
 });
 

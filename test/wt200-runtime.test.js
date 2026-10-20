@@ -68,6 +68,21 @@ test('letture LAN precedenti non tornano online se la LAN fallisce', async () =>
   assert.equal(recovered.schedule.raw, schedule.raw);
 });
 
+test('una lettura LAN fallita conserva soltanto l ultima temperatura recente senza rendere online il WT200', async () => {
+  const updatedAt = '2026-09-07T10:00:00.000Z';
+  let reads = 0;
+  const runtime = new HomeWt200Runtime({
+    lanAdapter: { async read() { reads += 1; if (reads === 1) return { updatedAt, heatingActive: true, thermostat: { currentTemperature: 21.6, setpointTemperature: 22, mode: 'manual' } }; throw new Error('LAN disconnected'); } },
+    scheduleStore: { async read() { return null; } },
+  });
+  await runtime.readSnapshot();
+  const result = await runtime.readSnapshot();
+  assert.equal(result.online, false);
+  assert.equal(result.thermostat.currentTemperature, 21.6);
+  assert.equal(result.temperatureUpdatedAt, updatedAt);
+  assert.equal(result.heatingActive, null);
+});
+
 test('setpoint usa read-back LAN reali e restituisce soltanto lo stato WT200 stabilizzato', async () => {
   const calls = [];
   const updatedAt = '2026-09-07T10:00:00.000Z';

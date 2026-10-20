@@ -71,9 +71,9 @@ export class HomeZigbeeSensorRuntime {
           completed = true;
           this.connected = !error && !granted?.some(subscription => subscription.qos === 128);
           this.notify('connection');
-          // One state request per configured actuator and successful subscription.
+          // One state request per configured device and successful subscription.
           // Incoming MQTT messages remain the sole source of confirmed state.
-          for (const device of [this.config.ledbar, ...(this.config.lights || [])]) {
+          for (const device of [...this.config.sensors, this.config.ledbar, ...(this.config.lights || [])]) {
             if (!this.connected || !device?.getTopic) continue;
             try { this.client.publish(device.getTopic, JSON.stringify(device.getPayload || {}), { qos: 0 }, () => {}); } catch { /* No retry: a failed read must not break MQTT handling. */ }
           }

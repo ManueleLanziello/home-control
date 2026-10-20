@@ -37,7 +37,10 @@ export function normalizeThermostat(snapshot, now = Date.now()) {
   const cloudValid = snapshot?.online === true && fresh(cloudTime, now);
   const lanValid = snapshot?.online === true && fresh(lanTime, now);
   const source = lanValid ? snapshot?.thermostat || {} : cloudValid ? snapshot?.thermostat || {} : {};
+  const temperatureUpdatedAt = snapshot?.temperatureUpdatedAt ?? (Number.isFinite(snapshot?.thermostat?.currentTemperature) ? (lanTime ?? cloudTime) : null);
+  const currentTemperature = fresh(temperatureUpdatedAt, now) ? finite(snapshot?.thermostat?.currentTemperature) : null;
   const thermostat = Object.fromEntries(['currentTemperature', 'setpointTemperature', 'upperTemperatureLimit', 'temperatureCorrection'].map(key => [key, finite(source[key])]));
+  thermostat.currentTemperature = currentTemperature;
   for (const key of ['enabled', 'childLock', 'frostProtection', 'sound']) thermostat[key] = bool(source[key]);
   thermostat.mode = typeof source.mode === 'string' ? source.mode : null;
   return {
@@ -45,6 +48,7 @@ export function normalizeThermostat(snapshot, now = Date.now()) {
     online: cloudValid || lanValid,
     // Conservative timestamp: neither cloud nor LAN fields outlive their freshness window.
     updatedAt: cloudValid && lanValid ? (Date.parse(cloudTime) < Date.parse(lanTime) ? cloudTime : lanTime) : cloudValid ? cloudTime : lanValid ? lanTime : snapshot?.updatedAt ?? null,
+    temperatureUpdatedAt: currentTemperature === null ? null : temperatureUpdatedAt,
     thermostat,
     heatingActive: lanValid ? bool(snapshot.heatingActive) : null,
     schedule: snapshot?.schedule ?? null,
@@ -203,7 +207,7 @@ export class HomeStatusRuntime {
     }
     const sensors = Object.fromEntries(['S1','S2','S4','S5'].map(id => [id, values[id]]));
     const room = thermostat.thermostat.currentTemperature;
-    sensors.S3 = { source: 'thermostat', value: room, available: Number.isFinite(room), online: thermostat.online, updatedAt: thermostat.updatedAt };
+    sensors.S3 = { source: 'thermostat', value: room, available: Number.isFinite(room), online: thermostat.online, updatedAt: thermostat.temperatureUpdatedAt ?? thermostat.updatedAt };
     const indoors = ['S1','S2','S3','S4'].map(id => sensors[id].value).filter(Number.isFinite);
     const cameras = this.readCameras ? await this.readCameras() : Object.fromEntries(Object.entries(values).filter(([id]) => id.startsWith('C')));
     let ledbar = null;

@@ -59,9 +59,11 @@ export function createFloorplanState() {
       updatedAt: hood.updatedAt ?? state.hood.updatedAt,
     };
   };
-  const applyThermostat = thermostat => {
+  const applyThermostat = (thermostat, { clearMissing = false } = {}) => {
     const currentTemperature = thermostat?.thermostat?.currentTemperature;
-    state.sensors.S3 = Number.isFinite(currentTemperature) ? currentTemperature : null;
+    const hasCurrentTemperature = Object.hasOwn(thermostat?.thermostat || {}, 'currentTemperature');
+    if (Number.isFinite(currentTemperature)) state.sensors.S3 = currentTemperature;
+    else if (hasCurrentTemperature || clearMissing) state.sensors.S3 = null;
     state.boiler = { on: thermostat?.heatingActive ?? null, mode: thermostat?.thermostat?.mode ?? null };
   };
   return {
@@ -167,7 +169,7 @@ export function createFloorplanState() {
         if (typeof previousAlarm === 'boolean' && (typeof nextAlarm !== 'boolean' || requestedAt <= (cameraReadBackAt.get(`${id}:alarm`) || 0))) nextCamera.alarm = { ...camera?.alarm, available: true, enabled: previousAlarm };
         return [id, nextCamera];
       }));
-      applyThermostat(home.thermostat);
+      applyThermostat(home.thermostat, { clearMissing: !Object.hasOwn(home, 'thermostat') });
       applyHood(home.hood);
       if (home.ledbar) state.ledbar = { ...state.ledbar, ...home.ledbar };
       state.doorContacts = home.doorContacts && typeof home.doorContacts === 'object' ? structuredClone(home.doorContacts) : {};
