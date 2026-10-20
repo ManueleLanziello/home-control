@@ -692,7 +692,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
       text.dataset.sensorReading = sensor.id;
       text.setAttribute('aria-label', 'Apri sensore ' + sensor.room);
       const opener = () => showSensorPopup(sensor.id, store.snapshot().sensorDetails[sensor.id], {
-        minimumTemperature: sensorThresholds[sensor.id] ?? null, saveMinimumTemperature, voiceSettings: sensorVoices[sensor.id], saveVoiceSettings,
+        minimumTemperature: sensorThresholds[sensor.id] ?? null, saveMinimumTemperature, voiceSettings: sensorVoices[sensor.id], saveVoiceSettings, playVoiceTest: voice => alarmControls.playTemperatureVoice({ sensorId: sensor.id, volume: voice.volume }),
       });
       bindSensorPopupTrigger(element, opener);
       bindSensorPopupTrigger(text, opener);

@@ -8,8 +8,8 @@ class Element extends EventTarget {
   append(...children) { this.children.push(...children); }
   replaceChildren(...children) { this.children = children; }
   set innerHTML(value) {
-    this.parts = Object.fromEntries([...value.matchAll(/data-sensor-(name|model|close|details|threshold-form|minimum-temperature|threshold-status|threshold-save|voice-enabled|voice-volume)/g)]
-      .map(match => [`[data-sensor-${match[1]}]`, new Element(match[1] === 'close' || match[1] === 'threshold-save' ? 'button' : match[1] === 'threshold-form' ? 'form' : ['minimum-temperature', 'voice-enabled', 'voice-volume'].includes(match[1]) ? 'input' : 'div')]));
+    this.parts = Object.fromEntries([...value.matchAll(/data-sensor-(name|model|close|details|threshold-form|minimum-temperature|threshold-status|threshold-save|voice-enabled|voice-volume|voice-test)/g)]
+      .map(match => [`[data-sensor-${match[1]}]`, new Element(['close', 'threshold-save', 'voice-test'].includes(match[1]) ? 'button' : match[1] === 'threshold-form' ? 'form' : ['minimum-temperature', 'voice-enabled', 'voice-volume'].includes(match[1]) ? 'input' : 'div')]));
   }
   querySelector(selector) { return this.parts[selector]; }
   showModal() { this.open = true; }

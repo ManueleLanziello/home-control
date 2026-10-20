@@ -51,6 +51,14 @@ button.floorplan-marker { pointer-events: auto; cursor: pointer; }
 .sensor-threshold-form { display: grid; gap: 10px; margin-top: 14px; }
 .sensor-threshold-form fieldset { display: grid; gap: 10px; margin: 0; padding: 12px; border: 1px solid #284e64; border-radius: 10px; }
 .sensor-threshold-form legend { padding: 0 6px; color: #bfe7f7; font-size: .78rem; font-weight: 700; letter-spacing: .04em; }
+.sensor-voice { margin-top: 14px; }
+.sensor-voice fieldset { display: grid; gap: 12px; margin: 0; padding: 12px; border: 1px solid #284e64; border-radius: 10px; }
+.sensor-voice legend { padding: 0 6px; color: #bfe7f7; font-size: .78rem; font-weight: 700; letter-spacing: .04em; }
+.sensor-voice label { display: grid; gap: 7px; color: #bfe7f7; font-size: .86rem; }
+.sensor-voice label:first-of-type { display: flex; align-items: center; gap: 9px; }
+.sensor-voice input[type="checkbox"] { width: 18px; height: 18px; margin: 0; }
+.sensor-voice input[type="range"] { width: 100%; }
+.sensor-voice button { justify-self: end; min-height: 34px; padding: 0 14px; border: 1px solid #476b83; border-radius: 7px; color: inherit; background: #132d40; font-weight: 800; cursor: pointer; }
 .sensor-threshold-form label { display: grid; grid-template-columns: 1fr minmax(120px, .8fr); align-items: center; gap: 10px; color: #bfe7f7; font-size: .86rem; }
 .sensor-threshold-form label > span { display: flex; align-items: center; gap: 7px; }
 .sensor-threshold-form input { box-sizing: border-box; width: 100%; min-height: 38px; padding: 0 9px; border: 1px solid #476b83; border-radius: 8px; color: inherit; background: #071826; font: inherit; }

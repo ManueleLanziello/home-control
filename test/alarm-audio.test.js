@@ -46,3 +46,10 @@ test('audio settings are local and volume is applied to every preloaded player',
   const values = new Map(); const players = []; const audio = createAlarmAudio({ storage: { getItem: key => values.get(key), setItem: (key, value) => values.set(key, value) }, createAudio: () => { const player = { load() {}, volume: 0 }; players.push(player); return player; } });
   audio.setVolume(42); audio.setEnabled(false); assert.equal(audio.settings().volume, 42); assert.equal(audio.settings().enabled, false); assert.ok(players.every(player => player.volume === .42));
 });
+
+test('prova voce usa la coda condivisa, il volume locale e la pausa dopo il primo OGG', async () => {
+  const played = []; const waits = []; const players = [];
+  const audio = createAlarmAudio({ createAudio: () => { const player = { load() {}, volume: 0, play() { played.push(this.src); return Promise.resolve(); }, addEventListener(type, listener) { if (type === 'ended') queueMicrotask(listener); } }; players.push(player); return player; }, wait: async milliseconds => waits.push(milliseconds) });
+  await audio.testTemperatureVoice({ sensorId: 'S5', volume: 42 });
+  assert.deepEqual(waits, [2000]); assert.deepEqual(played.map(file => file.split('/').at(-1)), ['temperature-low.ogg', 'temperature-room-laghetto.ogg']); assert.ok(players.filter(player => player.src.includes('temperature-')).every(player => player.volume === .42));
+});

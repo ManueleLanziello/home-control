@@ -52,6 +52,7 @@ function renderPopup(dialog, id, sensor = {}, options = {}) {
   const voiceEnabled = dialog.querySelector('[data-sensor-voice-enabled]'); const voiceVolume = dialog.querySelector('[data-sensor-voice-volume]');
   voiceEnabled.checked = voice.enabled === true; voiceVolume.value = String(Number.isFinite(voice.volume) ? voice.volume : 100);
   voiceEnabled.disabled = voiceVolume.disabled = typeof options.saveVoiceSettings !== 'function';
+  dialog.querySelector('[data-sensor-voice-test]').disabled = typeof options.playVoiceTest !== 'function' || dialog._voiceTesting === true;
 }
 
 function bindVoiceForm(dialog) {
@@ -61,6 +62,12 @@ function bindVoiceForm(dialog) {
   };
   dialog.querySelector('[data-sensor-voice-enabled]').addEventListener('change', save);
   dialog.querySelector('[data-sensor-voice-volume]').addEventListener('change', save);
+  dialog.querySelector('[data-sensor-voice-test]').addEventListener('click', async () => {
+    const button = dialog.querySelector('[data-sensor-voice-test]'); if (dialog._voiceTesting) return;
+    dialog._voiceTesting = true; button.disabled = true;
+    try { await dialog._sensorOptions?.playVoiceTest?.({ enabled: dialog.querySelector('[data-sensor-voice-enabled]').checked, volume: Number(dialog.querySelector('[data-sensor-voice-volume]').value) }); }
+    finally { dialog._voiceTesting = false; button.disabled = typeof dialog._sensorOptions?.playVoiceTest !== 'function'; }
+  });
 }
 
 function bindThresholdForm(dialog) {
@@ -92,7 +99,7 @@ export function showSensorPopup(id, sensor, options = {}) {
     dialog.dataset.sensorDialog = '';
     dialog.className = 'sensor-dialog';
     dialog.setAttribute('aria-labelledby', 'sensor-popup-name');
-    dialog.innerHTML = '<header><div><h2 id="sensor-popup-name" data-sensor-name></h2><p data-sensor-model></p></div><button type="button" data-sensor-close aria-label="Chiudi sensore">X</button></header><section data-sensor-details></section><form class="sensor-threshold-form" data-sensor-threshold-form><fieldset><legend>ALLARME TEMPERATURA MINIMA</legend><label>Soglia minima <span><input data-sensor-minimum-temperature type="text" inputmode="decimal" autocomplete="off"><em>°C</em></span></label><small data-sensor-threshold-status></small><button type="submit" data-sensor-threshold-save>SALVA</button></fieldset></form><section class="sensor-voice"><fieldset><legend>ALLARME VOCALE</legend><label><input type="checkbox" data-sensor-voice-enabled> Abilita voce</label><label>Volume <input type="range" min="0" max="100" data-sensor-voice-volume></label></fieldset></section>';
+    dialog.innerHTML = '<header><div><h2 id="sensor-popup-name" data-sensor-name></h2><p data-sensor-model></p></div><button type="button" data-sensor-close aria-label="Chiudi sensore">X</button></header><section data-sensor-details></section><form class="sensor-threshold-form" data-sensor-threshold-form><fieldset><legend>ALLARME TEMPERATURA MINIMA</legend><label>Soglia minima <span><input data-sensor-minimum-temperature type="text" inputmode="decimal" autocomplete="off"><em>°C</em></span></label><small data-sensor-threshold-status></small><button type="submit" data-sensor-threshold-save>SALVA</button></fieldset></form><section class="sensor-voice"><fieldset><legend>ALLARME VOCALE</legend><label><input type="checkbox" data-sensor-voice-enabled> Abilita voce</label><label>Volume <input type="range" min="0" max="100" data-sensor-voice-volume></label><button type="button" data-sensor-voice-test>PROVA VOCE</button></fieldset></section>';
     dialog.querySelector('[data-sensor-close]').addEventListener('click', () => dialog.close());
     dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });
     dialog.addEventListener('close', () => { dialog._thresholdDraft = ''; dialog._thresholdEditing = false; });
@@ -112,6 +119,7 @@ export function updateSensorPopup(sensors, options = {}) {
     saveMinimumTemperature: options.saveMinimumTemperature ?? dialog._sensorOptions?.saveMinimumTemperature,
     voiceSettings: options.voiceSettings?.[id] ?? dialog._sensorOptions?.voiceSettings,
     saveVoiceSettings: options.saveVoiceSettings ?? dialog._sensorOptions?.saveVoiceSettings,
+    playVoiceTest: options.playVoiceTest ?? dialog._sensorOptions?.playVoiceTest,
     preserveThresholdDraft: true,
   });
 }
