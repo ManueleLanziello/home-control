@@ -129,5 +129,6 @@ test('HTTP aggregate and thermostat share normalized read; static Dashboard/audi
   assert.equal(h.sensors.S3.value,22);assert.deepEqual(t,h.thermostat);assert.deepEqual(h.thermostat.schedule,schedule);assert.equal(reads,1);
   assert.equal((await fetch(base+'/')).status,200);
   const audio=await fetch(base+'/sounds/switch.ogg');assert.equal(audio.status,200);assert.equal(audio.headers.get('content-type'),'audio/ogg');
+  const temperatureAudio=await fetch(base+'/sounds/alarm/temperature-room-salotto.ogg');assert.equal(temperatureAudio.status,200);assert.equal(temperatureAudio.headers.get('content-type'),'audio/ogg');
  }finally{server.close();await once(server,'close');}
 });

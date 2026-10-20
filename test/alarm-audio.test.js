@@ -47,9 +47,22 @@ test('audio settings are local and volume is applied to every preloaded player',
   audio.setVolume(42); audio.setEnabled(false); assert.equal(audio.settings().volume, 42); assert.equal(audio.settings().enabled, false); assert.ok(players.every(player => player.volume === .42));
 });
 
-test('prova voce usa la coda condivisa, il volume locale e la pausa dopo il primo OGG', async () => {
+test('prova voce S3 usa la coda condivisa, il volume locale e la pausa dopo il primo OGG', async () => {
   const played = []; const waits = []; const players = [];
   const audio = createAlarmAudio({ createAudio: () => { const player = { load() {}, volume: 0, play() { played.push(this.src); return Promise.resolve(); }, addEventListener(type, listener) { if (type === 'ended') queueMicrotask(listener); } }; players.push(player); return player; }, wait: async milliseconds => waits.push(milliseconds) });
-  await audio.testTemperatureVoice({ sensorId: 'S5', volume: 42 });
-  assert.deepEqual(waits, [2000]); assert.deepEqual(played.map(file => file.split('/').at(-1)), ['temperature-low.ogg', 'temperature-room-laghetto.ogg']); assert.ok(players.filter(player => player.src.includes('temperature-')).every(player => player.volume === .42));
+  await audio.testTemperatureVoice({ sensorId: 'S3', volume: 42 });
+  assert.deepEqual(waits, [2000]); assert.deepEqual(played.map(file => file.split('/').at(-1)), ['temperature-low.ogg', 'temperature-room-salotto.ogg']); assert.ok(players.filter(player => player.src.includes('temperature-')).every(player => player.volume === .42));
+});
+
+test('mostra il messaggio autoplay soltanto per NotAllowedError e recupera dagli errori del file', async () => {
+  const messages = []; const rejected = createAlarmAudio({ onBlocked: message => messages.push(message), createAudio: () => ({ load() {}, play() { return Promise.reject(Object.assign(new Error('file missing'), { name: 'NotSupportedError' })); }, addEventListener() {} }) });
+  rejected.test(); await new Promise(resolve => setTimeout(resolve, 0)); assert.deepEqual(messages, []);
+
+  const blocked = createAlarmAudio({ onBlocked: message => messages.push(message), createAudio: () => ({ load() {}, play() { return Promise.reject(Object.assign(new Error('autoplay'), { name: 'NotAllowedError' })); }, addEventListener() {} }) });
+  blocked.test(); await new Promise(resolve => setTimeout(resolve, 0)); assert.deepEqual(messages, ['Il browser ha bloccato la riproduzione automatica. Tocca “Prova voce” o abilita l’audio.']);
+
+  const played = []; let first = true;
+  const recovered = createAlarmAudio({ createAudio: () => ({ load() {}, play() { played.push(this.src); return Promise.resolve(); }, addEventListener(type, listener) { if (type === 'error' && first) { first = false; queueMicrotask(listener); } else if (type === 'ended') queueMicrotask(listener); } }) });
+  recovered.test(); await new Promise(resolve => setTimeout(resolve, 0)); recovered.test(); await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(played.length, 2);
 });
