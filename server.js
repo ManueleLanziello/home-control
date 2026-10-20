@@ -26,6 +26,7 @@ import { AlarmRuntime, normalizeSirenSettings } from './src/alarm-runtime.js';
 import { AlarmAuthorization } from './src/alarm-auth.js';
 import { AlarmSirenController } from './src/alarm-siren-controller.js';
 import { SensorThresholdStore } from './src/sensor-threshold-store.js';
+import { TemperatureVoiceAutomation } from './src/temperature-voice-automation.js';
 import { CameraAlarmAutomationStore } from './src/camera-alarm-automation-store.js';
 import { CameraAlarmAutomation } from './src/camera-alarm-automation.js';
 
@@ -217,6 +218,7 @@ export function createHomeControlServer({
   weatherService = null,
   alarmStore = new AlarmRuntime({ filePath: ALARM_STATE_FILE }),
   sensorThresholdStore = new SensorThresholdStore({ filePath: SENSOR_THRESHOLDS_FILE }),
+  temperatureVoiceAutomation = null,
   cameraAlarmAutomationStore = new CameraAlarmAutomationStore({ filePath: CAMERA_ALARM_AUTOMATION_FILE }),
   cameraAlarmAutomation = null,
   alarmAuthorization = new AlarmAuthorization(),
@@ -230,6 +232,7 @@ export function createHomeControlServer({
   const lightEventClients = new Set();
   const doorContactEventClients = new Set();
   const motionSensorEventClients = new Set();
+  const temperatureVoiceEventClients = new Set();
   const alarmEventClients = new Set();
   const physicalSirenSettings = settings => ({ soundEnabled: settings.soundEnabled, lightEnabled: settings.lightEnabled, soundType: settings.soundType, volumeLevel: settings.volumeLevel, duration: settings.duration });
   const sirenController = alarmSirenController || new AlarmSirenController({ send: active => zigbeeRuntime?.setSirenActive(active), configure: settings => zigbeeRuntime?.setSirenConfiguration(physicalSirenSettings(settings)), logError: () => {} });
@@ -277,7 +280,9 @@ export function createHomeControlServer({
   };
   const publishThermostatState = (snapshot) => {
     homeStatus?.invalidate();
-    const payload = `data: ${JSON.stringify(normalizeThermostat(snapshot))}\n\n`;
+    const normalized = normalizeThermostat(snapshot);
+    void temperatureVoice.observe('S3', { temperature: normalized.thermostat?.currentTemperature, online: normalized.online === true, available: normalized.online === true });
+    const payload = `data: ${JSON.stringify(normalized)}\n\n`;
     for (const client of thermostatEventClients) {
       try { client.write(payload); } catch { thermostatEventClients.delete(client); }
     }
@@ -295,6 +300,10 @@ export function createHomeControlServer({
   let activeHoodRuntime = hoodRuntime;
   const getHoodRuntime = () => activeHoodRuntime ||= new HomeCiarraRuntime({ adapter: null });
   const cameras = cameraRuntime || new HomeCameraRuntime({ hardwareStore, roleStore, root: ROOT });
+  const temperatureVoice = temperatureVoiceAutomation || new TemperatureVoiceAutomation({ store: sensorThresholdStore, publish: event => {
+    const payload = `event: voice\ndata: ${JSON.stringify(event)}\n\n`;
+    for (const client of temperatureVoiceEventClients) { try { client.write(payload); } catch { temperatureVoiceEventClients.delete(client); } }
+  } });
   const cameraAutomation = cameraAlarmAutomation || new CameraAlarmAutomation({ alarmStore, cameraRuntime: cameras, store: cameraAlarmAutomationStore, logError: message => console.error(message) });
   const wakeScheduler = cameraWakeScheduler || new CameraWakeScheduler({
     cameraRuntime: cameras,
@@ -330,6 +339,13 @@ export function createHomeControlServer({
     });
     pending?.catch(() => {});
   };
+  const synchronizeTemperatureVoiceSensors = () => {
+    const sensors = zigbeeRuntime?.readSnapshot?.() || {}; const now = Date.now();
+    for (const id of ['S1', 'S2', 'S4', 'S5']) {
+      const sensor = sensors[id]; const age = now - Date.parse(sensor?.updatedAt);
+      void temperatureVoice.observe(id, { temperature: sensor?.temperature, online: sensor?.online === true && age >= 0 && age <= ZIGBEE_SENSOR_CONFIG.freshnessMs, available: sensor?.available !== false });
+    }
+  };
   const unsubscribeZigbee = zigbeeRuntime?.subscribeState(kind => {
     homeStatus?.invalidate();
     if (kind === 'connection' && zigbeeRuntime?.connected === true) void sirenController.retryPendingStop?.();
@@ -338,6 +354,7 @@ export function createHomeControlServer({
     if (kind === 'doorContacts' || kind === 'connection') publishDoorContactState();
     if (kind === 'motionSensor' || kind === 'connection') publishMotionSensorState();
     if (kind === 'siren' || kind === 'connection') publishAlarmSirenState();
+    if (kind === 'sensors') synchronizeTemperatureVoiceSensors();
     if (kind === 'doorContacts' || kind === 'motionSensor' || kind === 'siren' || kind === 'connection') void synchronizeAlarmSensors();
   });
   void synchronizeAlarmSensors();
@@ -378,6 +395,18 @@ export function createHomeControlServer({
     if (url.pathname === '/api/sensor-thresholds') {
       if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
       return sendJson(response, 200, await sensorThresholdStore.read());
+    }
+    if (url.pathname === '/api/temperature-voice/events') {
+      if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
+      response.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
+      response.write('retry: 2000\n\n'); temperatureVoiceEventClients.add(response); request.on('close', () => temperatureVoiceEventClients.delete(response)); return;
+    }
+    const sensorVoiceMatch = /^\/api\/sensors\/(S[1-5])\/temperature-voice$/.exec(url.pathname);
+    if (sensorVoiceMatch) {
+      if (request.method === 'GET') return sendJson(response, 200, (await sensorThresholdStore.read()).voices?.[sensorVoiceMatch[1]] || { enabled: false, volume: 100 });
+      if (request.method !== 'PUT') return sendJson(response, 405, { error: 'Metodo non consentito' });
+      try { const voice = await sensorThresholdStore.setVoice(sensorVoiceMatch[1], await readJson(request)); temperatureVoice.invalidate(sensorVoiceMatch[1]); const payload = `event: config\ndata: ${JSON.stringify({ voices: voice.voices })}\n\n`; for (const client of temperatureVoiceEventClients) { try { client.write(payload); } catch { temperatureVoiceEventClients.delete(client); } } return sendJson(response, 200, voice); }
+      catch (error) { return sendJson(response, 400, { error: error.message || 'Configurazione voce non valida' }); }
     }
     const sensorThresholdMatch = /^\/api\/sensors\/(S[1-5])\/minimum-temperature$/.exec(url.pathname);
     if (sensorThresholdMatch) {
@@ -861,6 +890,7 @@ export function createHomeControlServer({
     for (const client of lightEventClients) { try { client.end(); } catch {} }
     for (const client of doorContactEventClients) { try { client.end(); } catch {} }
     for (const client of motionSensorEventClients) { try { client.end(); } catch {} }
+    for (const client of temperatureVoiceEventClients) { try { client.end(); } catch {} }
     clearInterval(alarmClock); unsubscribeAlarm(); unsubscribeCameraAutomation(); cameraAutomation.close(); for (const client of alarmEventClients) { try { client.end(); } catch {} }
     zigbeeRuntime?.close();
     void cameras.close().catch(() => {});

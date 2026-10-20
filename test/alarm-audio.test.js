@@ -3,7 +3,7 @@ import test from 'node:test';
 import { access } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ALARM_AUDIO_FILES, ALARM_WARNING_FILES, createAlarmAudio, warningFiles, warningFilesAfterDelay } from '../public/js/alarm-audio.js';
+import { ALARM_AUDIO_FILES, ALARM_WARNING_FILES, TEMPERATURE_VOICE_FILES, createAlarmAudio, warningFiles, warningFilesAfterDelay } from '../public/js/alarm-audio.js';
 
 test('declares existing alarm files and the nine sensor announcements', () => {
   assert.equal(ALARM_AUDIO_FILES.length, 18);
@@ -40,7 +40,7 @@ test('queues one warning only after the sensor audio ends and cancels it on disa
 
 test('every declared alarm audio asset is present', async () => {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'public', 'sounds', 'alarm');
-  await Promise.all([...ALARM_AUDIO_FILES, ...ALARM_WARNING_FILES].map(file => access(path.join(root, file))));
+  await Promise.all([...ALARM_AUDIO_FILES, ...ALARM_WARNING_FILES, ...TEMPERATURE_VOICE_FILES].map(file => access(path.join(root, file))));
 });
 test('audio settings are local and volume is applied to every preloaded player', () => {
   const values = new Map(); const players = []; const audio = createAlarmAudio({ storage: { getItem: key => values.get(key), setItem: (key, value) => values.set(key, value) }, createAudio: () => { const player = { load() {}, volume: 0 }; players.push(player); return player; } });

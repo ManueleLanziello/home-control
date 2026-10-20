@@ -535,7 +535,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     const response = await fetch(homeControlPath('/api/floorplan/assets'), { cache: 'no-store' });
     if (!response.ok) throw new Error('Elenco asset non disponibile');
     const assets = new Set((await response.json()).assets);
-    let sensorThresholds = (await thresholdRequest).thresholds || {};
+    const thresholdSettings = await thresholdRequest; let sensorThresholds = thresholdSettings.thresholds || {}; let sensorVoices = thresholdSettings.voices || {};
     const required = [...Object.values(config.backgrounds), ...config.permanentLightLayers, ...config.rooms.filter(room => !room.optional).flatMap(room => [room.on, room.off]), ...Object.values(config.mappings).filter(name => name !== config.mappings.clock), ...Object.values(config.ledbar.layers), config.icons.ledbarOn, config.icons.ledbarOff, config.icons.cappaOn, config.icons.cappaOff, config.icons.pondPumpOn, config.icons.pondPumpOff, config.icons.pondHeaterOn, config.icons.pondHeaterOff, config.icons.pondManual, config.icons.pondThermostat, config.icons.alarm, config.icons.antiOff, config.icons.antiOn, config.icons.alarmNone, config.icons.alarmPartial, config.icons.alarmComplete, config.icons.alarmDoor, config.icons.alarmMotion, ...Object.values(config.mobileMonitor.icons)];
     const missing = required.filter(name => !assets.has(name));
     if (missing.length) throw new Error('Asset planimetria mancanti: ' + missing.join(', '));
@@ -676,6 +676,10 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
       render(store.snapshot());
       return sensorThresholds[id] ?? null;
     };
+    const saveVoiceSettings = async (id, voice) => {
+      const response = await fetch(homeControlPath(`/api/sensors/${id}/temperature-voice`), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(voice) });
+      const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Voce non salvata'); sensorVoices = result.voices || {}; render(store.snapshot()); return sensorVoices[id];
+    };
     const sensorTypography = { fontSize: sensorReadingFontSize(sensorMapping.box(config.sensors.find(sensor => sensor.id === 'S3').reading)) };
     for (const sensor of config.sensors) {
       const element = markerElement('Temperatura ' + sensor.room, true);
@@ -688,7 +692,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
       text.dataset.sensorReading = sensor.id;
       text.setAttribute('aria-label', 'Apri sensore ' + sensor.room);
       const opener = () => showSensorPopup(sensor.id, store.snapshot().sensorDetails[sensor.id], {
-        minimumTemperature: sensorThresholds[sensor.id] ?? null, saveMinimumTemperature,
+        minimumTemperature: sensorThresholds[sensor.id] ?? null, saveMinimumTemperature, voiceSettings: sensorVoices[sensor.id], saveVoiceSettings,
       });
       bindSensorPopupTrigger(element, opener);
       bindSensorPopupTrigger(text, opener);
@@ -1005,7 +1009,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
       previousLedbarOn = ledbarOn;
       if (Number.isInteger(ledbar.brightness)) ledbarSlider.value = String(ledbar.brightness);
       ledbarSlider.disabled = ledbar.online === false && ledbar.state === null;
-      updateSensorPopup(state.sensorDetails, { minimumTemperatures: sensorThresholds, saveMinimumTemperature });
+      updateSensorPopup(state.sensorDetails, { minimumTemperatures: sensorThresholds, saveMinimumTemperature, voiceSettings: sensorVoices, saveVoiceSettings });
       open.setAttribute('aria-label', 'Apri CALDAIA completa · ' + (state.boiler.on === null ? 'stato non disponibile' : state.boiler.on ? 'riscaldamento ON' : 'riscaldamento OFF') + ' · ' + (state.boiler.mode || 'modalità non disponibile'));
       renderBoilerMini(open, state.boiler);
       const cappaPower = typeof state.hood.power === 'boolean' ? state.hood.power : previousCappaPower ?? false;

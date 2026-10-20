@@ -11,7 +11,8 @@ test('le soglie S1–S5 persistono separatamente e validano ID e valori', async 
   try {
     const filePath = path.join(directory, 'thresholds.json');
     const store = new SensorThresholdStore({ filePath });
-    assert.deepEqual(await store.read(), { thresholds: {} });
+    assert.deepEqual((await store.read()).thresholds, {});
+    assert.deepEqual((await store.read()).voices.S1, { enabled: false, volume: 100 });
     await store.set('S1', 12.5); await store.set('S3', 18);
     assert.deepEqual((await store.read()).thresholds, { S1: 12.5, S3: 18 });
     assert.deepEqual((await new SensorThresholdStore({ filePath }).read()).thresholds, { S1: 12.5, S3: 18 });
@@ -20,6 +21,8 @@ test('le soglie S1–S5 persistono separatamente e validano ID e valori', async 
     await assert.rejects(store.set('DW1', 12), /Sensore non valido/);
     await assert.rejects(store.set('S2', 81), /Soglia temperatura non valida/);
     assert.deepEqual(JSON.parse(await readFile(filePath, 'utf8')).thresholds, { S3: 18 });
+    await store.setVoice('S1', { enabled: true, volume: 42 });
+    assert.deepEqual((await store.read()).voices.S1, { enabled: true, volume: 42 });
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
