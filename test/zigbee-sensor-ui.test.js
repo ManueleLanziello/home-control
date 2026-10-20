@@ -112,3 +112,14 @@ test('bozza non valida non viene convertita né persa', t => {
   assert.equal(input.value, '16,5.2');
   assert.equal(dialog.querySelector('[data-sensor-threshold-status]').textContent, 'Inserisci una soglia valida');
 });
+
+test('refresh del popup conserva la voce del solo sensore aperto', t => {
+  const previousDocument = globalThis.document; const body = new Element('body');
+  globalThis.document = { body, createElement: tag => new Element(tag), querySelector: () => body.children[0] };
+  t.after(() => { globalThis.document = previousDocument; });
+  const saveVoiceSettings = async () => {};
+  showSensorPopup('S2', { temperature: 19, online: true, available: true }, { voiceSettings: { enabled: true, volume: 42 }, saveVoiceSettings });
+  const dialog = body.children[0]; const enabled = dialog.querySelector('[data-sensor-voice-enabled]'); const volume = dialog.querySelector('[data-sensor-voice-volume]');
+  updateSensorPopup({ S2: { temperature: 19, online: true, available: true } }, { voiceSettings: { S1: { enabled: false, volume: 100 }, S2: { enabled: true, volume: 42 } }, saveVoiceSettings });
+  assert.equal(enabled.disabled, false); assert.equal(enabled.checked, true); assert.equal(volume.value, '42');
+});

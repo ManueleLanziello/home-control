@@ -106,10 +106,11 @@ export function showSensorPopup(id, sensor, options = {}) {
 
 export function updateSensorPopup(sensors, options = {}) {
   const dialog = document.querySelector('[data-sensor-dialog]');
-  if (dialog?.open) renderPopup(dialog, dialog.dataset.sensorId, sensors[dialog.dataset.sensorId], {
-    minimumTemperature: options.minimumTemperatures?.[dialog.dataset.sensorId] ?? dialog._sensorOptions?.minimumTemperature ?? null,
+  const id = dialog?.dataset.sensorId;
+  if (dialog?.open) renderPopup(dialog, id, sensors[id], {
+    minimumTemperature: options.minimumTemperatures?.[id] ?? dialog._sensorOptions?.minimumTemperature ?? null,
     saveMinimumTemperature: options.saveMinimumTemperature ?? dialog._sensorOptions?.saveMinimumTemperature,
-    voiceSettings: options.voiceSettings ?? dialog._sensorOptions?.voiceSettings,
+    voiceSettings: options.voiceSettings?.[id] ?? dialog._sensorOptions?.voiceSettings,
     saveVoiceSettings: options.saveVoiceSettings ?? dialog._sensorOptions?.saveVoiceSettings,
     preserveThresholdDraft: true,
   });
