@@ -35,6 +35,7 @@ export class HomeCameraRuntime {
     this.recordingCache = new Map();
     this.recordingPending = new Map();
     this.eventMonitorState = new Map();
+    this.contactListeners = new Set();
     this.eventStateStore = eventStateStore || new CameraEventStateStore({ filePath: path.join(root, 'data', 'config', 'camera-event-state.json'), now });
     this.operations = new CameraOperationQueue();
     this.owned = new RoleRuntimeManager({ category: 'camera', emptySnapshot: () => EMPTY('C1'), createRuntime: (record, signature) => new CameraManager({
@@ -43,6 +44,8 @@ export class HomeCameraRuntime {
     }) });
   }
 
+  subscribeContact(listener) { this.contactListeners.add(listener); return () => this.contactListeners.delete(listener); }
+
   telemetryFor(record) {
     const cached = this.telemetryCache.get(record.id);
     const signature = `${record.id}:${record.connection?.ip || ''}`;
@@ -50,13 +53,16 @@ export class HomeCameraRuntime {
     return { ...EMPTY_TELEMETRY(), ...value };
   }
 
-  noteContact(record, online) {
+  noteContact(record, online, role = null) {
     const signature = `${record.id}:${record.connection?.ip || ''}`;
     const cached = this.telemetryCache.get(record.id);
     this.telemetryCache.set(record.id, {
       ...(cached?.signature === signature ? cached : { value: EMPTY_TELEMETRY(), expiresAt: 0 }),
       signature, online, checkedAt: this.now(),
     });
+    for (const listener of this.contactListeners) {
+      try { listener({ role, online: online === true }); } catch { /* Observers cannot interrupt camera I/O. */ }
+    }
   }
 
   cacheControl(record, update) {
@@ -160,14 +166,14 @@ export class HomeCameraRuntime {
       await this.operations.run(record.id, async () => {
         if (active) {
           await this.owned.start(CAMERA_ROLE_MAP[role]);
-          this.noteContact(record, true);
+          this.noteContact(record, true, role);
           await this.refreshTelemetryForLive(record, role);
         } else {
           await this.owned.stop(CAMERA_ROLE_MAP[role]);
         }
       });
     } catch (error) {
-      if (active) this.noteContact(record, false);
+      if (active) this.noteContact(record, false, role);
       throw error;
     }
     return (await this.snapshot())[role];
@@ -185,7 +191,7 @@ export class HomeCameraRuntime {
         try {
           await this.owned.start(CAMERA_ROLE_MAP[role]);
           started = true;
-          this.noteContact(record, true);
+          this.noteContact(record, true, role);
           await this.refreshTelemetryForLive(record, role, CAMERA_WAKE_TELEMETRY_TIMEOUT_MS[role] ?? this.cameraProbeTimeoutMs);
           return { skipped: false };
         } finally {
@@ -193,7 +199,7 @@ export class HomeCameraRuntime {
         }
       }, { background: true });
     } catch (error) {
-      this.noteContact(record, false);
+      this.noteContact(record, false, role);
       throw error;
     }
   }
@@ -230,14 +236,15 @@ export class HomeCameraRuntime {
     const cached = this.telemetryFor(record).detection;
     return this.recentControl(record, 'detection') || (typeof cached === 'boolean' ? { available: true, enabled: cached } : { available: false, enabled: null });
   }
-  async setDetectionMode(role, enabled) {
+  async setDetectionMode(role, enabled, { canExecute = () => true } = {}) {
     if (typeof enabled !== 'boolean') throw new Error('Stato Rilevazione non valido');
     if (this.detectionPending.has(role)) throw new Error('Operazione Rilevazione già in corso');
     const { registry, assignments } = await this.reconcile();
     const record = registry.devices.find(device => assignments[device.id] === CAMERA_ROLE_MAP[role] && device.metadata?.adapter === OWNED_CAMERA_ADAPTER);
     if (!record || !this.owned.has(record.id)) throw new Error('Camera non disponibile');
-    const pending = this.operations.run(record.id, () => this.setDetection({ ip: record.connection?.ip, root: this.root, env: this.env, enabled }))
+    const pending = this.operations.run(record.id, () => canExecute() ? this.setDetection({ ip: record.connection?.ip, root: this.root, env: this.env, enabled }) : null)
       .then(detection => {
+        if (detection === null) return { available: false, enabled: null, skipped: true };
         if (detection.enabled !== enabled) throw new Error('Read-back Rilevazione non coerente');
         this.cacheControl(record, { detection: detection.enabled });
         return detection;

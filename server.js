@@ -26,6 +26,8 @@ import { AlarmRuntime, normalizeSirenSettings } from './src/alarm-runtime.js';
 import { AlarmAuthorization } from './src/alarm-auth.js';
 import { AlarmSirenController } from './src/alarm-siren-controller.js';
 import { SensorThresholdStore } from './src/sensor-threshold-store.js';
+import { CameraAlarmAutomationStore } from './src/camera-alarm-automation-store.js';
+import { CameraAlarmAutomation } from './src/camera-alarm-automation.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_ROOT = path.join(ROOT, 'public');
@@ -38,6 +40,7 @@ const LOCAL_HARDWARE_FILE = path.join(ROOT, 'data', 'config', 'hardware-local.js
 const ROLE_FILE = path.join(ROOT, 'data', 'config', 'device-roles.json');
 const ALARM_STATE_FILE = path.join(ROOT, 'data', 'config', 'alarm-state.json');
 const SENSOR_THRESHOLDS_FILE = path.join(ROOT, 'data', 'config', 'sensor-thresholds.json');
+const CAMERA_ALARM_AUTOMATION_FILE = path.join(ROOT, 'data', 'config', 'camera-alarm-automation.json');
 
 const STATIC_FILES = new Map([
   ['/', ['index.html', 'text/html; charset=utf-8']],
@@ -214,6 +217,8 @@ export function createHomeControlServer({
   weatherService = null,
   alarmStore = new AlarmRuntime({ filePath: ALARM_STATE_FILE }),
   sensorThresholdStore = new SensorThresholdStore({ filePath: SENSOR_THRESHOLDS_FILE }),
+  cameraAlarmAutomationStore = new CameraAlarmAutomationStore({ filePath: CAMERA_ALARM_AUTOMATION_FILE }),
+  cameraAlarmAutomation = null,
   alarmAuthorization = new AlarmAuthorization(),
   alarmSirenController = null,
 } = {}) {
@@ -236,8 +241,13 @@ export function createHomeControlServer({
     const payload = `event: state\ndata: ${JSON.stringify({ siren: zigbeeRuntime?.readSirenSnapshot?.() || null })}\n\n`;
     for (const client of alarmEventClients) { try { client.write(payload); } catch { alarmEventClients.delete(client); } }
   };
+  const publishCameraAutomationState = state => {
+    const payload = `event: camera-automation\ndata: ${JSON.stringify(state)}\n\n`;
+    for (const client of alarmEventClients) { try { client.write(payload); } catch { alarmEventClients.delete(client); } }
+  };
   const unsubscribeAlarm = alarmStore.subscribe(event => {
     publishAlarmEvent(event);
+    cameraAutomation.handleAlarmEvent?.();
     if (event.type === 'active') void alarmStore.read().then(snapshot => snapshot.intrusion?.active === true && sirenController.activate(snapshot.sirenSettings));
     else if (['arming', 'partial', 'armed', 'intrusion'].includes(event.type)) void sirenController.stopTest?.();
   });
@@ -285,10 +295,12 @@ export function createHomeControlServer({
   let activeHoodRuntime = hoodRuntime;
   const getHoodRuntime = () => activeHoodRuntime ||= new HomeCiarraRuntime({ adapter: null });
   const cameras = cameraRuntime || new HomeCameraRuntime({ hardwareStore, roleStore, root: ROOT });
+  const cameraAutomation = cameraAlarmAutomation || new CameraAlarmAutomation({ alarmStore, cameraRuntime: cameras, store: cameraAlarmAutomationStore, logError: message => console.error(message) });
   const wakeScheduler = cameraWakeScheduler || new CameraWakeScheduler({
     cameraRuntime: cameras,
     logError: message => console.error(message),
   });
+  const unsubscribeCameraAutomation = cameraAutomation.subscribe(publishCameraAutomationState);
   let activePlugRuntime = plugRuntime; let pondController = null; let pondPollingStarted = false;
   const ownerEnabled = () => pondOwner() === 'home';
   const requireOwner = () => requirePondPlugOwner(pondOwner());
@@ -471,7 +483,13 @@ export function createHomeControlServer({
     }
     if (url.pathname === '/api/alarm') {
       if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
-      return sendJson(response, 200, { ...(await alarmStore.read()), serverNow: Date.now() });
+      return sendJson(response, 200, { ...(await alarmStore.read()), cameraAutomation: await cameraAutomation.ensureLoaded(), serverNow: Date.now() });
+    }
+    if (url.pathname === '/api/alarm/camera-automation') {
+      if (request.method === 'GET') return sendJson(response, 200, await cameraAutomation.ensureLoaded());
+      if (request.method !== 'PUT') return sendJson(response, 405, { error: 'Metodo non consentito' });
+      try { return sendJson(response, 200, await cameraAutomation.setEnabled((await readJson(request))?.enabled)); }
+      catch (error) { return sendJson(response, 400, { error: error.message || 'Stato automazione CAM non valido' }); }
     }
     if (url.pathname === '/api/alarm/siren/authorize') {
       if (request.method !== 'POST') return sendJson(response, 405, { error: 'Metodo non consentito' });
@@ -835,7 +853,7 @@ export function createHomeControlServer({
     if (mutation) hardwareTransactions = operation.catch(() => {});
     void operation.catch(() => { if (!response.headersSent) sendJson(response, 500, { error: 'Operazione non riuscita' }); });
   });
-  server.once('listening', () => wakeScheduler.start());
+  server.once('listening', () => { wakeScheduler.start(); void cameraAutomation.start({ observeAlarm: false }).catch(error => console.error(`AUT-002 non disponibile: ${error.message || error}`)); });
   const alarmClock = setInterval(() => { void alarmStore.read().catch(() => {}); }, 1_000);
   server.on('close', () => {
     wakeScheduler.stop();
@@ -843,7 +861,7 @@ export function createHomeControlServer({
     for (const client of lightEventClients) { try { client.end(); } catch {} }
     for (const client of doorContactEventClients) { try { client.end(); } catch {} }
     for (const client of motionSensorEventClients) { try { client.end(); } catch {} }
-    clearInterval(alarmClock); unsubscribeAlarm(); for (const client of alarmEventClients) { try { client.end(); } catch {} }
+    clearInterval(alarmClock); unsubscribeAlarm(); unsubscribeCameraAutomation(); cameraAutomation.close(); for (const client of alarmEventClients) { try { client.end(); } catch {} }
     zigbeeRuntime?.close();
     void cameras.close().catch(() => {});
     activePlugRuntime?.stop(); pondPollingStarted = false;
