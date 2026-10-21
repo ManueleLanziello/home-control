@@ -39,8 +39,10 @@ export function normalizeThermostat(snapshot, now = Date.now()) {
   const source = lanValid ? snapshot?.thermostat || {} : cloudValid ? snapshot?.thermostat || {} : {};
   const temperatureUpdatedAt = snapshot?.temperatureUpdatedAt ?? (Number.isFinite(snapshot?.thermostat?.currentTemperature) ? (lanTime ?? cloudTime) : null);
   const currentTemperature = fresh(temperatureUpdatedAt, now) ? finite(snapshot?.thermostat?.currentTemperature) : null;
+  const setpointUpdatedAt = snapshot?.setpointUpdatedAt ?? (Number.isFinite(source?.setpointTemperature) ? (lanTime ?? cloudTime) : null);
   const thermostat = Object.fromEntries(['currentTemperature', 'setpointTemperature', 'upperTemperatureLimit', 'temperatureCorrection'].map(key => [key, finite(source[key])]));
   thermostat.currentTemperature = currentTemperature;
+  thermostat.setpointTemperature = fresh(setpointUpdatedAt, now) ? thermostat.setpointTemperature : null;
   for (const key of ['enabled', 'childLock', 'frostProtection', 'sound']) thermostat[key] = bool(source[key]);
   thermostat.mode = typeof source.mode === 'string' ? source.mode : null;
   return {
@@ -49,6 +51,7 @@ export function normalizeThermostat(snapshot, now = Date.now()) {
     // Conservative timestamp: neither cloud nor LAN fields outlive their freshness window.
     updatedAt: cloudValid && lanValid ? (Date.parse(cloudTime) < Date.parse(lanTime) ? cloudTime : lanTime) : cloudValid ? cloudTime : lanValid ? lanTime : snapshot?.updatedAt ?? null,
     temperatureUpdatedAt: currentTemperature === null ? null : temperatureUpdatedAt,
+    setpointUpdatedAt: thermostat.setpointTemperature === null ? null : setpointUpdatedAt,
     thermostat,
     heatingActive: lanValid ? bool(snapshot.heatingActive) : null,
     schedule: snapshot?.schedule ?? null,

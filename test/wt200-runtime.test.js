@@ -83,6 +83,32 @@ test('una lettura LAN fallita conserva soltanto l ultima temperatura recente sen
   assert.equal(result.heatingActive, null);
 });
 
+test('DP2 assente conserva il setpoint recente senza spacciarlo per una nuova lettura', async () => {
+  const firstUpdatedAt = '2026-09-07T10:00:00.000Z';
+  const partialUpdatedAt = '2026-09-07T10:00:30.000Z';
+  const snapshots = [
+    { updatedAt: firstUpdatedAt, heatingActive: false, thermostat: { currentTemperature: 20, setpointTemperature: 22, mode: 'manual' } },
+    { updatedAt: partialUpdatedAt, heatingActive: true, thermostat: { currentTemperature: 20.5, setpointTemperature: null, mode: 'auto' } },
+  ];
+  const runtime = new HomeWt200Runtime({ lanAdapter: { async read() { return snapshots.shift(); } }, scheduleStore: { async read() { return null; } } });
+  await runtime.readSnapshot();
+  const partial = await runtime.readSnapshot();
+  assert.equal(partial.thermostat.setpointTemperature, 22);
+  assert.equal(partial.setpointUpdatedAt, firstUpdatedAt);
+  assert.equal(partial.thermostat.mode, 'auto');
+});
+
+test('un evento LAN DP2 fuori ordine non sostituisce il setpoint più recente', () => {
+  let publish;
+  const runtime = new HomeWt200Runtime({ lanAdapter: { subscribeState(listener) { publish = listener; } } });
+  let received;
+  runtime.subscribeState(snapshot => { received = snapshot; });
+  publish({ updatedAt: '2026-09-07T10:00:30.000Z', heatingActive: true, thermostat: { currentTemperature: 20.5, setpointTemperature: 22, mode: 'auto' } });
+  publish({ updatedAt: '2026-09-07T10:00:00.000Z', heatingActive: false, thermostat: { currentTemperature: 20, setpointTemperature: 19, mode: 'manual' } });
+  assert.equal(received.thermostat.setpointTemperature, 22);
+  assert.equal(received.setpointUpdatedAt, '2026-09-07T10:00:30.000Z');
+});
+
 test('setpoint usa read-back LAN reali e restituisce soltanto lo stato WT200 stabilizzato', async () => {
   const calls = [];
   const updatedAt = '2026-09-07T10:00:00.000Z';

@@ -109,6 +109,11 @@ test('S3 conserva una misura LAN recente durante un errore, ma la nasconde dopo 
  assert.equal(store.snapshot().sensors.S3,22);
  store.applyThermostatSnapshot(stale);assert.equal(store.snapshot().sensors.S3,null);
 });
+test('setpoint recente sopravvive a DP2 assente ma scade indipendentemente dalla lettura LAN', () => {
+ const snapshot={online:true,lanUpdatedAt:'2026-09-09T12:00:30.000Z',setpointUpdatedAt:stamp,updatedAt:'2026-09-09T12:00:30.000Z',thermostat:{currentTemperature:22,setpointTemperature:21,mode:'auto'}};
+ const recent=normalizeThermostat(snapshot,time+89_999);assert.equal(recent.thermostat.setpointTemperature,21);assert.equal(recent.setpointUpdatedAt,stamp);
+ const stale=normalizeThermostat(snapshot,time+90_001);assert.equal(stale.thermostat.setpointTemperature,null);assert.equal(stale.setpointUpdatedAt,null);
+});
 test('UI store synchronizes sensors, boiler, active simulated lights, and failure fallback',async()=>{
  const h=await new HomeStatusRuntime(fixture()).readSnapshot();const store=createFloorplanState();store.applyHomeSnapshot(h);
  for(const id of ['L1','L2','L5','L6','L7']){store.setLight(id,true);assert.equal(store.snapshot().lights[id],true);store.applyHomeSnapshot(h);assert.equal(store.snapshot().lights[id],true);store.setLight(id,false);assert.equal(store.snapshot().lights[id],false);}
