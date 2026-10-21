@@ -234,6 +234,7 @@ export function createHomeControlServer({
   const lightEventClients = new Set();
   const doorContactEventClients = new Set();
   const motionSensorEventClients = new Set();
+  const sensorEventClients = new Set();
   const temperatureVoiceEventClients = new Set();
   const alarmEventClients = new Set();
   const physicalSirenSettings = settings => ({ soundEnabled: settings.soundEnabled, lightEnabled: settings.lightEnabled, soundType: settings.soundType, volumeLevel: settings.volumeLevel, duration: settings.duration });
@@ -279,6 +280,34 @@ export function createHomeControlServer({
     for (const client of motionSensorEventClients) {
       try { client.write(payload); } catch { motionSensorEventClients.delete(client); }
     }
+  };
+  const readSensorEventSnapshot = () => {
+    try {
+      const snapshots = zigbeeRuntime?.readSnapshot?.() || {};
+      return Object.fromEntries(Object.entries(snapshots)
+        .filter(([id]) => ['S1', 'S2', 'S4', 'S5'].includes(id))
+        .map(([id, sensor]) => [id, {
+          temperature: sensor?.temperature ?? null,
+          humidity: sensor?.humidity ?? null,
+          battery: sensor?.battery ?? null,
+          linkQuality: sensor?.linkQuality ?? null,
+          name: sensor?.name ?? null,
+          model: sensor?.model ?? null,
+          manufacturer: sensor?.manufacturer ?? null,
+          protocol: sensor?.protocol ?? null,
+          online: sensor?.online === true,
+          available: sensor?.available === true,
+          updatedAt: sensor?.updatedAt ?? null,
+          reason: sensor?.reason ?? null,
+        }]));
+    } catch {
+      return {};
+    }
+  };
+
+  const publishSensorState = () => {
+    const payload = `data: ${JSON.stringify(readSensorEventSnapshot())}\n\n`;
+    for (const client of sensorEventClients) { try { client.write(payload); } catch { sensorEventClients.delete(client); } }
   };
   const publishThermostatState = (snapshot) => {
     homeStatus?.invalidate();
@@ -355,6 +384,7 @@ export function createHomeControlServer({
     if (kind === 'lights' || kind === 'connection') publishLightState();
     if (kind === 'doorContacts' || kind === 'connection') publishDoorContactState();
     if (kind === 'motionSensor' || kind === 'connection') publishMotionSensorState();
+    if (kind === 'sensors' || kind === 'connection') publishSensorState();
     if (kind === 'siren' || kind === 'connection') publishAlarmSirenState();
     if (kind === 'sensors') synchronizeTemperatureVoiceSensors();
     if (kind === 'doorContacts' || kind === 'motionSensor' || kind === 'siren' || kind === 'connection') void synchronizeAlarmSensors();
@@ -402,6 +432,12 @@ export function createHomeControlServer({
       if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
       response.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
       response.write('retry: 2000\n\n'); temperatureVoiceEventClients.add(response); request.on('close', () => temperatureVoiceEventClients.delete(response)); return;
+    }
+    if (url.pathname === '/api/sensors/events') {
+      if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
+      response.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
+      response.write(`retry: 2000\ndata: ${JSON.stringify(readSensorEventSnapshot())}\n\n`);
+      sensorEventClients.add(response); request.on('close', () => sensorEventClients.delete(response)); return;
     }
     const sensorVoiceMatch = /^\/api\/sensors\/(S[1-5])\/temperature-voice$/.exec(url.pathname);
     if (sensorVoiceMatch) {
@@ -892,6 +928,7 @@ export function createHomeControlServer({
     for (const client of lightEventClients) { try { client.end(); } catch {} }
     for (const client of doorContactEventClients) { try { client.end(); } catch {} }
     for (const client of motionSensorEventClients) { try { client.end(); } catch {} }
+    for (const client of sensorEventClients) { try { client.end(); } catch {} }
     for (const client of temperatureVoiceEventClients) { try { client.end(); } catch {} }
     clearInterval(alarmClock); unsubscribeAlarm(); unsubscribeCameraAutomation(); cameraAutomation.close(); for (const client of alarmEventClients) { try { client.end(); } catch {} }
     zigbeeRuntime?.close();

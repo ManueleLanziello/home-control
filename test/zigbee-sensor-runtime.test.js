@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter, once } from 'node:events';
-import { HomeZigbeeSensorRuntime, normalizeSnzb02ldPayload } from '../src/zigbee-sensor-runtime.js';
+import { HomeZigbeeSensorRuntime, normalizeSnzb02ldPayload, normalizeSnzb02pPayload } from '../src/zigbee-sensor-runtime.js';
 import { ZIGBEE_SENSOR_CONFIG } from '../config/zigbee-sensors.js';
 import { HomeStatusRuntime } from '../src/home-status.js';
 import { createFloorplanState } from '../public/js/floorplan-state.js';
@@ -41,7 +41,9 @@ test('MQTT sottoscrive sensori, LB1 e luci configurate senza alterare il parsing
   f.message('zigbee2mqtt/SmartHomeS3', { temperature: 99, humidity: 50 });
   f.message('zigbee2mqtt/SmartHomeS1', { temperature: 'wrong', humidity: 50 });
   f.client.emit('message', 'zigbee2mqtt/SmartHomeS1', Buffer.from('invalid JSON'));
-  assert.deepEqual(f.runtime.readSnapshot(), before);
+  const partial = f.runtime.readSnapshot();
+  assert.equal(partial.S1.temperature, before.S1.temperature);
+  assert.equal(partial.S1.humidity, 50);
   f.runtime.close();
 });
 
@@ -61,6 +63,14 @@ test('S5 usa pond-temp-acqua, accetta solo temperatura e non considera online un
   f.client.emit('message', 'zigbee2mqtt/bridge/devices', Buffer.from(JSON.stringify([{ friendly_name: 'pond-temp-acqua', ieee_address: '0xa4c1380cd121ffff', definition: { model: 'SNZB-02LD', vendor: 'SONOFF' } }])));
   assert.equal(f.runtime.readSnapshot().S5.identityStatus, 'verified');
   f.runtime.close();
+});
+
+test('payload parziali conservano campi validi indipendenti e non arrotondano la temperatura', () => {
+  const previous = { temperature: 20.1, humidity: 48.2, battery: 77, linkQuality: 100 };
+  const next = normalizeSnzb02pPayload({ temperature: 20.34, humidity: 105, battery: 85, linkquality: 999 }, { previous, updatedAt: '2026-10-21T10:00:00Z' });
+  assert.deepEqual(next, { temperature: 20.34, humidity: 48.2, battery: 85, linkQuality: 100, online: true, updatedAt: '2026-10-21T10:00:00Z', model: 'SONOFF SNZB-02P', protocol: 'Zigbee' });
+  assert.equal(normalizeSnzb02pPayload({ humidity: -1 }, { previous }), null);
+  assert.deepEqual(normalizeSnzb02ldPayload({ temperature: 12.45, battery: 101 }, { previous: { temperature: 12, battery: 55, linkQuality: 80 }, confirmed: true }).battery, 55);
 });
 
 test('S5 richiede una sola temperatura iniziale per connessione e per riconnessione', () => {
@@ -163,4 +173,24 @@ test('API Home serve dati MQTT normalizzati e modulo popup anche con broker offl
   assert.equal(snapshot.sensors.S1.humidity, 49.9); assert.equal(snapshot.sensors.S1.update, undefined);
   const module = await fetch(`${base}/js/sensor-popup.js`); assert.equal(module.status, 200);
   assert.match(module.headers.get('content-type'), /javascript/);
+});
+
+test('SSE sensori inoltra subito MQTT e lo store planimetria applica il nuovo valore senza polling', async t => {
+  const f = fixture(); f.runtime.start(); f.client.emit('connect');
+  const server = createHomeControlServer({ zigbeeRuntime: f.runtime,
+    hardwareStore: { async read() { return { devices: [] }; } }, roleStore: { async read() { return {}; } },
+    thermostatRuntime: { async readSnapshot() { return { online: false, thermostat: {} }; } }, cameraRuntime: { snapshot: async () => ({}), close: async () => {} } });
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  server.listen(0, '127.0.0.1'); await once(server, 'listening');
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const wrongMethod = await fetch(base + '/api/sensors/events', { method: 'POST' }); assert.equal(wrongMethod.status, 405);
+  const first = await fetch(base + '/api/sensors/events'); const reader = first.body.getReader();
+  const initial = new TextDecoder().decode((await reader.read()).value); assert.match(initial, /retry: 2000/);
+  f.message('zigbee2mqtt/SmartHomeS1', { temperature: 20.34, humidity: 48.1, battery: 80, linkquality: 90 });
+  const event = new TextDecoder().decode((await reader.read()).value); assert.match(event, /"temperature":20\.34/);
+  const store = createFloorplanState(); store.applyZigbeeSensorsSnapshot(f.runtime.readSnapshot());
+  assert.equal(store.snapshot().sensors.S1, 20.34); assert.equal(store.snapshot().sensorDetails.S1.humidity, 48.1);
+  await reader.cancel();
+  const reconnected = await fetch(base + '/api/sensors/events'); const reconnectReader = reconnected.body.getReader();
+  const snapshot = new TextDecoder().decode((await reconnectReader.read()).value); assert.match(snapshot, /"temperature":20\.34/); await reconnectReader.cancel();
 });

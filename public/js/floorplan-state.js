@@ -143,6 +143,15 @@ export function createFloorplanState() {
       applyThermostat(thermostat);
       for (const listener of listeners) listener(this.snapshot());
     },
+    applyZigbeeSensorsSnapshot(sensors = {}) {
+      for (const id of ['S1', 'S2', 'S4', 'S5']) {
+        if (!Object.hasOwn(sensors, id)) continue;
+        const sensor = structuredClone(sensors[id] || {});
+        state.sensorDetails[id] = sensor;
+        state.sensors[id] = sensor.available === true && Number.isFinite(sensor.temperature) ? sensor.temperature : null;
+      }
+      for (const listener of listeners) listener(this.snapshot());
+    },
     applyHomeSnapshot(home = {}, requestedAt = Number.POSITIVE_INFINITY) {
       state.averageTemperature = Number.isFinite(home.averageTemperature) ? home.averageTemperature : null;
       state.sensorDetails = Object.fromEntries(Object.keys(state.sensors).map(id => [id, structuredClone(home.sensors?.[id] ?? {})]));

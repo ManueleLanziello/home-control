@@ -280,6 +280,14 @@ function connectThermostatEvents() {
   });
 }
 
+function connectZigbeeSensorEvents() {
+  if (typeof EventSource === 'undefined') return;
+  const events = new EventSource(homeControlPath('/api/sensors/events'));
+  events.addEventListener('message', event => {
+    try { floorplanStore.applyZigbeeSensorsSnapshot(JSON.parse(event.data)); } catch { /* The next HTTP refresh remains the recovery path. */ }
+  });
+}
+
 function renderBoiler(snapshot = null) {
   const thermostat = snapshot?.thermostat || {};
   const online = snapshot?.online === true;
@@ -718,6 +726,7 @@ function renderDashboard() {
   void loadWeatherSnapshot();
   setTimeout(loadThermostatSnapshot, THERMOSTAT_REFRESH_MS);
   connectThermostatEvents();
+  connectZigbeeSensorEvents();
 }
 
 window.homeControlFloorplan = {

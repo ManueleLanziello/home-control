@@ -1,21 +1,33 @@
-import { normalizeSnzb02pPayload } from '@smarthome/core';
 import { ZIGBEE_SENSOR_CONFIG } from '../config/zigbee-sensors.js';
 import { normalizeDoorContactPayload, normalizeZigbeeDeviceIdentity } from './zigbee-door-contact.js';
 import { normalizeMotionSensorPayload } from './zigbee-motion-sensor.js';
 import { normalizeSirenPayload } from './zigbee-siren.js';
 
-const optionalInteger = (payload, key, maximum) => {
-  if (!Object.hasOwn(payload, key)) return null;
-  const value = payload[key];
-  return Number.isInteger(value) && value >= 0 && value <= maximum ? value : undefined;
-};
+const validNumber = (payload, key, minimum, maximum) => Object.hasOwn(payload, key)
+  && Number.isFinite(payload[key]) && payload[key] >= minimum && payload[key] <= maximum ? payload[key] : null;
+const retained = (previous, key) => Number.isFinite(previous?.[key]) ? previous[key] : null;
 
-export function normalizeSnzb02ldPayload(payload, { updatedAt = null, confirmed = false } = {}) {
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload) || !Number.isFinite(payload.temperature)) return null;
-  const battery = optionalInteger(payload, 'battery', 100);
-  const linkQuality = optionalInteger(payload, 'linkquality', 255);
-  if (battery === undefined || linkQuality === undefined) return null;
-  return { temperature: payload.temperature, humidity: null, battery, linkQuality, online: true, updatedAt, confirmed, model: 'SONOFF SNZB-02LD', protocol: 'Zigbee' };
+export function normalizeSnzb02pPayload(payload, { updatedAt = null, previous = null } = {}) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null;
+  const temperature = Object.hasOwn(payload, 'temperature') && Number.isFinite(payload.temperature) ? payload.temperature : null;
+  const humidity = validNumber(payload, 'humidity', 0, 100);
+  const battery = validNumber(payload, 'battery', 0, 100);
+  const linkQuality = validNumber(payload, 'linkquality', 0, 255);
+  if (temperature === null && humidity === null && battery === null && linkQuality === null) return null;
+  return { temperature: temperature ?? retained(previous, 'temperature'), humidity: humidity ?? retained(previous, 'humidity'),
+    battery: battery ?? retained(previous, 'battery'), linkQuality: linkQuality ?? retained(previous, 'linkQuality'),
+    online: true, updatedAt, model: 'SONOFF SNZB-02P', protocol: 'Zigbee' };
+}
+
+export function normalizeSnzb02ldPayload(payload, { updatedAt = null, confirmed = false, previous = null } = {}) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null;
+  const temperature = Object.hasOwn(payload, 'temperature') && Number.isFinite(payload.temperature) ? payload.temperature : null;
+  const battery = validNumber(payload, 'battery', 0, 100);
+  const linkQuality = validNumber(payload, 'linkquality', 0, 255);
+  if (temperature === null && !Number.isFinite(previous?.temperature)) return null;
+  return { temperature: temperature ?? retained(previous, 'temperature'), humidity: null,
+    battery: battery ?? retained(previous, 'battery'), linkQuality: linkQuality ?? retained(previous, 'linkQuality'),
+    online: true, updatedAt, confirmed, model: 'SONOFF SNZB-02LD', protocol: 'Zigbee' };
 }
 
 export class HomeZigbeeSensorRuntime {
@@ -162,8 +174,8 @@ export class HomeZigbeeSensorRuntime {
           return;
         }
         const snapshot = sensor.model === 'SNZB-02LD'
-          ? normalizeSnzb02ldPayload(payload, { updatedAt: new Date(this.now()).toISOString(), confirmed: packet.retain !== true })
-          : normalizeSnzb02pPayload(payload, { updatedAt: new Date(this.now()).toISOString() });
+          ? normalizeSnzb02ldPayload(payload, { updatedAt: new Date(this.now()).toISOString(), confirmed: packet.retain !== true, previous: this.latest.get(sensor.id) })
+          : normalizeSnzb02pPayload(payload, { updatedAt: new Date(this.now()).toISOString(), previous: this.latest.get(sensor.id) });
         if (!snapshot) return;
         this.latest.set(sensor.id, snapshot);
         this.notify('sensors');
@@ -183,7 +195,7 @@ export class HomeZigbeeSensorRuntime {
       const age = now - Date.parse(snapshot.updatedAt);
       const fresh = Number.isFinite(age) && age >= 0 && age <= this.config.freshnessMs;
       const confirmed = sensor.requiresConfirmedMessage !== true || snapshot.confirmed === true;
-      const online = fresh && confirmed;
+      const online = fresh && confirmed && Number.isFinite(snapshot.temperature);
       const identity = this.sensorIdentities.get(sensor.id) || null;
       const identityStatus = !identity ? 'unknown' : sensor.ieeeAddress && identity.ieeeAddress !== sensor.ieeeAddress ? 'ieee_mismatch' : identity.model !== (sensor.zigbeeModel || sensor.model) || identity.manufacturer !== sensor.manufacturer ? 'model_mismatch' : 'verified';
       const reason = online && this.connected ? null : !snapshot.updatedAt ? 'no_data' : !this.connected ? 'broker_offline' : !confirmed ? 'historical' : 'stale';
