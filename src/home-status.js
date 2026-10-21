@@ -211,6 +211,8 @@ export class HomeStatusRuntime {
     const sensors = Object.fromEntries(['S1','S2','S4','S5'].map(id => [id, values[id]]));
     const room = thermostat.thermostat.currentTemperature;
     sensors.S3 = { source: 'thermostat', value: room, available: Number.isFinite(room), online: thermostat.online, updatedAt: thermostat.temperatureUpdatedAt ?? thermostat.updatedAt };
+    // Keep all aggregate values derived from the same valid indoor readings.
+    // S5 is the pond sensor and is deliberately excluded.
     const indoors = ['S1','S2','S3','S4'].map(id => sensors[id].value).filter(Number.isFinite);
     const cameras = this.readCameras ? await this.readCameras() : Object.fromEntries(Object.entries(values).filter(([id]) => id.startsWith('C')));
     let ledbar = null;
@@ -229,6 +231,8 @@ export class HomeStatusRuntime {
       mobileDevices: normalizeMobilePresence(inventory, presence),
       // S3 alone is the WT200 room reading, not a whole-house average.
       averageTemperature: indoors.length > 1 ? indoors.reduce((a,b)=>a+b,0)/indoors.length : null,
+      indoorMinimumTemperature: indoors.length ? Math.min(...indoors) : null,
+      indoorMaximumTemperature: indoors.length ? Math.max(...indoors) : null,
       indoorSensorCount: indoors.length,
     };
     const timestamps = [...Object.values(sensors).filter(sensor => sensor.available && !['zigbee', 'dewin'].includes(sensor.source)).map(sensor => sensor.updatedAt), thermostat.online ? thermostat.updatedAt : null, hood.online ? hood.updatedAt : null].filter(Boolean);

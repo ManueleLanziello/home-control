@@ -398,7 +398,7 @@ window.addEventListener('pagehide', () => {
   if (dialog?._cameraSession) void closeCameraViewer(dialog);
 });
 
-export function renderBoilerMini(container, boiler) {
+export function renderBoilerMini(container, boiler, averageTemperature) {
   const indicator = document.createElement('img');
   indicator.className = 'floorplan-boiler-status';
   indicator.src = assetUrl(boiler.on === true ? 'fire.svg' : 'nofire.svg');
@@ -407,14 +407,20 @@ export function renderBoilerMini(container, boiler) {
   indicator.setAttribute('aria-hidden', 'true');
   if (typeof boiler.on !== 'boolean') indicator.dataset.available = 'false';
   const mode = String(boiler.mode || '').toLowerCase();
-  const modeKey = ['manual', 'auto', 'smart'].includes(mode) ? mode : 'unknown';
+  const modeKey = ['manual', 'auto'].includes(mode) ? mode : 'unknown';
   const modeIcon = document.createElement('img');
   modeIcon.className = 'floorplan-boiler-mode';
   modeIcon.src = assetUrl((modeKey === 'unknown' ? 'auto' : modeKey) + '.svg');
   modeIcon.alt = '';
   modeIcon.dataset.mode = modeKey;
   modeIcon.setAttribute('aria-hidden', 'true');
-  container.replaceChildren(indicator, modeIcon);
+  const average = document.createElement('strong');
+  average.className = 'floorplan-boiler-average';
+  average.textContent = Number.isFinite(averageTemperature)
+    ? `${new Intl.NumberFormat('it-IT', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(averageTemperature)}°`
+    : '—°';
+  average.setAttribute('aria-hidden', 'true');
+  container.replaceChildren(indicator, modeIcon, average);
 }
 
 function openBoiler(section = 'card') {
@@ -798,16 +804,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     open.className = 'floorplan-boiler-open';
     open.setAttribute('aria-label', 'Apri CALDAIA completa');
     open.addEventListener('click', openBoiler);
-    const settings = document.createElement('a');
-    settings.className = 'floorplan-boiler-settings';
-    const settingsIcon = document.createElement('img');
-    settingsIcon.src = assetUrl('option.svg');
-    settingsIcon.alt = '';
-    settings.append(settingsIcon);
-    settings.setAttribute('aria-label', 'Programmazione CALDAIA');
-    settings.href = '#boiler-programming';
-    settings.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); openBoiler('programming'); });
-    mini.append(open, settings);
+    mini.append(open);
     placeHtml(boilerMapping, config.boiler.card, mini);
     const cappa = markerElement('Apri controllo CAPPA', true);
     cappa.classList.add('floorplan-marker-cappa');
@@ -1011,7 +1008,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
       ledbarSlider.disabled = ledbar.online === false && ledbar.state === null;
       updateSensorPopup(state.sensorDetails, { minimumTemperatures: sensorThresholds, saveMinimumTemperature, voiceSettings: sensorVoices, saveVoiceSettings });
       open.setAttribute('aria-label', 'Apri CALDAIA completa · ' + (state.boiler.on === null ? 'stato non disponibile' : state.boiler.on ? 'riscaldamento ON' : 'riscaldamento OFF') + ' · ' + (state.boiler.mode || 'modalità non disponibile'));
-      renderBoilerMini(open, state.boiler);
+      renderBoilerMini(open, state.boiler, state.averageTemperature);
       const cappaPower = typeof state.hood.power === 'boolean' ? state.hood.power : previousCappaPower ?? false;
       cappa.dataset.on = String(cappaPower);
       cappa.dataset.online = String(state.hood.online === true);

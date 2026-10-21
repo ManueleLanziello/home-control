@@ -69,7 +69,8 @@ test('popup CALDAIA usa sezioni indipendenti e QD1 resta sincronizzata allo stat
     readFile(floorplanStylePath, 'utf8'),
   ]);
   const boilerModal = html.match(/<dialog class="boiler-modal"[\s\S]*?<\/dialog>/)?.[0] || '';
-  for (const icon of ['close', 'manual', 'auto', 'smart', 'prog', 'nofire']) assert.match(html, new RegExp(`design/${icon}\\.svg`));
+  for (const icon of ['close', 'manual', 'auto', 'prog', 'nofire']) assert.match(html, new RegExp(`design/${icon}\\.svg`));
+  assert.doesNotMatch(boilerModal, /data-boiler-mode-option="smart"/);
   assert.doesNotMatch(html, /design\/boiler\.svg/);
   assert.match(html, /boiler-popup-section boiler-popup-overview/);
   assert.match(html, /boiler-popup-section boiler-popup-today/);
@@ -79,12 +80,13 @@ test('popup CALDAIA usa sezioni indipendenti e QD1 resta sincronizzata allo stat
   assert.equal((html.match(/class="boiler-tile-icon"/g) || []).length, 0);
   assert.match(dashboard, /heatingActive === true \? 'fire\.svg' : 'nofire\.svg'/);
   assert.match(floorplan, /boiler\.on === true \? 'fire\.svg' : 'nofire\.svg'/);
-  assert.match(floorplan, /modeKey.*manual.*auto.*smart/);
-  assert.match(floorplan, /container\.replaceChildren\(indicator, modeIcon\)/);
-  assert.match(floorplan, /assetUrl\('option\.svg'\)/);
-  assert.match(floorplan, /settings\.append\(settingsIcon\)/);
-  assert.doesNotMatch(floorplan, /settings\.textContent/);
-  assert.match(floorplan, /event\.stopPropagation\(\)/);
+  assert.match(floorplan, /modeKey.*manual.*auto/);
+  assert.doesNotMatch(floorplan, /modeKey.*smart/);
+  assert.match(floorplan, /container\.replaceChildren\(indicator, modeIcon, average\)/);
+  assert.match(floorplan, /averageTemperature/);
+  assert.doesNotMatch(floorplan, /floorplan-boiler-settings/);
+  assert.match(dashboard, /indoorMinimumTemperature/);
+  assert.match(dashboard, /indoorMaximumTemperature/);
   assert.match(style, /height: clamp\(252px, 30\.8vw, 294px\)/);
   assert.match(style, /height: clamp\(180px, calc\(100dvh - 570px\), 250px\)/);
   assert.match(floorplanStyle, /:is\(\[data-boiler-modal\], \[data-cappa-modal\]\) \.boiler-modal-toolbar button \{ display: grid; width: 40px; height: 40px/);

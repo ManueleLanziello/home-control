@@ -34,6 +34,7 @@ export function createFloorplanState() {
     lightSources: Object.fromEntries(floorplanConfig.lights.map(light => [light.id, light.localOnly ? 'simulation' : 'unavailable'])),
     cameras: {},
     boiler: { on: null, mode: null },
+    averageTemperature: null,
     hood: { online: false, power: null, fanSpeed: null, light: null, operatingStatus: null, updatedAt: null },
     ledbar: { state: null, brightness: null, online: false, available: false, updatedAt: null },
     doorContacts: {},
@@ -143,6 +144,7 @@ export function createFloorplanState() {
       for (const listener of listeners) listener(this.snapshot());
     },
     applyHomeSnapshot(home = {}, requestedAt = Number.POSITIVE_INFINITY) {
+      state.averageTemperature = Number.isFinite(home.averageTemperature) ? home.averageTemperature : null;
       state.sensorDetails = Object.fromEntries(Object.keys(state.sensors).map(id => [id, structuredClone(home.sensors?.[id] ?? {})]));
       for (const id of Object.keys(state.sensors)) state.sensors[id] = home.sensors?.[id]?.available === true && Number.isFinite(home.sensors[id].value) ? home.sensors[id].value : null;
       for (const id of Object.keys(state.lights)) {

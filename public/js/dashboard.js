@@ -24,6 +24,7 @@ const THERMOSTAT_FAST_FOLLOW_MS = 5_000;
 const THERMOSTAT_FAST_FOLLOW_INTERVAL_MS = 450;
 const WEATHER_REFRESH_MS = 15 * 60_000;
 let boilerSnapshot = null;
+let indoorTemperatureRange = { minimum: null, maximum: null };
 let cappaSnapshot = null;
 const floorplanStore = createFloorplanState();
 let floorplanReady = Promise.resolve();
@@ -292,6 +293,7 @@ function renderBoiler(snapshot = null) {
   const heating = document.querySelector('[data-boiler-heating]');
   const heatingIcon = document.querySelector('[data-boiler-heating-icon]');
   const schedule = document.querySelector('[data-boiler-schedule]');
+  const minmax = document.querySelector('.boiler-minmax');
 
   if (onlineElement) {
     onlineElement.textContent = online ? 'Online' : 'Offline';
@@ -315,10 +317,12 @@ function renderBoiler(snapshot = null) {
   renderWt200Schedule(schedule, snapshot?.schedule);
   renderFloorplanThermostatTemperature(snapshot);
 
+  if (minmax) minmax.textContent = `Min/max: ${temperatureText(indoorTemperatureRange.minimum)} / ${temperatureText(indoorTemperatureRange.maximum)}`;
+
   const mode = thermostat.mode;
   for (const option of document.querySelectorAll('[data-boiler-mode-option]')) {
     option.classList.toggle('is-active', option.dataset.boilerModeOption === mode);
-    if (option.dataset.boilerModeOption !== 'smart') option.classList.toggle('boiler-mode--disabled', thermostatMutation.phase !== 'idle');
+    option.classList.toggle('boiler-mode--disabled', thermostatMutation.phase !== 'idle');
   }
   if (rawMode) {
     const isKnown = mode === 'manual' || mode === 'auto';
@@ -468,6 +472,10 @@ async function loadHomeSnapshot() {
     const acceptThermostat = shouldAcceptThermostatStatus({ requestedRevision: requestedThermostatRevision, currentRevision: thermostatMutation.revision });
     floorplanStore.applyHomeSnapshot(acceptThermostat ? home : { ...home, thermostat: boilerSnapshot }, requestedAt);
     if (acceptThermostat) boilerSnapshot = home.thermostat;
+    indoorTemperatureRange = {
+      minimum: Number.isFinite(home.indoorMinimumTemperature) ? home.indoorMinimumTemperature : null,
+      maximum: Number.isFinite(home.indoorMaximumTemperature) ? home.indoorMaximumTemperature : null,
+    };
     cappaSnapshot = home.hood;
     renderBoiler(boilerSnapshot);
     renderCappa(cappaSnapshot);
@@ -480,6 +488,7 @@ async function loadHomeSnapshot() {
     if (acceptThermostat && thermostatMutation.phase === 'idle') floorplanStore.applyHomeSnapshot();
     if (acceptThermostat && thermostatMutation.phase === 'idle') boilerSnapshot = null;
     cappaSnapshot = cappaSnapshot ? { ...cappaSnapshot, online: false } : null;
+    indoorTemperatureRange = { minimum: null, maximum: null };
     renderBoiler(boilerSnapshot);
     renderCappa(cappaSnapshot);
     if (acceptThermostat && thermostatMutation.phase === 'idle') boilerEditor?.updateSnapshot(null);
@@ -512,7 +521,6 @@ function showModeMessage(message) {
 
 async function setBoilerMode(mode) {
   if (thermostatMutation.phase !== 'idle') return;
-  if (mode === 'smart') return showModeMessage('SMART non disponibile: sensori temperatura non configurati');
   const previousSnapshot = boilerSnapshot;
   const previousHeatingActive = boilerSnapshot?.heatingActive;
   thermostatMutation = beginModeRequest(thermostatMutation);

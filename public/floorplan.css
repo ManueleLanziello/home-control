@@ -167,13 +167,12 @@ button.floorplan-marker { pointer-events: auto; cursor: pointer; }
 .floorplan-integration-options { display: grid; place-items: center; cursor: pointer; pointer-events: auto; }
 .floorplan-integration-options:focus-visible { outline: none; }
 .floorplan-integration-options img { display: block; width: 80%; height: 80%; object-fit: contain; }
-.floorplan-boiler-mini { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); width: 100%; height: 100%; background: rgb(5 11 18 / 72%); border: 5px solid #5194ae; border-radius: 28px; overflow: hidden; }
-.floorplan-boiler-open { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: center; justify-items: center; gap: 0; border: 0; background: transparent; color: #def1fb; cursor: pointer; pointer-events: auto; padding: 0; }
+.floorplan-boiler-mini { display: grid; width: 100%; height: 100%; background: rgb(5 11 18 / 72%); border: 5px solid #5194ae; border-radius: 28px; overflow: hidden; }
+.floorplan-boiler-open { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: center; justify-items: center; gap: 0; border: 0; background: transparent; color: #def1fb; cursor: pointer; pointer-events: auto; padding: 0; }
 .floorplan-boiler-status, .floorplan-boiler-mode { width: 72%; height: 72%; object-fit: contain; }
 .floorplan-boiler-status[data-available="false"], .floorplan-boiler-mode[data-mode="unknown"] { opacity: .45; }
-.floorplan-boiler-settings { display: grid; place-items: center; color: #bdefff; text-decoration: none; pointer-events: auto; background: #14354c; }
-.floorplan-boiler-settings img { width: 72%; height: 72%; object-fit: contain; }
-.floorplan-marker:focus-visible, .floorplan-boiler-open:focus-visible, .floorplan-boiler-settings:focus-visible { outline: 10px solid #fff; outline-offset: -12px; }
+.floorplan-boiler-average { color: #72eeac; font-size: clamp(18px, 2.7vw, 42px); line-height: 1; letter-spacing: -.04em; text-shadow: 0 0 12px rgb(72 238 172 / 60%); }
+.floorplan-marker:focus-visible, .floorplan-boiler-open:focus-visible { outline: 10px solid #fff; outline-offset: -12px; }
 .floorplan-camera-dialog { box-sizing: border-box; display: flex; flex-direction: column; gap: 4px; color: #e3f4ff; background: #071826; border: 1px solid #38768d; border-radius: 14px; padding: 10px; width: min(990px, 94vw); max-width: 94vw; max-height: 90dvh; overflow: auto; }
 .floorplan-camera-dialog::backdrop { background: #000a; }
 .floorplan-camera-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }

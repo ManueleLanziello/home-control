@@ -36,6 +36,8 @@ test('Zigbee sensors, S3 WT200 and indoor-only average remain independent from D
   assert.equal(home.sensors.S3.value,22);
   assert.equal(home.sensors.S3.source,'thermostat');
  assert.equal(home.averageTemperature,23);
+  assert.equal(home.indoorMinimumTemperature,20);
+  assert.equal(home.indoorMaximumTemperature,26);
   assert.equal(home.indoorSensorCount,4);
   assert.equal(home.thermostat.heatingActive,true);
   assert.equal(home.lights.L7.source,'simulation');
@@ -45,7 +47,23 @@ test('offline, stale, rejected, nonnumeric readings excluded; WT200 survives sen
  const runtime=new HomeStatusRuntime(fixture({readZigbeeSensors:()=>({ S1:{temperature:20,online:false,available:false,updatedAt:stamp}, S2:{temperature:20,online:false,available:false,updatedAt:stamp}, S4:{temperature:20,online:false,available:false,updatedAt:new Date(time-1800001).toISOString()}, S5:{temperature:12,online:false,available:false,updatedAt:stamp} })}));
  const h=await runtime.readSnapshot();
  for(const id of ['S1','S2','S4','S5'])assert.equal(h.sensors[id].value,null);
- assert.equal(h.averageTemperature,null);assert.equal(h.indoorSensorCount,1);
+  assert.equal(h.averageTemperature,null);assert.equal(h.indoorMinimumTemperature,22);assert.equal(h.indoorMaximumTemperature,22);assert.equal(h.indoorSensorCount,1);
+});
+test('minimo e massimo casa usano soltanto le stesse letture interne valide della media', async () => {
+  const runtime = new HomeStatusRuntime(fixture({
+    readThermostat: async () => ({ online: false, updatedAt: stamp, heatingActive: null, thermostat: { currentTemperature: null, setpointTemperature: null, mode: null } }),
+    readZigbeeSensors: () => ({
+      S1: { temperature: 19, online: true, available: true, updatedAt: stamp },
+      S2: { temperature: null, online: true, available: true, updatedAt: stamp },
+      S4: { temperature: 25, online: true, available: true, updatedAt: stamp },
+      S5: { temperature: 8, online: true, available: true, updatedAt: stamp },
+    }),
+  }));
+  const home = await runtime.readSnapshot();
+  assert.equal(home.averageTemperature, 22);
+  assert.equal(home.indoorMinimumTemperature, 19);
+  assert.equal(home.indoorMaximumTemperature, 25);
+  assert.equal(home.indoorSensorCount, 2);
 });
 test('concurrent clients share one read and registry reassignment invalidates cached state',async()=>{
  let reads=0;
