@@ -390,7 +390,7 @@ test('LB1 usa state per il toggle e dichiara esplicitamente hit-area SVG e slide
 
 test('le room luce attive includono L3 reale, LB1 usa Layer-18..21 e Layer-17 è invisibile', async () => {
   const [config, floorplan] = await Promise.all([readFile(new URL('../public/js/floorplan-config.js', import.meta.url), 'utf8'), readFile(new URL('../public/js/floorplan.js', import.meta.url), 'utf8')]);
-  assert.match(config, /rooms: \['L1', 'L2', 'L3', 'L5', 'L6'\]/);
+  assert.match(config, /rooms: \['L1', 'L2', 'L3', 'L5', 'L6', 'L13'\]/);
   assert.doesNotMatch(config, /lightId: 'L4'/);
   assert.match(config, /ledbar: \{/);
   assert.match(config, /LAYER-18-OFF\.svg.*LAYER-19-ON-25\.svg.*LAYER-20-ON-75\.svg.*LAYER-21-ON-100\.svg/s);

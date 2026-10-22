@@ -134,7 +134,7 @@ test('setpoint recente sopravvive a DP2 assente ma scade indipendentemente dalla
 });
 test('UI store synchronizes sensors, boiler, active simulated lights, and failure fallback',async()=>{
  const h=await new HomeStatusRuntime(fixture()).readSnapshot();const store=createFloorplanState();store.applyHomeSnapshot(h);
- for(const id of ['L1','L2','L5','L6','L7']){store.setLight(id,true);assert.equal(store.snapshot().lights[id],true);store.applyHomeSnapshot(h);assert.equal(store.snapshot().lights[id],true);store.setLight(id,false);assert.equal(store.snapshot().lights[id],false);}
+ for(const id of ['L1','L2','L5','L6','L7','L13']){store.setLight(id,true);assert.equal(store.snapshot().lights[id],true);store.applyHomeSnapshot(h);assert.equal(store.snapshot().lights[id],true);store.setLight(id,false);assert.equal(store.snapshot().lights[id],false);}
  assert.equal(store.snapshot().sensors.S3,22);assert.equal(store.snapshot().boiler.on,true);assert.equal(store.snapshot().boiler.mode,'manual');
  store.applyThermostatSnapshot({heatingActive:false,thermostat:{currentTemperature:21.5,mode:'auto'}});assert.equal(store.snapshot().sensors.S3,21.5);assert.equal(store.snapshot().boiler.on,false);assert.equal(store.snapshot().boiler.mode,'auto');
  store.setLight('L1',true);store.applyHomeSnapshot();assert.equal(store.snapshot().lights.L1,true);assert.equal(store.snapshot().sensors.S3,null);
