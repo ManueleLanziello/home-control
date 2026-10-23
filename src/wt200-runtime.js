@@ -5,10 +5,13 @@ import {
   buildWt200LanSnapshot,
 } from '@smarthome/core';
 import { Wt200ScheduleStore } from './wt200-schedule-store.js';
+import { createWt200DiagnosticFileLogger, WT200_DIAGNOSTIC_MAX_BYTES } from './wt200-diagnostic-file-logger.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
+const APPLICATION_ROOT = path.join(ROOT, '..');
 const DEFAULT_SCHEDULE_FILE = path.join(ROOT, '..', 'data', 'wt200-schedule.json');
 const FALLBACK_SCHEDULE_FILE = path.join(ROOT, '..', 'config', 'wt200-schedule.json');
+export const DEFAULT_WT200_DIAGNOSTIC_FILE = path.join(APPLICATION_ROOT, 'logs', 'wt200-diagnostics.log');
 
 function unavailableCloudSnapshot(deviceId) {
   return {
@@ -406,9 +409,14 @@ export function createHomeWt200Runtime({
   now,
   scheduleDiagnostics = process.env.WT200_SCHEDULE_DIAGNOSTICS === '1',
   diagnosticLogger,
+  diagnosticFilePath = DEFAULT_WT200_DIAGNOSTIC_FILE,
+  diagnosticMaxBytes = WT200_DIAGNOSTIC_MAX_BYTES,
 }) {
+  const effectiveDiagnosticLogger = scheduleDiagnostics
+    ? diagnosticLogger ?? createWt200DiagnosticFileLogger({ filePath: diagnosticFilePath, maxBytes: diagnosticMaxBytes })
+    : diagnosticLogger;
   const lanAdapter = deviceId && lanIp && localKey
-    ? new Wt200TuyaLanAdapter({ deviceId, ip: lanIp, localKey, now, scheduleDiagnostics, diagnosticLogger })
+    ? new Wt200TuyaLanAdapter({ deviceId, ip: lanIp, localKey, now, scheduleDiagnostics, diagnosticLogger: effectiveDiagnosticLogger })
     : null;
   return new HomeWt200Runtime({
     lanAdapter,
