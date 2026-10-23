@@ -11,6 +11,19 @@ export function scheduleAvailability(snapshot) {
   return 'unavailable';
 }
 
+export function canEditSchedule(snapshot) {
+  const schedule = snapshot?.schedule;
+  return Boolean(
+    snapshot?.online === true
+    && typeof schedule?.raw === 'string'
+    && schedule.raw.length > 0
+    && Array.isArray(schedule.normalPeriods)
+    && schedule.normalPeriods.length === 6
+    && Array.isArray(schedule.restDayPeriods)
+    && schedule.restDayPeriods.length === 2,
+  );
+}
+
 export function createThermostatMutationState() {
   return { type: null, phase: 'idle', requestId: 0, requestedValue: null, revision: 0 };
 }
@@ -175,7 +188,8 @@ export function initThermostat(root = document, { initialSnapshot = null, onSave
   }
 
   function hasScheduleChanges() {
-    return JSON.stringify(draft?.normalPeriods) !== JSON.stringify(snapshot?.schedule?.normalPeriods)
+    return draft?.weekPattern !== snapshot?.schedule?.weekPattern
+      || JSON.stringify(draft?.normalPeriods) !== JSON.stringify(snapshot?.schedule?.normalPeriods)
       || (draft?.weekPattern !== '7' && JSON.stringify(draft?.restDayPeriods) !== JSON.stringify(snapshot?.schedule?.restDayPeriods));
   }
 
@@ -190,19 +204,17 @@ export function initThermostat(root = document, { initialSnapshot = null, onSave
   }
 
   function availabilityMessage() {
-    const availability = scheduleAvailability(snapshot);
-    if (availability === 'confirmed') return hasScheduleChanges() ? 'Modifiche non salvate.' : '';
-    if (availability === 'fallback') return 'Programmazione locale: non confermata dal WT200. Salvataggio disabilitato.';
+    if (canEditSchedule(snapshot)) return hasScheduleChanges() ? 'Modifiche non salvate.' : '';
     return 'Programmazione WT200 non disponibile.';
   }
 
   function updateEditorControls() {
     const save = root.querySelector('[data-schedule-save]');
-    const confirmed = scheduleAvailability(snapshot) === 'confirmed';
-    if (save) save.disabled = !confirmed || !draft || saving || !hasScheduleChanges() || !hasValidScheduleDraft();
+    const editable = canEditSchedule(snapshot);
+    if (save) save.disabled = !editable || !draft || saving || !hasScheduleChanges() || !hasValidScheduleDraft();
     for (const button of root.querySelectorAll('[data-week-pattern]')) {
       button.classList.toggle('is-active', button.dataset.weekPattern === draft?.weekPattern);
-      button.disabled = saving || !confirmed || !draft;
+      button.disabled = saving || !editable || !draft;
       button.setAttribute('aria-pressed', String(button.dataset.weekPattern === draft?.weekPattern));
     }
   }
@@ -302,33 +314,16 @@ export function initThermostat(root = document, { initialSnapshot = null, onSave
   for (const button of root.querySelectorAll('[data-week-pattern]')) {
     button.addEventListener('click', async () => {
       const weekPattern = button.dataset.weekPattern;
-      if (scheduleAvailability(snapshot) !== 'confirmed' || !draft || saving || weekPattern === draft.weekPattern) return;
-      saving = true;
-      renderEditor();
-      const message = root.querySelector('[data-schedule-message]');
-      if (message) message.textContent = 'Salvataggio modalita...';
-      try {
-        const response = await fetch(homeControlPath('/api/thermostat/week-pattern'), {
-          method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ weekPattern }),
-        });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || 'Cambio modalita non riuscito');
-        draft = cloneSchedule(result.schedule);
-        snapshot = { ...snapshot, schedule: draft };
-        onSaved?.(snapshot);
-        if (message) message.textContent = `Modalita ${draft.weekPattern} salvata`;
-      } catch (error) {
-        if (message) message.textContent = error.message;
-      } finally {
-        saving = false;
-        renderDraft();
-      }
+      if (!canEditSchedule(snapshot) || !draft || saving || weekPattern === draft.weekPattern) return;
+      draft.weekPattern = weekPattern;
+      delete draft.groups;
+      renderDraft();
     });
   }
 
   scheduleForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
-    if (scheduleAvailability(snapshot) !== 'confirmed' || !draft || saving || !hasValidScheduleDraft()) return;
+    if (!canEditSchedule(snapshot) || !draft || saving || !hasValidScheduleDraft()) return;
     saving = true;
     updateEditorControls();
     const message = root.querySelector('[data-schedule-message]');
@@ -350,8 +345,8 @@ export function initThermostat(root = document, { initialSnapshot = null, onSave
       onSaved?.(snapshot);
       if (message) message.textContent = 'Programmazione salvata';
       saved = true;
-    } catch (error) {
-      if (message) message.textContent = error.message;
+    } catch {
+      if (message) message.textContent = 'Errore durante il salvataggio della programmazione';
     } finally {
       saving = false;
       scheduleEditing = false;

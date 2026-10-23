@@ -51,6 +51,32 @@ function isConfirmedDeviceSchedule(snapshot) {
   );
 }
 
+function isWritableSchedule(snapshot) {
+  const schedule = snapshot?.schedule;
+  return Boolean(
+    snapshot?.online === true
+    && schedule
+    && typeof schedule.raw === 'string'
+    && schedule.raw.length > 0
+    && ['5+2', '6+1', '7'].includes(schedule.weekPattern)
+    && Array.isArray(schedule.normalPeriods)
+    && schedule.normalPeriods.length === 6
+    && Array.isArray(schedule.restDayPeriods)
+    && schedule.restDayPeriods.length === 2,
+  );
+}
+
+function scheduleWithWeekPattern(schedule, weekPattern) {
+  return {
+    ...schedule,
+    weekPattern,
+    weekPatternRaw: ({ '5+2': '1', '6+1': '2', '7': '3' })[weekPattern],
+    // The old grouping may describe a different week pattern. Rendering can
+    // derive it safely from the periods and the selected pattern.
+    groups: undefined,
+  };
+}
+
 export function mergeWt200Snapshots({ cloudSnapshot = null, lanSnapshot = null, persistedSchedule = null, deviceId = null, lanOnline = lanSnapshot !== null, lastTemperatureMeasurement = null, lastSetpointMeasurement = null, lastModeObservation = null, lastHeatingObservation = null }) {
   const cloud = cloudSnapshot || unavailableCloudSnapshot(deviceId);
   const deviceSchedule = isConfirmedDeviceSchedule(lanSnapshot) ? lanSnapshot.schedule : null;
@@ -242,26 +268,6 @@ export class HomeWt200Runtime {
     });
   }
 
-  async confirmScheduleWrite(expectedSchedule) {
-    let readback;
-    try {
-      readback = await this.readLanSnapshot({ requiredDps: [105, 107] });
-    } catch {
-      const error = new Error('Il WT200 non ha confermato la programmazione richiesta.');
-      error.code = 'SCHEDULE_NOT_CONFIRMED';
-      throw error;
-    }
-    if (!isConfirmedDeviceSchedule(readback)
-      || readback.schedule.raw !== expectedSchedule?.raw
-      || readback.schedule.weekPattern !== expectedSchedule?.weekPattern) {
-      const error = new Error('Il WT200 non ha confermato la programmazione richiesta.');
-      error.code = 'SCHEDULE_NOT_CONFIRMED';
-      throw error;
-    }
-    await this.persistScheduleSnapshot(readback);
-    return readback.schedule;
-  }
-
   async updateSchedule({ weekPattern = null, normalPeriods, restDayPeriods }) {
     const writer = this.lanAdapter;
     if (!writer?.writeSchedule) {
@@ -269,27 +275,45 @@ export class HomeWt200Runtime {
       error.code = 'LAN_UNAVAILABLE';
       throw error;
     }
-    const confirmed = await this.readSnapshot();
-    if (confirmed.scheduleAvailability !== 'confirmed' || confirmed.scheduleSource !== 'device') {
-      const error = new Error('Programmazione WT200 non disponibile o non confermata.');
-      error.code = 'SCHEDULE_UNAVAILABLE';
-      throw error;
-    }
-    const raw = confirmed.schedule.raw;
-    let snapshot;
-    try {
-      snapshot = await writer.writeSchedule({
-        weekPattern: weekPattern || confirmed.schedule.weekPattern,
-        normalPeriods,
-        ...(restDayPeriods ? { restDayPeriods } : {}),
-        raw,
-      });
-    } catch (error) {
-      if (error instanceof TypeError) error.code = 'SCHEDULE_INVALID';
-      throw error;
-    }
-    this.bindLanSchedulePersistence();
-    return this.confirmScheduleWrite(snapshot.schedule);
+    return this.runMutation(async () => {
+      const current = await this.readSnapshot();
+      if (!isWritableSchedule(current)) {
+        const error = new Error('Programmazione WT200 non disponibile.');
+        error.code = 'SCHEDULE_UNAVAILABLE';
+        throw error;
+      }
+      const targetWeekPattern = weekPattern || current.schedule.weekPattern;
+      let snapshot;
+      try {
+        // DP107 is an independent device setting. Keep its established write
+        // path, but perform it as part of the single Save operation.
+        if (targetWeekPattern !== current.schedule.weekPattern) {
+          if (!writer.setWeekPattern) {
+            const error = new Error('Connessione WT200 non disponibile.');
+            error.code = 'LAN_UNAVAILABLE';
+            throw error;
+          }
+          await writer.setWeekPattern(targetWeekPattern);
+        }
+        snapshot = await writer.writeSchedule({
+          weekPattern: targetWeekPattern,
+          normalPeriods,
+          ...(restDayPeriods ? { restDayPeriods } : {}),
+          raw: current.schedule.raw,
+        });
+      } catch (error) {
+        if (error instanceof TypeError) error.code = 'SCHEDULE_INVALID';
+        throw error;
+      }
+      this.bindLanSchedulePersistence();
+      if (!snapshot?.schedule?.raw) {
+        const error = new Error('Risposta WT200 incompleta dopo il salvataggio.');
+        error.code = 'SCHEDULE_INVALID';
+        throw error;
+      }
+      await this.persistScheduleSnapshot(snapshot);
+      return snapshot.schedule;
+    });
   }
 
   async setWeekPattern(weekPattern) {
@@ -299,20 +323,24 @@ export class HomeWt200Runtime {
       error.code = 'LAN_UNAVAILABLE';
       throw error;
     }
-    const confirmed = await this.readSnapshot();
-    if (confirmed.scheduleAvailability !== 'confirmed' || confirmed.scheduleSource !== 'device') {
-      const error = new Error('Programmazione WT200 non disponibile o non confermata.');
-      error.code = 'SCHEDULE_UNAVAILABLE';
-      throw error;
-    }
-    let snapshot;
-    try {
-      snapshot = await writer.setWeekPattern(weekPattern);
-    } catch (error) {
-      if (error instanceof TypeError) error.code = 'WEEK_PATTERN_INVALID';
-      throw error;
-    }
-    return this.confirmScheduleWrite(snapshot.schedule);
+    return this.runMutation(async () => {
+      const current = await this.readSnapshot();
+      if (!isWritableSchedule(current)) {
+        const error = new Error('Programmazione WT200 non disponibile.');
+        error.code = 'SCHEDULE_UNAVAILABLE';
+        throw error;
+      }
+      let snapshot;
+      try {
+        snapshot = await writer.setWeekPattern(weekPattern);
+      } catch (error) {
+        if (error instanceof TypeError) error.code = 'WEEK_PATTERN_INVALID';
+        throw error;
+      }
+      const schedule = snapshot?.schedule || scheduleWithWeekPattern(current.schedule, weekPattern);
+      await this.persistScheduleSnapshot({ ...snapshot, deviceId: snapshot?.deviceId || current.deviceId, schedule });
+      return schedule;
+    });
   }
 
   async setMode(mode) {

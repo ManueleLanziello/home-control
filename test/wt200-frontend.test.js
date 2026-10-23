@@ -11,6 +11,7 @@ import {
   isCurrentThermostatRequest,
   mergeThermostatRefreshSnapshot,
   runHeatingFastFollow,
+  canEditSchedule,
   scheduleAvailability,
   shouldAcceptThermostatStatus,
   shouldDeferScheduleSnapshot,
@@ -32,22 +33,27 @@ test('popup CALDAIA espone soltanto i tre week pattern consentiti', async () => 
   assert.doesNotMatch(html, /data-week-pattern="(?:0|Chiuso)"/);
 });
 
-test('programmazione distingue dati confermati, fallback locale e indisponibilita', async () => {
+test('programmazione locale valida resta modificabile quando il WT200 e online', async () => {
   assert.equal(scheduleAvailability({ online: true, scheduleSource: 'device', scheduleAvailability: 'confirmed', schedule: {} }), 'confirmed');
   assert.equal(scheduleAvailability({ online: false, scheduleSource: 'persisted', scheduleAvailability: 'fallback', schedule: {} }), 'fallback');
   assert.equal(scheduleAvailability({ online: true, schedule: null }), 'unavailable');
+  const validSchedule = { raw: 'base', normalPeriods: Array(6), restDayPeriods: Array(2) };
+  assert.equal(canEditSchedule({ online: true, schedule: validSchedule }), true);
+  assert.equal(canEditSchedule({ online: false, schedule: validSchedule }), false);
+  assert.equal(canEditSchedule({ online: true, schedule: null }), false);
   const script = await readFile(scriptPath, 'utf8');
-  assert.match(script, /Programmazione locale: non confermata dal WT200\. Salvataggio disabilitato\./);
-  assert.match(script, /save\.disabled = !confirmed \|\| !draft \|\| saving \|\| !hasScheduleChanges\(\) \|\| !hasValidScheduleDraft\(\)/);
-  assert.match(script, /button\.disabled = saving \|\| !confirmed \|\| !draft/);
+  assert.doesNotMatch(script, /Programmazione locale: non confermata dal WT200\. Salvataggio disabilitato\./);
+  assert.match(script, /save\.disabled = !editable \|\| !draft \|\| saving \|\| !hasScheduleChanges\(\) \|\| !hasValidScheduleDraft\(\)/);
+  assert.match(script, /button\.disabled = saving \|\| !editable \|\| !draft/);
 });
 
-test('frontend cambia modalita solo con programmazione confermata, blocca concorrenza e riallinea lo schedule confermato', async () => {
+test('frontend conserva la modifica del week pattern nel draft fino al salvataggio', async () => {
   const script = await readFile(scriptPath, 'utf8');
-  assert.match(script, /if \(scheduleAvailability\(snapshot\) !== 'confirmed' \|\| !draft \|\| saving \|\| weekPattern === draft\.weekPattern\) return/);
-  assert.match(script, /\/api\/thermostat\/week-pattern/);
-  assert.match(script, /draft = cloneSchedule\(result\.schedule\)/);
-  assert.match(script, /button\.disabled = saving \|\| !confirmed \|\| !draft/);
+  assert.match(script, /if \(!canEditSchedule\(snapshot\) \|\| !draft \|\| saving \|\| weekPattern === draft\.weekPattern\) return/);
+  assert.match(script, /draft\.weekPattern = weekPattern;/);
+  assert.doesNotMatch(script, /\/api\/thermostat\/week-pattern/);
+  assert.match(script, /button\.disabled = saving \|\| !editable \|\| !draft/);
+  assert.match(script, /draft\?\.weekPattern !== snapshot\?\.schedule\?\.weekPattern/);
 });
 
 test('frontend nasconde il gruppo inattivo in 7 e invia payload schedule specifico', async () => {
