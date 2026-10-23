@@ -13,12 +13,17 @@ const request = async (path, options = {}) => {
 
 // Keep the UI conservative with the shared P105 runtime's 5-second freshness window.
 const POND_RUNTIME_FRESHNESS_MS = 5_000;
+const monotonicNow = () => globalThis.performance?.now?.() ?? Date.now();
 
 export function pondRoleState(plugs, role) {
   const runtime = plugs.find(plug => plug.role === role)?.runtime;
   const state = runtime?.state;
   const readAt = Date.parse(runtime?.lastReadAt);
-  const fresh = Number.isFinite(readAt) && Date.now() - readAt <= POND_RUNTIME_FRESHNESS_MS;
+  const receivedAt = Number(runtime?.frontendReceivedAt);
+  const receivedAge = monotonicNow() - receivedAt;
+  const receivedFresh = runtime?.freshWhenReceived === true && Number.isFinite(receivedAt) && receivedAge >= 0 && receivedAge <= POND_RUNTIME_FRESHNESS_MS;
+  const legacyFresh = runtime?.freshWhenReceived === undefined && Number.isFinite(readAt) && Date.now() - readAt <= POND_RUNTIME_FRESHNESS_MS;
+  const fresh = receivedFresh || legacyFresh;
   const reliable = runtime?.online === true && runtime?.communicationDegraded !== true && runtime?.consecutiveFailures === 0 && fresh && (state === 'ON' || state === 'OFF');
   return { known: reliable, on: reliable && state === 'ON', state: reliable ? state : null };
 }
@@ -35,7 +40,19 @@ export function createPondControls() {
     const nextRevision = Number(snapshot.revision);
     if (Number.isFinite(nextRevision) && nextRevision <= revision) return false;
     if (Number.isFinite(nextRevision)) revision = nextRevision;
-    plugs = snapshot.plugs;
+    const receivedAt = monotonicNow();
+    const observedAt = Date.parse(snapshot.observedAt);
+    plugs = snapshot.plugs.map(plug => {
+      if (!plug?.runtime) return plug;
+      const readAt = Date.parse(plug.runtime.lastReadAt);
+      const ageAtSnapshot = observedAt - readAt;
+      const freshWhenReceived = Number.isFinite(ageAtSnapshot)
+        ? ageAtSnapshot >= 0 && ageAtSnapshot <= POND_RUNTIME_FRESHNESS_MS
+        : Number.isFinite(readAt)
+          ? Date.now() - readAt >= 0 && Date.now() - readAt <= POND_RUNTIME_FRESHNESS_MS
+        : plug.runtime.online === true && plug.runtime.communicationDegraded !== true && plug.runtime.consecutiveFailures === 0;
+      return { ...plug, runtime: { ...plug.runtime, frontendReceivedAt: receivedAt, freshWhenReceived } };
+    });
     notify();
     return true;
   };

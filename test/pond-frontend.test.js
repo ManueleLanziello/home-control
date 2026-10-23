@@ -15,6 +15,29 @@ const runtime = (state, age = 0, overrides = {}) => ({
 const snapshot = (revision, role, state, age = 0) => ({ revision, plugs: [{ role, runtime: runtime(state, age) }] });
 const jsonResponse = (body, { ok = true, status = 200 } = {}) => ({ ok, status, async json() { return body; } });
 
+test('payload SmartHome confermato rende pompa ON e riscaldatore OFF anche senza confrontare orologi server e browser', () => {
+  const controls = createPondControls();
+  controls.applySnapshot({
+    ownership: 'home', revision: 570, observedAt: '2026-10-23T08:19:11.335Z',
+    plugs: [
+      { id: 'pond-plug-pump', role: 'pump', configurationStatus: 'complete', verificationStatus: 'verified', runtime: { state: 'ON', online: true, communicationDegraded: false, consecutiveFailures: 0 } },
+      { id: 'pond-plug-heater', role: 'heater', configurationStatus: 'complete', verificationStatus: 'verified', runtime: { state: 'OFF', online: true, communicationDegraded: false, consecutiveFailures: 0 } },
+    ],
+  });
+  assert.deepEqual(pondRoleState(controls.snapshot(), 'pump'), { known: true, on: true, state: 'ON' });
+  assert.deepEqual(pondRoleState(controls.snapshot(), 'heater'), { known: true, on: false, state: 'OFF' });
+  assert.equal(controls.error('pump'), null); assert.equal(controls.error('heater'), null);
+});
+
+test('freschezza confronta lastReadAt e observedAt dello stesso server, non l orologio del browser', () => {
+  const controls = createPondControls();
+  controls.applySnapshot({
+    revision: 571, observedAt: '2020-01-01T00:00:02.000Z',
+    plugs: [{ role: 'pump', runtime: { state: 'ON', online: true, communicationDegraded: false, consecutiveFailures: 0, lastReadAt: '2020-01-01T00:00:01.000Z' } }],
+  });
+  assert.equal(pondRoleState(controls.snapshot(), 'pump').state, 'ON');
+});
+
 test('P1a e P1b recuperano uno snapshot stale prima del toggle e applicano subito il readback', async t => {
   const originalFetch = globalThis.fetch; t.after(() => { globalThis.fetch = originalFetch; });
   for (const role of ['pump', 'heater']) {
@@ -52,6 +75,8 @@ test('unknown resta unknown, usa asset neutrali e non conserva ON/OFF', async ()
   assert.equal(pondRoleState(controls.snapshot(), 'pump').state, null);
   assert.equal(floorplanConfig.icons.pondPump, 'pump.svg');
   assert.equal(floorplanConfig.icons.pondHeater, 'heater.svg');
+  assert.equal(floorplanConfig.icons.pondPumpOn, 'pumpon.svg'); assert.equal(floorplanConfig.icons.pondPumpOff, 'pumpoff.svg');
+  assert.equal(floorplanConfig.icons.pondHeaterOn, 'heateron.svg'); assert.equal(floorplanConfig.icons.pondHeaterOff, 'heateroff.svg');
   const [floorplan, popup] = await Promise.all([
     readFile(new URL('../public/js/floorplan.js', import.meta.url), 'utf8'),
     readFile(new URL('../public/js/pond-popup.js', import.meta.url), 'utf8'),
