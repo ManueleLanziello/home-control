@@ -849,7 +849,8 @@ export function createHomeControlServer({
         if (['SCHEDULE_UNAVAILABLE', 'SCHEDULE_NOT_CONFIRMED'].includes(error?.code)) return sendJson(response, 409, { error: error.message });
         if (error?.code === 'LAN_UNAVAILABLE') return sendJson(response, 503, { error: error.message });
         if (error?.code === 'SCHEDULE_INVALID') return sendJson(response, 400, { error: 'Programmazione non valida' });
-        return sendJson(response, 503, { error: 'Programmazione WT200 non disponibile' });
+        if (error?.code === 'SCHEDULE_WRITE_FAILED') return sendJson(response, 503, { error: 'Invio della programmazione al WT200 non riuscito. Riprova.' });
+        return sendJson(response, 500, { error: 'Errore interno durante il salvataggio della programmazione.' });
       }
     }
     if (url.pathname === '/api/thermostat/week-pattern') {

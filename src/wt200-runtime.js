@@ -303,12 +303,13 @@ export class HomeWt200Runtime {
         });
       } catch (error) {
         if (error instanceof TypeError) error.code = 'SCHEDULE_INVALID';
+        else if (!error?.code) error.code = 'SCHEDULE_WRITE_FAILED';
         throw error;
       }
       this.bindLanSchedulePersistence();
       if (!snapshot?.schedule?.raw) {
         const error = new Error('Risposta WT200 incompleta dopo il salvataggio.');
-        error.code = 'SCHEDULE_INVALID';
+        error.code = 'SCHEDULE_WRITE_FAILED';
         throw error;
       }
       await this.persistScheduleSnapshot(snapshot);

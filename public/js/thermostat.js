@@ -66,6 +66,16 @@ export function displayedThermostatSetpoint(snapshot, mutation) {
     : snapshot?.thermostat?.setpointTemperature;
 }
 
+function observationTimestamp(snapshot, field) {
+  return snapshot?.[field] ?? snapshot?.updatedAt ?? null;
+}
+
+function isOlderObservation(incoming, current, field) {
+  const incomingTime = Date.parse(observationTimestamp(incoming, field));
+  const currentTime = Date.parse(observationTimestamp(current, field));
+  return Number.isFinite(incomingTime) && Number.isFinite(currentTime) && incomingTime < currentTime;
+}
+
 export function mergeThermostatRefreshSnapshot(current, incoming, { mutation, preserveSetpoint = false, preserveMissing = false } = {}) {
   if (!incoming) return current;
   const currentTime = Date.parse(current?.updatedAt);
@@ -84,7 +94,10 @@ export function mergeThermostatRefreshSnapshot(current, incoming, { mutation, pr
     },
   } : incoming;
   const owned = mutation?.type === 'setpoint' && (mutation.phase === 'dragging' || mutation.phase === 'pending');
-  if (!preserveSetpoint && !owned) return source;
+  const preserveOlderSetpoint = Number.isFinite(current?.thermostat?.setpointTemperature)
+    && Number.isFinite(source?.thermostat?.setpointTemperature)
+    && isOlderObservation(source, current, 'setpointUpdatedAt');
+  if (!preserveSetpoint && !owned && !preserveOlderSetpoint) return source;
   const currentSetpoint = current?.thermostat?.setpointTemperature;
   return {
     ...source,
@@ -93,6 +106,13 @@ export function mergeThermostatRefreshSnapshot(current, incoming, { mutation, pr
       setpointTemperature: currentSetpoint,
     },
   };
+}
+
+export function scheduleSaveErrorMessage(status, error) {
+  if (status === 400) return 'Controlla orari e temperature della programmazione.';
+  if (status === 409) return error || 'La programmazione non e disponibile al momento.';
+  if (status === 503) return error || 'WT200 non raggiungibile. Riprova tra poco.';
+  return 'Errore interno durante il salvataggio. Riprova.';
 }
 
 export function mergeConfirmedThermostatSnapshot(current, confirmed) {
@@ -338,15 +358,15 @@ export function initThermostat(root = document, { initialSnapshot = null, onSave
         }),
       });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Salvataggio non riuscito');
+      if (!response.ok) throw new Error(scheduleSaveErrorMessage(response.status, result.error));
       draft = cloneSchedule(result.schedule);
       snapshot = { ...snapshot, schedule: draft };
       pendingSnapshot = null;
       onSaved?.(snapshot);
       if (message) message.textContent = 'Programmazione salvata';
       saved = true;
-    } catch {
-      if (message) message.textContent = 'Errore durante il salvataggio della programmazione';
+    } catch (error) {
+      if (message) message.textContent = error?.message || 'Errore interno durante il salvataggio. Riprova.';
     } finally {
       saving = false;
       scheduleEditing = false;

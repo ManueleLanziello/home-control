@@ -13,6 +13,7 @@ import {
   runHeatingFastFollow,
   canEditSchedule,
   scheduleAvailability,
+  scheduleSaveErrorMessage,
   shouldAcceptThermostatStatus,
   shouldDeferScheduleSnapshot,
 } from '../public/js/thermostat.js';
@@ -319,6 +320,39 @@ test('snapshot Home piu vecchio non sovrascrive lo stato WT200 dedicato piu rece
     thermostat: { setpointTemperature: null, currentTemperature: 20, mode: 'auto' } };
   const merged = mergeThermostatRefreshSnapshot(current, delayedHome, { mutation: createThermostatMutationState() });
   assert.deepEqual(merged, current);
+});
+
+test('un DP2 piu vecchio non sovrascrive un setpoint piu recente anche se lo snapshot generale e nuovo', () => {
+  const current = {
+    updatedAt: '2026-10-23T10:01:00.000Z', setpointUpdatedAt: '2026-10-23T10:01:00.000Z', online: true,
+    thermostat: { setpointTemperature: 22, currentTemperature: 20, mode: 'auto' },
+  };
+  const delayed = {
+    updatedAt: '2026-10-23T10:02:00.000Z', setpointUpdatedAt: '2026-10-23T10:00:00.000Z', online: true,
+    thermostat: { setpointTemperature: 20, currentTemperature: 20.5, mode: 'auto' },
+  };
+  const merged = mergeThermostatRefreshSnapshot(current, delayed, { mutation: createThermostatMutationState() });
+  assert.equal(merged.thermostat.setpointTemperature, 22);
+  assert.equal(merged.thermostat.currentTemperature, 20.5);
+});
+
+test('un DP2 piu recente, incluso quello aggiornato dall app Tuya, resta visualizzabile', () => {
+  const current = {
+    updatedAt: '2026-10-23T10:01:00.000Z', setpointUpdatedAt: '2026-10-23T10:01:00.000Z', online: true,
+    thermostat: { setpointTemperature: 20, mode: 'auto' },
+  };
+  const updated = {
+    updatedAt: '2026-10-23T10:02:00.000Z', setpointUpdatedAt: '2026-10-23T10:02:00.000Z', online: true,
+    thermostat: { setpointTemperature: 22, mode: 'auto' },
+  };
+  assert.equal(mergeThermostatRefreshSnapshot(current, updated, { mutation: createThermostatMutationState() }).thermostat.setpointTemperature, 22);
+});
+
+test('gli errori di salvataggio restano comprensibili e distinguono validazione, LAN e errore interno', () => {
+  assert.equal(scheduleSaveErrorMessage(400), 'Controlla orari e temperature della programmazione.');
+  assert.equal(scheduleSaveErrorMessage(409, 'Programmazione WT200 non disponibile.'), 'Programmazione WT200 non disponibile.');
+  assert.equal(scheduleSaveErrorMessage(503, 'Invio della programmazione al WT200 non riuscito. Riprova.'), 'Invio della programmazione al WT200 non riuscito. Riprova.');
+  assert.equal(scheduleSaveErrorMessage(500), 'Errore interno durante il salvataggio. Riprova.');
 });
 
 test('errore Home aggregato conserva lo snapshot WT200 del canale dedicato', async () => {

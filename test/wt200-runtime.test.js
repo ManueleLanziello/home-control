@@ -629,6 +629,69 @@ test('runtime salva dal fallback locale se WT200 online e DP105 locale valido', 
   assert.equal(writes, 1);
 });
 
+test('dieci salvataggi consecutivi restano serializzati senza chiudere il popup', async () => {
+  let writes = 0;
+  const saved = [];
+  const runtime = new HomeWt200Runtime({
+    lanAdapter: {
+      async read() { return { deviceId: 'wt200-lan-id', rawDps: { 107: '1' }, schedule: null, thermostat: {} }; },
+      async writeSchedule(value) {
+        writes += 1;
+        return { deviceId: 'wt200-lan-id', schedule: { ...schedule, normalPeriods: value.normalPeriods, raw: `fixture-${writes}` } };
+      },
+    },
+    scheduleStore: { async read() { return { deviceId: 'wt200-lan-id', schedule }; }, async write(value) { saved.push(value); return value; } },
+  });
+  for (let index = 0; index < 10; index += 1) {
+    const normalPeriods = schedule.normalPeriods.map((period, periodIndex) => periodIndex === 0 ? { ...period, temperature: 18 + index / 10 } : period);
+    const result = await runtime.updateSchedule({ normalPeriods, restDayPeriods: schedule.restDayPeriods });
+    assert.equal(result.raw, `fixture-${index + 1}`);
+  }
+  assert.equal(writes, 10);
+  assert.equal(saved.length, 10);
+});
+
+test('un errore di invio DP105 conserva la coda utilizzabile per un nuovo tentativo', async () => {
+  let attempts = 0;
+  const runtime = new HomeWt200Runtime({
+    lanAdapter: {
+      async read() { return { deviceId: 'wt200-lan-id', rawDps: { 107: '1' }, schedule: null, thermostat: {} }; },
+      async writeSchedule() {
+        attempts += 1;
+        if (attempts === 1) throw new Error('socket chiuso');
+        return { deviceId: 'wt200-lan-id', schedule: { ...schedule, raw: UPDATED_SCHEDULE_RAW } };
+      },
+    },
+    scheduleStore: { async read() { return { deviceId: 'wt200-lan-id', schedule }; }, async write(value) { return value; } },
+  });
+  await assert.rejects(
+    runtime.updateSchedule({ normalPeriods: schedule.normalPeriods, restDayPeriods: schedule.restDayPeriods }),
+    error => error.code === 'SCHEDULE_WRITE_FAILED',
+  );
+  assert.equal((await runtime.updateSchedule({ normalPeriods: schedule.normalPeriods, restDayPeriods: schedule.restDayPeriods })).raw, UPDATED_SCHEDULE_RAW);
+  assert.equal(attempts, 2);
+});
+
+test('PUT schedule distingue un invio DP105 fallito da un errore interno', async () => {
+  const server = createHomeControlServer({ thermostatRuntime: {
+    async updateSchedule() { const error = new Error('write failed'); error.code = 'SCHEDULE_WRITE_FAILED'; throw error; },
+  } });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  try {
+    const { port } = server.address();
+    const response = await fetch(`http://127.0.0.1:${port}/api/thermostat/schedule`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ weekPattern: '5+2', normalPeriods: schedule.normalPeriods, restDayPeriods: schedule.restDayPeriods }),
+    });
+    assert.equal(response.status, 503);
+    assert.equal((await response.json()).error, 'Invio della programmazione al WT200 non riuscito. Riprova.');
+  } finally {
+    server.close();
+    await once(server, 'close');
+  }
+});
+
 test('PUT week-pattern accetta 5+2, 6+1, 7 e blocca Chiuso/arbitrari', async () => {
   const calls = [];
   const server = createHomeControlServer({ thermostatRuntime: {
