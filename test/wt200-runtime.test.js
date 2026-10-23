@@ -3,7 +3,7 @@ import test from 'node:test';
 import { once } from 'node:events';
 import { createHomeControlServer } from '../server.js';
 import { normalizeThermostat } from '../src/home-status.js';
-import { HomeWt200Runtime, mergeWt200Snapshots } from '../src/wt200-runtime.js';
+import { createHomeWt200Runtime, HomeWt200Runtime, mergeWt200Snapshots } from '../src/wt200-runtime.js';
 
 const schedule = {
   weekPattern: '5+2',
@@ -59,6 +59,24 @@ test('solo DP105 e DP107 validi dalla LAN rendono la programmazione confermata',
   });
   assert.equal(missingPattern.scheduleSource, 'persisted');
   assert.equal(missingPattern.scheduleAvailability, 'fallback');
+});
+
+test('factory WT200 lascia la diagnostica spenta e la abilita solo con il flag esplicito', () => {
+  const diagnosticLogger = () => {};
+  const previous = process.env.WT200_SCHEDULE_DIAGNOSTICS;
+  try {
+    delete process.env.WT200_SCHEDULE_DIAGNOSTICS;
+    const disabled = createHomeWt200Runtime({ deviceId: 'wt200-1', lanIp: '127.0.0.1', localKey: 'test', diagnosticLogger });
+    process.env.WT200_SCHEDULE_DIAGNOSTICS = '1';
+    const enabled = createHomeWt200Runtime({ deviceId: 'wt200-1', lanIp: '127.0.0.1', localKey: 'test', diagnosticLogger });
+
+    assert.equal(disabled.lanAdapter.scheduleDiagnostics, false);
+    assert.equal(enabled.lanAdapter.scheduleDiagnostics, true);
+    assert.equal(enabled.lanAdapter.diagnosticLogger, diagnosticLogger);
+  } finally {
+    if (previous === undefined) delete process.env.WT200_SCHEDULE_DIAGNOSTICS;
+    else process.env.WT200_SCHEDULE_DIAGNOSTICS = previous;
+  }
 });
 
 test('schedule persistito resta disponibile ma il WT200 e offline se la LAN cade', async () => {

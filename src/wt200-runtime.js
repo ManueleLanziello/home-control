@@ -399,9 +399,16 @@ export class HomeWt200Runtime {
   }
 }
 
-export function createHomeWt200Runtime({ deviceId, lanIp, localKey, now }) {
+export function createHomeWt200Runtime({
+  deviceId,
+  lanIp,
+  localKey,
+  now,
+  scheduleDiagnostics = process.env.WT200_SCHEDULE_DIAGNOSTICS === '1',
+  diagnosticLogger,
+}) {
   const lanAdapter = deviceId && lanIp && localKey
-    ? new Wt200TuyaLanAdapter({ deviceId, ip: lanIp, localKey, now })
+    ? new Wt200TuyaLanAdapter({ deviceId, ip: lanIp, localKey, now, scheduleDiagnostics, diagnosticLogger })
     : null;
   return new HomeWt200Runtime({
     lanAdapter,
