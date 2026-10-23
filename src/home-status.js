@@ -7,7 +7,7 @@ import { NetworkPresenceRuntime } from './network-presence-runtime.js';
 // Explicit logical assignments; never infer rooms from aliases or physical IDs.
 export const HOME_ROLES = Object.freeze({
   S1: 'temperature_cucina', S2: 'temperature_camera', S4: 'temperature_cameretta', S5: 'temperature_giardino',
-  L1: 'light_cucina', L2: 'light_camera', L3: 'light_salotto', L4: 'light_disimpegno', L5: 'light_bagno', L6: 'light_cameretta', L7: 'light_gazebo', L8: 'light_giardino', L11: 'light_terrazzo',
+  L1: 'light_cucina', L2: 'light_camera', L3: 'light_salotto', L4: 'light_disimpegno', L5: 'light_bagno', L6: 'light_cameretta', L7: 'light_gazebo', L8: 'light_giardino', L11: 'light_terrazzo', L13: 'light_specchiera_bagno',
   C1: 'camera_terrazzo', C2: 'camera_pond',
 });
 const MAX_AGE_MS = 90_000;
