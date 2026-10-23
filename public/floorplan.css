@@ -199,14 +199,14 @@ button.floorplan-marker { pointer-events: auto; cursor: pointer; }
 .floorplan-marker-pond-control[data-mode="manual"] { pointer-events: none; }
 .floorplan-marker-alarm-card { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; height: 100%; margin: 0; padding: 0; border: 5px solid #5194ae; border-radius: 28px; background: rgb(5 11 18 / 72%); overflow: hidden; }
 .floorplan-marker-alarm-card .floorplan-symbol { width: 72%; height: 72%; align-self: center; justify-self: center; }
-.floorplan-marker-alarm-sensor { border-width: 1px; border-color: rgb(190 210 219 / 65%); background: #778896; box-shadow: 0 0 5px rgb(151 174 188 / 45%); }
-.floorplan-marker-alarm-sensor[data-alarm-state="normal"] { background: #29df92; box-shadow: 0 0 8px rgb(41 223 146 / 70%); }
-.floorplan-marker-alarm-sensor[data-alarm-state="active"] { background: #ff9d3d; box-shadow: 0 0 8px rgb(255 157 61 / 70%); }
-.floorplan-marker-alarm-sensor[data-alarm-sensor-id="PR1"][data-alarm-state="active"] { --alarm-border-color: #ff9d3d; --alarm-background: #ff9d3d; --alarm-shadow: 0 0 18px rgb(255 157 61 / 80%); animation: alarm-flash 1.6s ease-in-out infinite; }
-.floorplan-marker-alarm-sensor[data-alarm-state="battery-low"] { background: #ffe56a; box-shadow: 0 0 8px rgb(255 229 106 / 70%); }
-.floorplan-marker-alarm-sensor[data-alarm-state="unknown"] { background: #778896; box-shadow: 0 0 5px rgb(151 174 188 / 45%); }
+.floorplan-marker-alarm-sensor { border-width: 1px; border-color: rgb(190 210 219 / 65%); background: rgb(119 136 150 / 40%); box-shadow: 0 0 5px rgb(151 174 188 / 45%); }
+.floorplan-marker-alarm-sensor[data-alarm-state="normal"] { background: rgb(41 223 146 / 40%); box-shadow: 0 0 8px rgb(41 223 146 / 70%); }
+.floorplan-marker-alarm-sensor[data-alarm-state="active"] { background: rgb(255 157 61 / 40%); box-shadow: 0 0 8px rgb(255 157 61 / 70%); }
+.floorplan-marker-alarm-sensor[data-alarm-sensor-id="PR1"][data-alarm-state="active"] { --alarm-border-color: #ff9d3d; --alarm-background: rgb(255 157 61 / 40%); --alarm-shadow: 0 0 18px rgb(255 157 61 / 80%); animation: alarm-flash 1.6s ease-in-out infinite; }
+.floorplan-marker-alarm-sensor[data-alarm-state="battery-low"] { background: rgb(255 229 106 / 40%); box-shadow: 0 0 8px rgb(255 229 106 / 70%); }
+.floorplan-marker-alarm-sensor[data-alarm-state="unknown"] { background: rgb(119 136 150 / 40%); box-shadow: 0 0 5px rgb(151 174 188 / 45%); }
 .floorplan-marker-alarm-card.is-alarm, .floorplan-marker-alarm-sensor.is-alarm { animation: alarm-flash 1.6s ease-in-out infinite; }
-@keyframes alarm-flash { 50% { border-color: var(--alarm-border-color, #e55663); background: var(--alarm-background, rgba(155, 31, 40, .72)); box-shadow: var(--alarm-shadow, 0 0 18px rgb(229 86 99 / 80%)); } }
+@keyframes alarm-flash { 50% { border-color: var(--alarm-border-color, #e55663); background: var(--alarm-background, rgb(155 31 40 / 40%)); box-shadow: var(--alarm-shadow, 0 0 18px rgb(229 86 99 / 80%)); } }
 .alarm-dialog { width: min(480px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); box-sizing: border-box; padding: 18px; border: 1px solid #3c718c; border-radius: 20px; background: #081522; color: #e5f3fc; }
 .alarm-dialog [data-alarm-message] { white-space: pre-line; line-height: 1.45; }
 .alarm-dialog::backdrop { background: #0009; }.alarm-dialog header { display:flex; justify-content:space-between; align-items:center; gap:12px; }.alarm-dialog header button { display:grid; width:40px; height:40px; padding:6px; place-items:center; border:0; border-radius:9px; background:transparent; cursor:pointer; }.alarm-dialog header button img { box-sizing:content-box; width:18px; height:18px; padding:5px; border:1px solid #476b83; border-radius:8px; background:#132d40; object-fit:contain; }
