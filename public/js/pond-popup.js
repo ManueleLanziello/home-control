@@ -113,6 +113,27 @@ export function createPondControls() {
 }
 
 const designAsset = name => homeControlPath('/design/' + name);
+const heatingConfigFields = ['threshold', 'repetitions', 'onMinutes', 'offMinutes'];
+
+export function createPondHeatingDraft() {
+  const values = new Map();
+  const dirty = new Set();
+  const sync = config => {
+    for (const name of heatingConfigFields) {
+      if (!dirty.has(name)) values.set(name, config?.[name] ?? '');
+    }
+  };
+  return {
+    sync,
+    update(name, value) { values.set(name, value); dirty.add(name); },
+    value: name => values.get(name) ?? '',
+    values: config => {
+      sync(config);
+      return Object.fromEntries(heatingConfigFields.map(name => [name, values.get(name)]));
+    },
+    clear() { values.clear(); dirty.clear(); },
+  };
+}
 
 export function initPondPopup(controls) {
   const dialog = document.createElement('dialog');
@@ -127,6 +148,7 @@ export function initPondPopup(controls) {
   const historyBody = dialog.querySelector('.pond-heating-history tbody');
   const historySummary = dialog.querySelector('.pond-history-summary');
   const input = name => settings.querySelector(`[name="${name}"]`);
+  const draft = createPondHeatingDraft();
   const formatTemperature = value => Number.isFinite(value) ? `${value.toLocaleString('it-IT', { maximumFractionDigits: 1 })} °C` : '—';
   const formatDate = value => Number.isFinite(Date.parse(value)) ? new Intl.DateTimeFormat('it-IT', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value)) : '—';
   const history24h = history => history.filter(record => Date.now() - Date.parse(record.completedAt) <= 24 * 60 * 60 * 1000);
@@ -165,26 +187,27 @@ export function initPondPopup(controls) {
       await controls.saveHeatingConfig({
         ...current,
         mode: mode || (automatic.querySelector('input').checked ? 'thermostat' : 'manual'),
-        threshold: input('threshold').value,
-        repetitions: input('repetitions').value,
-        onMinutes: input('onMinutes').value,
-        offMinutes: input('offMinutes').value,
+        ...draft.values(current),
       });
+      draft.clear();
+      render();
       statusLine.textContent = 'Configurazione salvata.';
     } catch (error) { statusLine.textContent = error.message || 'Configurazione non salvata.'; }
   };
   manual.querySelector('input').addEventListener('change', () => { if (manual.querySelector('input').checked) void save({ mode: 'manual' }); });
   automatic.querySelector('input').addEventListener('change', () => { if (automatic.querySelector('input').checked) void save({ mode: 'thermostat' }); });
   settings.querySelector('.pond-heating-save').addEventListener('click', () => { void save(); });
+  for (const name of heatingConfigFields) input(name).addEventListener('input', event => { draft.update(name, event.target.value); });
   const render = () => {
     const heating = controls.heating();
     const config = heating?.config;
     const automaticMode = config?.mode === 'thermostat';
     manual.querySelector('input').checked = !automaticMode;
     automatic.querySelector('input').checked = automaticMode;
-    for (const name of ['threshold', 'repetitions', 'onMinutes', 'offMinutes']) {
+    draft.sync(config);
+    for (const name of heatingConfigFields) {
       const field = input(name);
-      if (config && document.activeElement !== field) field.value = config[name] ?? '';
+      if (config && document.activeElement !== field) field.value = draft.value(name);
     }
     const s5 = heating?.latestMeasurement || heating?.activeCycle?.lastMeasurement || null;
     s5Reading.textContent = s5 ? `S5: ${formatTemperature(s5.value)} · ${formatDate(s5.updatedAt)}` : 'S5: in attesa di una misura live valida.';
@@ -217,8 +240,10 @@ export function initPondPopup(controls) {
   };
   controls.subscribe(render);
   render();
+  dialog.addEventListener('close', () => { draft.clear(); });
   return async () => {
     try { await controls.refresh(); } catch { /* The dialog renders unavailable controls. */ }
+    render();
     if (!dialog.open) dialog.showModal();
   };
 }

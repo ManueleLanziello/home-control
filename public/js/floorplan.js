@@ -800,7 +800,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
       const mode = pondMarkers.get('mode');
       mode.dataset.mode = automaticMode ? 'thermostat' : 'manual';
       mode.setAttribute('aria-label', `Modalità Pond: ${automaticMode ? 'termostato' : 'manuale'}`);
-      pondIcon(mode, config.icons.pondManual);
+      pondIcon(mode, automaticMode ? config.icons.pondThermostat : config.icons.pondManual);
     };
     pondControls.subscribe(renderPondControls);
     renderPondControls(pondControls.snapshot());

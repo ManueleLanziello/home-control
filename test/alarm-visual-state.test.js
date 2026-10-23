@@ -41,6 +41,15 @@ test('only PR1 blinks orange for movement while alarm priority remains red', asy
   assert.equal(alarmVisualState('PR1', { available: true, batteryLow: true, motion: true }), 'battery-low');
 });
 
+test('DW backgrounds are opaque while SR1 and PR1 retain their 40 percent transparency', async () => {
+  const css = await readFile(new URL('../public/floorplan.css', import.meta.url), 'utf8');
+  for (const color of ['rgb(119 136 150)', 'rgb(41 223 146)', 'rgb(255 157 61)', 'rgb(255 229 106)']) {
+    assert.match(css, new RegExp(`\\.floorplan-marker-alarm-sensor\\[data-alarm-sensor-id\\^="DW"\\][^{]*\\{ background: ${color.replace(/[()]/g, '\\$&')};`));
+  }
+  assert.match(css, /data-alarm-sensor-id\^="DW"\] \{ --alarm-background: rgb\(155 31 40\)/);
+  assert.match(css, /data-alarm-sensor-id="PR1"[^}]*--alarm-background: rgb\(255 157 61 \/ 40%\)/);
+});
+
 test('popup ANTIFURTO usa close.svg e card modalità ingrandite senza cambiare la logica', async () => {
   const [css, floorplan] = await Promise.all([readFile(new URL('../public/floorplan.css', import.meta.url), 'utf8'), readFile(new URL('../public/js/alarm-floorplan.js', import.meta.url), 'utf8')]);
   assert.match(floorplan, /homeControlPath\('\/design\/close\.svg'\)/);

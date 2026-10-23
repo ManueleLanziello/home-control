@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { createPondControls, pondRoleState } from '../public/js/pond-popup.js';
+import { createPondControls, createPondHeatingDraft, pondRoleState } from '../public/js/pond-popup.js';
 import { floorplanConfig } from '../public/js/floorplan-config.js';
 
 const runtime = (state, age = 0, overrides = {}) => ({
@@ -116,4 +116,23 @@ test('dashboard Pond usa SSE e non dipende più dal refresh generale a 30 second
   assert.match(floorplan, /new EventSource\(homeControlPath\('\/api\/pond\/events'\)\)/);
   assert.match(floorplan, /pondControls\.applySnapshot\(JSON\.parse\(event\.data\)\)/);
   assert.doesNotMatch(dashboard, /refreshPondStatus/);
+});
+
+test('la bozza della configurazione Pond non viene sovrascritta dagli aggiornamenti mentre si compilano altri campi', () => {
+  const draft = createPondHeatingDraft();
+  draft.sync({ threshold: 12, repetitions: 3, onMinutes: 10, offMinutes: 5 });
+  draft.update('threshold', '13.5');
+  draft.update('repetitions', '4');
+  draft.sync({ threshold: 12, repetitions: 3, onMinutes: 10, offMinutes: 5 });
+  assert.deepEqual(draft.values({ threshold: 12, repetitions: 3, onMinutes: 10, offMinutes: 5 }), { threshold: '13.5', repetitions: '4', onMinutes: 10, offMinutes: 5 });
+  draft.clear();
+  draft.sync({ threshold: 14, repetitions: 2, onMinutes: 8, offMinutes: 4 });
+  assert.deepEqual(draft.values({ threshold: 14, repetitions: 2, onMinutes: 8, offMinutes: 4 }), { threshold: 14, repetitions: 2, onMinutes: 8, offMinutes: 4 });
+});
+
+test('icona esterna Pond segue la modalità persistita del riscaldatore', async () => {
+  const floorplan = await readFile(new URL('../public/js/floorplan.js', import.meta.url), 'utf8');
+  assert.match(floorplan, /pondIcon\(mode, automaticMode \? config\.icons\.pondThermostat : config\.icons\.pondManual\)/);
+  assert.equal(floorplanConfig.icons.pondManual, 'manual.svg');
+  assert.equal(floorplanConfig.icons.pondThermostat, 'auto.svg');
 });
