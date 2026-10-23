@@ -3,7 +3,11 @@ import { homeControlPath } from '../base-path.js';
 const request = async (path, options = {}) => {
   const response = await fetch(homeControlPath(path), { ...options, headers: { 'Content-Type': 'application/json' } });
   const body = await response.json();
-  if (!response.ok) throw new Error(body.error);
+  if (!response.ok) {
+    const error = new Error(body.error || 'Operazione Pond non riuscita');
+    error.status = response.status;
+    throw error;
+  }
   return body;
 };
 
@@ -21,29 +25,56 @@ export function pondRoleState(plugs, role) {
 
 export function createPondControls() {
   let plugs = [];
+  let revision = -1;
   const listeners = new Set();
   const pending = new Set();
+  const errors = new Map();
   const notify = () => { for (const listener of listeners) listener(plugs); };
+  const applySnapshot = snapshot => {
+    if (!snapshot || !Array.isArray(snapshot.plugs)) return false;
+    const nextRevision = Number(snapshot.revision);
+    if (Number.isFinite(nextRevision) && nextRevision <= revision) return false;
+    if (Number.isFinite(nextRevision)) revision = nextRevision;
+    plugs = snapshot.plugs;
+    notify();
+    return true;
+  };
   const refresh = async () => {
-    try { plugs = (await request('/api/hardware/pond-plugs')).plugs; }
-    catch (error) { plugs = []; throw error; }
-    finally { notify(); }
+    const snapshot = await request('/api/hardware/pond-plugs', { cache: 'no-store' });
+    applySnapshot(snapshot);
     return plugs;
   };
   return {
     snapshot: () => plugs,
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     pending: role => pending.has(role),
+    error: role => errors.get(role) || null,
+    revision: () => revision,
+    applySnapshot,
     refresh,
     async toggle(role) {
-      const current = pondRoleState(plugs, role);
-      if (!current.known || pending.has(role)) return;
+      if (pending.has(role)) return { ok: false, reason: 'pending' };
       pending.add(role); notify();
-      try { await request(`/api/pond/${role}/power`, { method: 'PUT', body: JSON.stringify({ on: !current.on }) }); }
-      catch { /* The refresh below is authoritative after a rejected command. */ }
+      errors.delete(role);
+      try {
+        let current = pondRoleState(plugs, role);
+        if (!current.known) {
+          try { await refresh(); }
+          catch { throw new Error('Impossibile recuperare lo stato della presa'); }
+          current = pondRoleState(plugs, role);
+        }
+        if (!current.known) throw new Error('Presa non raggiungibile o stato non disponibile');
+        const result = await request(`/api/pond/${role}/power`, { method: 'PUT', body: JSON.stringify({ on: !current.on }) });
+        if (result.pond) applySnapshot(result.pond);
+        else await refresh();
+        return { ok: true, state: pondRoleState(plugs, role) };
+      }
+      catch (error) {
+        errors.set(role, error.message || 'Comando Pond non riuscito');
+        return { ok: false, error: errors.get(role) };
+      }
       finally {
         pending.delete(role);
-        try { await refresh(); } catch { /* A failed read is unknown, never OFF. */ }
         notify();
       }
     },
@@ -59,9 +90,8 @@ export function initPondPopup(controls) {
   document.body.append(dialog);
   dialog.querySelector('button').onclick = () => dialog.close();
   const cards = dialog.querySelector('.pond-cards');
-  const visualAssets = { pump: 'pumpoff.svg', heater: 'heateroff.svg' };
   const roleCards = new Map();
-  const createRoleCard = (role, title, onIcon, offIcon) => {
+  const createRoleCard = (role, title, onIcon, offIcon, unknownIcon) => {
     const card = document.createElement('article');
     card.className = 'pond-card';
     const icon = document.createElement('button');
@@ -69,14 +99,14 @@ export function initPondPopup(controls) {
     icon.className = 'pond-power-icon';
     const image = document.createElement('img');
     image.dataset.pondIcon = '';
-    image.src = designAsset(visualAssets[role]);
+    image.src = designAsset(unknownIcon);
     image.alt = '';
     icon.append(image);
     icon.onclick = () => { void controls.toggle(role); };
     const heading = document.createElement('h2'); heading.textContent = title;
     const status = document.createElement('small');
     card.append(icon, heading, status);
-    roleCards.set(role, { card, icon, image, onIcon, offIcon, title, status });
+    roleCards.set(role, { card, icon, image, onIcon, offIcon, unknownIcon, title, status });
     return card;
   };
   const thermostat = document.createElement('article');
@@ -87,17 +117,20 @@ export function initPondPopup(controls) {
   const manual = document.createElement('label'); manual.className = 'pond-mode'; manual.append(Object.assign(document.createElement('input'), { type: 'radio', name: 'pond-mode', checked: true }), document.createTextNode(' Manuale'));
   const automatic = document.createElement('label'); automatic.className = 'pond-mode'; automatic.append(Object.assign(document.createElement('input'), { type: 'radio', name: 'pond-mode', disabled: true }), document.createTextNode(' Termostato'));
   thermostat.append(manual, automatic);
-  cards.replaceChildren(createRoleCard('pump', 'Pompa Filtro', 'pumpon.svg', 'pumpoff.svg'), createRoleCard('heater', 'Riscaldatore', 'heateron.svg', 'heateroff.svg'), thermostat);
+  cards.replaceChildren(createRoleCard('pump', 'Pompa Filtro', 'pumpon.svg', 'pumpoff.svg', 'pump.svg'), createRoleCard('heater', 'Riscaldatore', 'heateron.svg', 'heateroff.svg', 'heater.svg'), thermostat);
   const render = () => {
     for (const [role, entry] of roleCards) {
       const current = pondRoleState(controls.snapshot(), role);
-      if (current.known) visualAssets[role] = current.on ? entry.onIcon : entry.offIcon;
-      const source = designAsset(visualAssets[role]);
+      const pending = controls.pending(role);
+      const error = controls.error(role);
+      const source = designAsset(current.known ? current.on ? entry.onIcon : entry.offIcon : entry.unknownIcon);
       if (entry.image.getAttribute('src') !== source) entry.image.src = source;
-      entry.icon.disabled = !current.known || controls.pending(role);
-      entry.icon.setAttribute('aria-label', `${entry.title}: ${current.state || 'stato non disponibile'}`);
+      entry.icon.disabled = pending;
+      entry.icon.dataset.pending = String(pending);
+      entry.icon.dataset.error = String(Boolean(error));
+      entry.icon.setAttribute('aria-label', `${entry.title}: ${pending ? 'comando in corso' : error || current.state || 'stato non disponibile'}`);
       entry.status.className = `pond-state pond-state--${current.known ? current.state.toLowerCase() : 'unknown'}`;
-      entry.status.textContent = `STATO: ${current.state || '--'}`;
+      entry.status.textContent = pending ? 'COMANDO IN CORSO' : error ? `ERRORE: ${error}` : `STATO: ${current.state || 'SCONOSCIUTO'}`;
     }
   };
   controls.subscribe(render);

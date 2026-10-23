@@ -777,18 +777,24 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
       placeHtml(pondMapping, marker, element, role !== 'mode');
       pondMarkers.set(role, element);
     }
-    const pondVisualAssets = { pump: config.icons.pondPumpOff, heater: config.icons.pondHeaterOff };
     const renderPondControls = plugs => {
       for (const role of ['pump', 'heater']) {
         const current = pondRoleState(plugs, role);
         const marker = pondMarkers.get(role);
-        if (current.known) pondVisualAssets[role] = current.on ? (role === 'pump' ? config.icons.pondPumpOn : config.icons.pondHeaterOn) : (role === 'pump' ? config.icons.pondPumpOff : config.icons.pondHeaterOff);
-        marker.disabled = !current.known || pondControls.pending(role);
+        const pending = pondControls.pending(role);
+        const error = pondControls.error(role);
+        const asset = current.known
+          ? current.on ? (role === 'pump' ? config.icons.pondPumpOn : config.icons.pondHeaterOn) : (role === 'pump' ? config.icons.pondPumpOff : config.icons.pondHeaterOff)
+          : role === 'pump' ? config.icons.pondPump : config.icons.pondHeater;
+        marker.disabled = pending;
         marker.dataset.available = String(current.known);
         marker.dataset.on = String(current.on);
+        marker.dataset.pending = String(pending);
+        marker.dataset.error = String(Boolean(error));
+        marker.dataset.message = pending ? 'COMANDO IN CORSO' : error || '';
         marker.setAttribute('aria-pressed', String(current.on));
-        marker.setAttribute('aria-label', `${role === 'pump' ? 'Pompa Filtro' : 'Riscaldatore'} Pond: ${current.state || 'stato non disponibile'}`);
-        pondIcon(marker, pondVisualAssets[role]);
+        marker.setAttribute('aria-label', `${role === 'pump' ? 'Pompa Filtro' : 'Riscaldatore'} Pond: ${pending ? 'comando in corso' : error || current.state || 'stato non disponibile'}`);
+        pondIcon(marker, asset);
       }
       const mode = pondMarkers.get('mode');
       mode.dataset.mode = 'manual';
@@ -797,6 +803,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     };
     pondControls.subscribe(renderPondControls);
     renderPondControls(pondControls.snapshot());
+    void pondControls.refresh().catch(() => {});
     const mini = document.createElement('div');
     mini.className = 'floorplan-boiler-mini';
     const open = document.createElement('button');
@@ -1034,6 +1041,10 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     if (motionSensorEvents) motionSensorEvents.onmessage = event => {
       try { store.applyMotionSensorSnapshot(JSON.parse(event.data)); } catch { /* An invalid motion event must not break the floorplan. */ }
     };
+    const pondEvents = typeof EventSource === 'function' ? new EventSource(homeControlPath('/api/pond/events')) : null;
+    if (pondEvents) pondEvents.onmessage = event => {
+      try { pondControls.applySnapshot(JSON.parse(event.data)); } catch { /* Reconnect and manual refresh remain authoritative. */ }
+    };
     let cameraAlertTimer;
     const refreshCameraAlerts = async () => {
       try {
@@ -1060,7 +1071,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
     window.addEventListener('pageshow', tick);
     status.hidden = true;
     stage.dataset.ready = 'true';
-    return { store, destroy() { if (activePondControls === pondControls) activePondControls = null; clearTimeout(timer); clearTimeout(ledbarThrottle); clearTimeout(cameraAlertTimer); ledbarEvents?.close(); lightEvents?.close(); doorContactEvents?.close(); motionSensorEvents?.close(); alarmControls?.destroy(); unsubscribe(); document.removeEventListener('visibilitychange', tick); window.removeEventListener('pageshow', tick); floorplanClock?.destroy(); if (renderWeatherSnapshot === renderWeather) renderWeatherSnapshot = () => {}; if (updateFloorplanBackground === updateBackground) updateFloorplanBackground = () => {}; stage.replaceChildren(); } };
+    return { store, destroy() { if (activePondControls === pondControls) activePondControls = null; clearTimeout(timer); clearTimeout(ledbarThrottle); clearTimeout(cameraAlertTimer); ledbarEvents?.close(); lightEvents?.close(); doorContactEvents?.close(); motionSensorEvents?.close(); pondEvents?.close(); alarmControls?.destroy(); unsubscribe(); document.removeEventListener('visibilitychange', tick); window.removeEventListener('pageshow', tick); floorplanClock?.destroy(); if (renderWeatherSnapshot === renderWeather) renderWeatherSnapshot = () => {}; if (updateFloorplanBackground === updateBackground) updateFloorplanBackground = () => {}; stage.replaceChildren(); } };
   } catch (error) {
     status.textContent = error.message;
   } finally {

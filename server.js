@@ -235,6 +235,7 @@ export function createHomeControlServer({
   const doorContactEventClients = new Set();
   const motionSensorEventClients = new Set();
   const sensorEventClients = new Set();
+  const pondEventClients = new Set();
   const temperatureVoiceEventClients = new Set();
   const alarmEventClients = new Set();
   const physicalSirenSettings = settings => ({ soundEnabled: settings.soundEnabled, lightEnabled: settings.lightEnabled, soundType: settings.soundType, volumeLevel: settings.volumeLevel, duration: settings.duration });
@@ -342,11 +343,34 @@ export function createHomeControlServer({
   });
   const unsubscribeCameraAutomation = cameraAutomation.subscribe(publishCameraAutomationState);
   let activePlugRuntime = plugRuntime; let pondController = null; let pondPollingStarted = false;
+  let pondRevision = 0;
   const ownerEnabled = () => pondOwner() === 'home';
   const requireOwner = () => requirePondPlugOwner(pondOwner());
   const getPlugRuntime = async () => { requireOwner(); return activePlugRuntime ||= createPondPlugRuntime({ devices: (await hardwareStore.read()).devices, username: process.env.TAPO_USERNAME, password: process.env.TAPO_PASSWORD }); };
   const getPondController = async () => pondController ||= createPondController({ runtime: await getPlugRuntime(), roleStore });
-  const startPondRuntime = async () => { if (!ownerEnabled() || pondPollingStarted) return; const runtime = await getPlugRuntime(); const controller = await getPondController(); pondPollingStarted = true; void runtime.startPolling(() => controller.monitor()).catch(() => {}); };
+  const readPondState = async () => {
+    const registry = await hardwareStore.read();
+    const ids = registry.devices.map(device => device.id);
+    const assignments = await roleStore.read(ids);
+    const runtime = ownerEnabled() ? await getPlugRuntime() : null;
+    return {
+      ownership: pondOwner(),
+      revision: ++pondRevision,
+      observedAt: new Date().toISOString(),
+      plugs: registry.devices.filter(isPondPlug).map(device => ({ ...device, role: assignments[device.id] || 'none', runtime: runtime?.hasDevice(device.id) ? runtime.snapshot(device.id) : null })),
+    };
+  };
+  const publishPondState = async () => {
+    const snapshot = await readPondState();
+    const payload = `id: ${snapshot.revision}\ndata: ${JSON.stringify(snapshot)}\n\n`;
+    for (const client of pondEventClients) { try { client.write(payload); } catch { pondEventClients.delete(client); } }
+    return snapshot;
+  };
+  const startPondRuntime = async () => {
+    if (!ownerEnabled() || pondPollingStarted) return;
+    const runtime = await getPlugRuntime(); const controller = await getPondController(); pondPollingStarted = true;
+    void runtime.startPolling(async () => { await controller.monitor(); await publishPondState(); }).catch(() => {});
+  };
   const reconcilePlugs = async () => { if (!ownerEnabled()) return null; const runtime = await getPlugRuntime(); runtime.reconcileDevices((await hardwareStore.read()).devices.filter(isPondPlug).filter(device => device.verificationStatus === 'verified').map(runtimeDevice)); await startPondRuntime(); return runtime; };
   const activeWeatherService = weatherService || new WeatherService({ config: WEATHER_CONFIG, logError: message => console.error(message) });
   homeStatus = new HomeStatusRuntime({ hardwareStore, roleStore, createSensorRuntime,
@@ -423,6 +447,17 @@ export function createHomeControlServer({
         return sendJson(response, 200, snapshot);
       }
       catch { return sendJson(response, 503, { error: 'Stato casa non disponibile' }); }
+    }
+    if (url.pathname === '/api/pond/events') {
+      if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
+      response.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
+      try {
+        const snapshot = await readPondState();
+        response.write(`retry: 2000\nid: ${snapshot.revision}\ndata: ${JSON.stringify(snapshot)}\n\n`);
+      } catch {
+        response.write('retry: 2000\nevent: unavailable\ndata: {}\n\n');
+      }
+      pondEventClients.add(response); request.on('close', () => pondEventClients.delete(response)); return;
     }
     if (url.pathname === '/api/sensor-thresholds') {
       if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
@@ -783,7 +818,7 @@ export function createHomeControlServer({
     const plugMatch = /^\/api\/hardware\/pond-plugs(?:\/([^/]+))?$/.exec(url.pathname);
     if (plugMatch) {
       try { const registry = await hardwareStore.read(); const ids = registry.devices.map(device => device.id); const id = plugMatch[1] && decodeURIComponent(plugMatch[1]); const assignments = await roleStore.read(ids);
-        if (request.method === 'GET' && !id) { const runtime = ownerEnabled() ? await getPlugRuntime() : null; return sendJson(response, 200, { ownership: pondOwner(), plugs: registry.devices.filter(isPondPlug).map(device => ({ ...device, role: assignments[device.id] || 'none', runtime: runtime?.hasDevice(device.id) ? runtime.snapshot(device.id) : null })) }); }
+        if (request.method === 'GET' && !id) return sendJson(response, 200, await readPondState());
         if (request.method === 'POST' && !id) { const device = plugRecord(await readJson(request)); await hardwareStore.write({ ...registry, devices: [...registry.devices, device] }); await roleStore.write(await roleStore.read([...ids, device.id]), [...ids, device.id]); return sendJson(response, 201, { device: { ...device, role: 'none' } }); }
         const previous = registry.devices.find(device => device.id === id && isPondPlug(device)); if (!previous) return sendJson(response, 404, { error: 'Presa Pond non configurata' });
         if (request.method === 'PUT') { const next = plugRecord(await readJson(request), id); if (previous.connection?.ip === next.connection?.ip && previous.identity?.mac === next.identity?.mac) { next.verificationStatus = previous.verificationStatus; next.verifiedAt = previous.verifiedAt; } await hardwareStore.write({ ...registry, devices: registry.devices.map(device => device.id === id ? next : device) }); await reconcilePlugs(); return sendJson(response, 200, { device: { ...next, role: assignments[id] || 'none' } }); }
@@ -794,7 +829,7 @@ export function createHomeControlServer({
     const pondRoleMatch = /^\/api\/pond\/roles$/.exec(url.pathname);
     if (pondRoleMatch) { if (request.method !== 'PUT') return sendJson(response, 405, { error: 'Metodo non consentito' }); try { const payload = await readJson(request); const registry = await hardwareStore.read(); const device = registry.devices.find(item => item.id === payload?.deviceId && isPondPlug(item)); if (!device) return sendJson(response, 400, { error: 'Presa Pond non valida' }); const roles = await roleStore.read(registry.devices.map(d => d.id)); if (ownerEnabled()) { const controller = await getPondController(); if (payload.role === 'none' && roles[device.id] === 'pump') await controller.protectBeforePumpLoss(); else if (POND_PLUG_ROLES.includes(payload.role) && await controller.heaterIsOn()) return sendJson(response, 409, { error: 'Cambio ruoli bloccato finché il vero riscaldatore è ON.' }); } return sendJson(response, 200, { assignments: await roleStore.assignPondPlug(device.id, payload.role, registry.devices.map(d => d.id)) }); } catch (error) { return sendJson(response, 400, { error: error.message || 'Ruolo non valido' }); } }
     const pondCommandMatch = /^\/api\/pond\/(pump|heater)\/power$/.exec(url.pathname);
-    if (pondCommandMatch) { if (request.method !== 'PUT') return sendJson(response, 405, { error: 'Metodo non consentito' }); const payload = await readJson(request); if (typeof payload?.on !== 'boolean') return sendJson(response, 400, { error: 'Stato non valido' }); try { requireOwner(); return sendJson(response, 200, await (await getPondController()).set(pondCommandMatch[1], payload.on)); } catch (error) { return sendJson(response, 409, { error: error.message }); } }
+    if (pondCommandMatch) { if (request.method !== 'PUT') return sendJson(response, 405, { error: 'Metodo non consentito' }); const payload = await readJson(request); if (typeof payload?.on !== 'boolean') return sendJson(response, 400, { error: 'Stato non valido' }); try { requireOwner(); const result = await (await getPondController()).set(pondCommandMatch[1], payload.on); const pond = await publishPondState().catch(() => null); return sendJson(response, 200, { ...result, pond }); } catch (error) { return sendJson(response, 409, { error: error.message }); } }
     if (url.pathname === '/api/thermostat') {
       if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
       try {
@@ -929,6 +964,7 @@ export function createHomeControlServer({
     for (const client of doorContactEventClients) { try { client.end(); } catch {} }
     for (const client of motionSensorEventClients) { try { client.end(); } catch {} }
     for (const client of sensorEventClients) { try { client.end(); } catch {} }
+    for (const client of pondEventClients) { try { client.end(); } catch {} }
     for (const client of temperatureVoiceEventClients) { try { client.end(); } catch {} }
     clearInterval(alarmClock); unsubscribeAlarm(); unsubscribeCameraAutomation(); cameraAutomation.close(); for (const client of alarmEventClients) { try { client.end(); } catch {} }
     zigbeeRuntime?.close();

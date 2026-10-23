@@ -5,8 +5,9 @@ import { createPondPlugRuntime, POND_PLUG_ADAPTER } from '../src/pond-plug-runti
 import { createPondController } from '../src/pond-safety.js';
 import { pondPlugOwnership, requirePondPlugOwner } from '../src/pond-ownership.js';
 import { normalizeMac } from '../src/hardware-registry.js';
-import { matchingMac } from '../server.js';
+import { createHomeControlServer, matchingMac } from '../server.js';
 import { mkdtemp, rm } from 'node:fs/promises'; import os from 'node:os'; import path from 'node:path';
+import { once } from 'node:events';
 
 const plug = (id, ip) => ({ id, alias: id, model: 'P105', protocol: 'tpap', connectionType: 'lan', connection: { ip }, metadata: { adapter: POND_PLUG_ADAPTER }, verificationStatus: 'verified' });
 test('ownership is fail-closed unless explicitly home', () => { assert.equal(pondPlugOwnership(), 'disabled'); assert.equal(pondPlugOwnership('invalid'), 'disabled'); assert.equal(pondPlugOwnership('home'), 'home'); assert.throws(() => requirePondPlugOwner('disabled'), { code: 'POND_PLUG_OWNERSHIP_DISABLED' }); });
@@ -42,3 +43,44 @@ test('safety absorbs DEVICE_BACKOFF, keeps pump unreliable and can protect on a 
   assert.equal(heaterOn, false);
 });
 test('role assignment atomically swaps pond plug roles', async () => { const dir = await mkdtemp(path.join(os.tmpdir(), 'pond-swap-')); const store = new DeviceRoleStore({ filePath: path.join(dir, 'roles.json') }); try { await store.assignPondPlug('a', 'pump', ['a', 'b']); await store.assignPondPlug('b', 'heater', ['a', 'b']); const swapped = await store.assignPondPlug('a', 'heater', ['a', 'b']); assert.deepEqual(swapped, { a: 'heater', b: 'pump' }); } finally { await rm(dir, { recursive: true, force: true }); } });
+
+test('P105 rifiuta un comando il cui readback non conferma lo stato richiesto', async () => {
+  const runtime = createPondPlugRuntime({ devices: [plug('pump', '192.0.2.1')], createClient: () => ({ async setDeviceOn() {}, async getDeviceInfo() { return { device_on: false }; }, close() {} }) });
+  try { await assert.rejects(runtime.setDeviceOn('pump', true), { code: 'STATE_MISMATCH' }); }
+  finally { runtime.stop(); }
+});
+
+test('SSE Pond invia snapshot iniziale, aggiornamento poll e readback comando senza creare un runtime aggiuntivo', async t => {
+  const devices = [plug('pump-device', '192.0.2.1'), plug('heater-device', '192.0.2.2')];
+  const states = new Map([['pump-device', true], ['heater-device', false]]);
+  let afterPoll; let starts = 0;
+  const runtime = {
+    deviceList: devices,
+    startPolling(callback) { starts += 1; afterPoll = callback; return Promise.resolve(this.snapshots()); },
+    stop() {}, hasDevice: id => states.has(id), isFreshAndReliable: () => true,
+    snapshot(id) { return { id, state: states.get(id) ? 'ON' : 'OFF', online: true, communicationDegraded: false, consecutiveFailures: 0, lastReadAt: new Date().toISOString() }; },
+    snapshots() { return devices.map(device => this.snapshot(device.id)); },
+    async setDeviceOn(id, on) { states.set(id, on); return this.snapshot(id); },
+    async withDevices(_ids, operation) { return operation({ read: async id => this.snapshot(id), setDeviceOn: async (id, on) => this.setDeviceOn(id, on), snapshot: id => this.snapshot(id), isFreshAndReliable: () => true }); },
+  };
+  const hardwareStore = { async read() { return { devices, inventory: [] }; } };
+  const roleStore = { async read() { return { 'pump-device': 'pump', 'heater-device': 'heater' }; } };
+  const server = createHomeControlServer({ plugRuntime: runtime, pondOwner: () => 'home', hardwareStore, roleStore,
+    thermostatRuntime: { async readSnapshot() { return { online: false, thermostat: {} }; } },
+    cameraRuntime: { snapshot: async () => ({}), close: async () => {} },
+  });
+  t.after(() => { server.closeAllConnections?.(); return new Promise(resolve => server.close(resolve)); });
+  server.listen(0, '127.0.0.1'); await once(server, 'listening'); await new Promise(resolve => setImmediate(resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const stream = await fetch(base + '/api/pond/events'); const reader = stream.body.getReader();
+  const initial = new TextDecoder().decode((await reader.read()).value);
+  assert.match(initial, /"role":"pump"/); assert.match(initial, /"state":"ON"/); assert.equal(starts, 1);
+  states.set('heater-device', true); await afterPoll();
+  const pollEvent = new TextDecoder().decode((await reader.read()).value); assert.match(pollEvent, /"role":"heater"/); assert.match(pollEvent, /"state":"ON"/);
+  await reader.cancel();
+  const reconnected = await fetch(base + '/api/pond/events'); const reconnectReader = reconnected.body.getReader();
+  const reconnectSnapshot = new TextDecoder().decode((await reconnectReader.read()).value); assert.match(reconnectSnapshot, /"state":"ON"/);
+  const command = await fetch(base + '/api/pond/heater/power', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on: false }) });
+  assert.equal(command.status, 200); const confirmed = await command.json(); assert.equal(confirmed.state, 'OFF'); assert.equal(confirmed.pond.plugs.find(item => item.role === 'heater').runtime.state, 'OFF'); assert.equal(starts, 1);
+  const commandEvent = new TextDecoder().decode((await reconnectReader.read()).value); assert.match(commandEvent, /"state":"OFF"/); await reconnectReader.cancel();
+});
