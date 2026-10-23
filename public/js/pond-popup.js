@@ -30,6 +30,7 @@ export function pondRoleState(plugs, role) {
 
 export function createPondControls() {
   let plugs = [];
+  let heating = null;
   let revision = -1;
   const listeners = new Set();
   const pending = new Set();
@@ -53,6 +54,7 @@ export function createPondControls() {
         : plug.runtime.online === true && plug.runtime.communicationDegraded !== true && plug.runtime.consecutiveFailures === 0;
       return { ...plug, runtime: { ...plug.runtime, frontendReceivedAt: receivedAt, freshWhenReceived } };
     });
+    heating = snapshot.heating || null;
     notify();
     return true;
   };
@@ -63,14 +65,26 @@ export function createPondControls() {
   };
   return {
     snapshot: () => plugs,
+    heating: () => heating,
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     pending: role => pending.has(role),
     error: role => errors.get(role) || null,
     revision: () => revision,
     applySnapshot,
     refresh,
+    async saveHeatingConfig(config) {
+      const result = await request('/api/pond/heating/config', { method: 'PUT', body: JSON.stringify(config) });
+      if (result.pond) applySnapshot(result.pond);
+      else await refresh();
+      return heating;
+    },
     async toggle(role) {
       if (pending.has(role)) return { ok: false, reason: 'pending' };
+      if (heating?.config?.mode === 'thermostat') {
+        const message = 'Passa alla modalità Manuale per comandare la presa.';
+        errors.set(role, message); notify();
+        return { ok: false, error: message };
+      }
       pending.add(role); notify();
       errors.delete(role);
       try {
@@ -103,10 +117,19 @@ const designAsset = name => homeControlPath('/design/' + name);
 export function initPondPopup(controls) {
   const dialog = document.createElement('dialog');
   dialog.className = 'boiler-modal pond-modal';
-  dialog.innerHTML = '<header class="boiler-modal-toolbar"><strong>POND</strong><button type="button">X</button></header><div class="pond-cards"></div>';
+  dialog.innerHTML = '<header class="boiler-modal-toolbar"><strong>POND</strong><button type="button" aria-label="Chiudi">X</button></header><div class="pond-cards"></div><section class="pond-heating-settings"><h2>Controllo termostatico</h2><p class="pond-s5-reading"></p><div class="pond-heating-fields"><label>Soglia °C<input name="threshold" type="number" step="0.1" inputmode="decimal"></label><label>Ripetizioni<input name="repetitions" type="number" min="1" step="1" inputmode="numeric"></label><label>Riscaldatore ON (min)<input name="onMinutes" type="number" min="0.1" step="0.1" inputmode="decimal"></label><label>Pausa OFF (min)<input name="offMinutes" type="number" min="0" step="0.1" inputmode="decimal"></label></div><button class="pond-heating-save" type="button">SALVA CONFIGURAZIONE</button><p class="pond-heating-status" aria-live="polite"></p></section><section class="pond-heating-history"><h2>Storico ultime 24 ore</h2><div class="pond-history-scroll"><table><thead><tr><th>Ciclo</th><th>Inizio</th><th>Fine</th><th>Soglia</th><th>Rep.</th><th>ON/OFF</th><th>T iniziale</th><th>T finale</th><th>ΔT</th><th>Esito</th></tr></thead><tbody></tbody></table></div><p class="pond-history-summary"></p></section>';
   document.body.append(dialog);
   dialog.querySelector('button').onclick = () => dialog.close();
   const cards = dialog.querySelector('.pond-cards');
+  const settings = dialog.querySelector('.pond-heating-settings');
+  const statusLine = dialog.querySelector('.pond-heating-status');
+  const s5Reading = dialog.querySelector('.pond-s5-reading');
+  const historyBody = dialog.querySelector('.pond-heating-history tbody');
+  const historySummary = dialog.querySelector('.pond-history-summary');
+  const input = name => settings.querySelector(`[name="${name}"]`);
+  const formatTemperature = value => Number.isFinite(value) ? `${value.toLocaleString('it-IT', { maximumFractionDigits: 1 })} °C` : '—';
+  const formatDate = value => Number.isFinite(Date.parse(value)) ? new Intl.DateTimeFormat('it-IT', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value)) : '—';
+  const history24h = history => history.filter(record => Date.now() - Date.parse(record.completedAt) <= 24 * 60 * 60 * 1000);
   const roleCards = new Map();
   const createRoleCard = (role, title, onIcon, offIcon, unknownIcon) => {
     const card = document.createElement('article');
@@ -132,23 +155,65 @@ export function initPondPopup(controls) {
   modeImage.className = 'pond-mode-icon'; modeImage.src = designAsset('manual.svg'); modeImage.alt = '';
   thermostat.append(modeImage, Object.assign(document.createElement('h2'), { textContent: 'Termostato' }));
   const manual = document.createElement('label'); manual.className = 'pond-mode'; manual.append(Object.assign(document.createElement('input'), { type: 'radio', name: 'pond-mode', checked: true }), document.createTextNode(' Manuale'));
-  const automatic = document.createElement('label'); automatic.className = 'pond-mode'; automatic.append(Object.assign(document.createElement('input'), { type: 'radio', name: 'pond-mode', disabled: true }), document.createTextNode(' Termostato'));
+  const automatic = document.createElement('label'); automatic.className = 'pond-mode'; automatic.append(Object.assign(document.createElement('input'), { type: 'radio', name: 'pond-mode' }), document.createTextNode(' Termostato'));
   thermostat.append(manual, automatic);
   cards.replaceChildren(createRoleCard('pump', 'Pompa Filtro', 'pumpon.svg', 'pumpoff.svg', 'pump.svg'), createRoleCard('heater', 'Riscaldatore', 'heateron.svg', 'heateroff.svg', 'heater.svg'), thermostat);
+  const save = async ({ mode = null } = {}) => {
+    const current = controls.heating()?.config || {};
+    statusLine.textContent = 'Salvataggio in corso…';
+    try {
+      await controls.saveHeatingConfig({
+        ...current,
+        mode: mode || (automatic.querySelector('input').checked ? 'thermostat' : 'manual'),
+        threshold: input('threshold').value,
+        repetitions: input('repetitions').value,
+        onMinutes: input('onMinutes').value,
+        offMinutes: input('offMinutes').value,
+      });
+      statusLine.textContent = 'Configurazione salvata.';
+    } catch (error) { statusLine.textContent = error.message || 'Configurazione non salvata.'; }
+  };
+  manual.querySelector('input').addEventListener('change', () => { if (manual.querySelector('input').checked) void save({ mode: 'manual' }); });
+  automatic.querySelector('input').addEventListener('change', () => { if (automatic.querySelector('input').checked) void save({ mode: 'thermostat' }); });
+  settings.querySelector('.pond-heating-save').addEventListener('click', () => { void save(); });
   const render = () => {
+    const heating = controls.heating();
+    const config = heating?.config;
+    const automaticMode = config?.mode === 'thermostat';
+    manual.querySelector('input').checked = !automaticMode;
+    automatic.querySelector('input').checked = automaticMode;
+    for (const name of ['threshold', 'repetitions', 'onMinutes', 'offMinutes']) {
+      const field = input(name);
+      if (config && document.activeElement !== field) field.value = config[name] ?? '';
+    }
+    const s5 = heating?.latestMeasurement || heating?.activeCycle?.lastMeasurement || null;
+    s5Reading.textContent = s5 ? `S5: ${formatTemperature(s5.value)} · ${formatDate(s5.updatedAt)}` : 'S5: in attesa di una misura live valida.';
+    const phase = heating?.activeCycle ? `Ciclo ${heating.activeCycle.id}: ${heating.status === 'cycle-running' ? `ON ${heating.activeCycle.repetition}/${heating.activeCycle.config.repetitions}` : 'pausa tra ripetizioni'}` : heating?.deviceVerified ? 'In attesa di una nuova misura S5.' : 'In attesa della verifica dello stato fisico delle prese.';
+    if (!statusLine.textContent || statusLine.textContent === 'Configurazione salvata.') statusLine.textContent = phase;
     for (const [role, entry] of roleCards) {
       const current = pondRoleState(controls.snapshot(), role);
       const pending = controls.pending(role);
       const error = controls.error(role);
       const source = designAsset(current.known ? current.on ? entry.onIcon : entry.offIcon : entry.unknownIcon);
       if (entry.image.getAttribute('src') !== source) entry.image.src = source;
-      entry.icon.disabled = pending;
+      entry.icon.disabled = pending || automaticMode;
       entry.icon.dataset.pending = String(pending);
       entry.icon.dataset.error = String(Boolean(error));
       entry.icon.setAttribute('aria-label', `${entry.title}: ${pending ? 'comando in corso' : error || current.state || 'stato non disponibile'}`);
       entry.status.className = `pond-state pond-state--${current.known ? current.state.toLowerCase() : 'unknown'}`;
       entry.status.textContent = pending ? 'COMANDO IN CORSO' : error ? `ERRORE: ${error}` : `STATO: ${current.state || 'SCONOSCIUTO'}`;
     }
+    const history = history24h(heating?.history || []);
+    historyBody.replaceChildren(...history.slice().reverse().map(record => {
+      const row = document.createElement('tr');
+      const cells = [record.id, formatDate(record.startedAt), formatDate(record.completedAt), `${record.config?.threshold ?? '—'} °C`, record.config?.repetitions ?? '—', `${record.config?.onMinutes ?? '—'}/${record.config?.offMinutes ?? '—'} min`, formatTemperature(record.initialMeasurement?.value), formatTemperature(record.finalMeasurement?.value), Number.isFinite(record.deltaTemperature) ? `${record.deltaTemperature >= 0 ? '+' : ''}${record.deltaTemperature.toLocaleString('it-IT', { maximumFractionDigits: 1 })} °C` : '—', record.result || '—'];
+      for (const value of cells) { const cell = document.createElement('td'); cell.textContent = String(value); row.append(cell); }
+      return row;
+    }));
+    const completed = history.filter(record => record.result === 'COMPLETATO');
+    const totalOn = history.reduce((total, record) => total + (record.config?.onMinutes || 0) * (record.config?.repetitions || 0), 0);
+    const deltas = completed.map(record => record.deltaTemperature).filter(Number.isFinite);
+    historySummary.textContent = `${completed.length} completati · ${history.length - completed.length} interrotti · ON totale ${totalOn.toLocaleString('it-IT')} min${deltas.length ? ` · ΔT medio ${(deltas.reduce((total, value) => total + value, 0) / deltas.length).toLocaleString('it-IT', { maximumFractionDigits: 1 })} °C` : ''}`;
   };
   controls.subscribe(render);
   render();

@@ -778,6 +778,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
       pondMarkers.set(role, element);
     }
     const renderPondControls = plugs => {
+      const automaticMode = pondControls.heating()?.config?.mode === 'thermostat';
       for (const role of ['pump', 'heater']) {
         const current = pondRoleState(plugs, role);
         const marker = pondMarkers.get(role);
@@ -786,19 +787,19 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
         const asset = current.known
           ? current.on ? (role === 'pump' ? config.icons.pondPumpOn : config.icons.pondHeaterOn) : (role === 'pump' ? config.icons.pondPumpOff : config.icons.pondHeaterOff)
           : role === 'pump' ? config.icons.pondPump : config.icons.pondHeater;
-        marker.disabled = pending;
+        marker.disabled = pending || automaticMode;
         marker.dataset.available = String(current.known);
         marker.dataset.on = String(current.on);
         marker.dataset.pending = String(pending);
         marker.dataset.error = String(Boolean(error));
-        marker.dataset.message = pending ? 'COMANDO IN CORSO' : error || '';
+        marker.dataset.message = pending ? 'COMANDO IN CORSO' : automaticMode ? 'MODALITÀ TERMOSTATO' : error || '';
         marker.setAttribute('aria-pressed', String(current.on));
         marker.setAttribute('aria-label', `${role === 'pump' ? 'Pompa Filtro' : 'Riscaldatore'} Pond: ${pending ? 'comando in corso' : error || current.state || 'stato non disponibile'}`);
         pondIcon(marker, asset);
       }
       const mode = pondMarkers.get('mode');
-      mode.dataset.mode = 'manual';
-      mode.setAttribute('aria-label', 'Modalità Pond: manuale');
+      mode.dataset.mode = automaticMode ? 'thermostat' : 'manual';
+      mode.setAttribute('aria-label', `Modalità Pond: ${automaticMode ? 'termostato' : 'manuale'}`);
       pondIcon(mode, config.icons.pondManual);
     };
     pondControls.subscribe(renderPondControls);

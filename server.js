@@ -9,6 +9,8 @@ import { DeviceRoleStore, HOME_SENSOR_ROLES, POND_PLUG_ROLES } from './src/devic
 import { verifyTapoP105 } from '@smarthome/core';
 import { createPondPlugRuntime, isPondPlug, POND_PLUG_ADAPTER, runtimeDevice } from './src/pond-plug-runtime.js';
 import { createPondController } from './src/pond-safety.js';
+import { PondHeatingStore } from './src/pond-heating-store.js';
+import { PondHeatingController } from './src/pond-heating-controller.js';
 import { pondPlugOwnership, requirePondPlugOwner } from './src/pond-ownership.js';
 import { HomeCameraRuntime, OWNED_CAMERA_ADAPTER } from './src/camera-runtime.js';
 import { CameraWakeScheduler } from './src/camera-wake-scheduler.js';
@@ -42,6 +44,7 @@ const ROLE_FILE = path.join(ROOT, 'data', 'config', 'device-roles.json');
 const ALARM_STATE_FILE = path.join(ROOT, 'data', 'config', 'alarm-state.json');
 const SENSOR_THRESHOLDS_FILE = path.join(ROOT, 'data', 'config', 'sensor-thresholds.json');
 const CAMERA_ALARM_AUTOMATION_FILE = path.join(ROOT, 'data', 'config', 'camera-alarm-automation.json');
+const POND_HEATING_FILE = path.join(ROOT, 'data', 'config', 'pond-heating.json');
 
 const STATIC_FILES = new Map([
   ['/', ['index.html', 'text/html; charset=utf-8']],
@@ -215,6 +218,8 @@ export function createHomeControlServer({
   verifyPlug = verifyTapoP105,
   plugRuntime = null,
   pondOwner = () => pondPlugOwnership(),
+  pondHeatingStore = new PondHeatingStore({ filePath: POND_HEATING_FILE }),
+  pondHeatingController = null,
   cameraRuntime = null,
   cameraWakeScheduler = null,
   weatherService = null,
@@ -342,12 +347,29 @@ export function createHomeControlServer({
     logError: message => console.error(message),
   });
   const unsubscribeCameraAutomation = cameraAutomation.subscribe(publishCameraAutomationState);
-  let activePlugRuntime = plugRuntime; let pondController = null; let pondPollingStarted = false;
+  let activePlugRuntime = plugRuntime; let pondController = null; let activePondHeatingController = pondHeatingController; let pondPollingStarted = false;
   let pondRevision = 0;
+  let pondCommands = Promise.resolve();
   const ownerEnabled = () => pondOwner() === 'home';
   const requireOwner = () => requirePondPlugOwner(pondOwner());
   const getPlugRuntime = async () => { requireOwner(); return activePlugRuntime ||= createPondPlugRuntime({ devices: (await hardwareStore.read()).devices, username: process.env.TAPO_USERNAME, password: process.env.TAPO_PASSWORD }); };
   const getPondController = async () => pondController ||= createPondController({ runtime: await getPlugRuntime(), roleStore });
+  const runPondCommand = operation => {
+    const pending = pondCommands.then(operation);
+    pondCommands = pending.catch(() => {});
+    return pending;
+  };
+  const getPondHeatingController = async () => {
+    if (!ownerEnabled()) return null;
+    activePondHeatingController ||= new PondHeatingController({
+      pondController: await getPondController(),
+      store: pondHeatingStore,
+      runCommand: runPondCommand,
+      publish: async () => { await publishPondState(); },
+    });
+    await activePondHeatingController.initialize();
+    return activePondHeatingController;
+  };
   const readPondState = async () => {
     const registry = await hardwareStore.read();
     const ids = registry.devices.map(device => device.id);
@@ -358,6 +380,7 @@ export function createHomeControlServer({
       revision: ++pondRevision,
       observedAt: new Date().toISOString(),
       plugs: registry.devices.filter(isPondPlug).map(device => ({ ...device, role: assignments[device.id] || 'none', runtime: runtime?.hasDevice(device.id) ? runtime.snapshot(device.id) : null })),
+      heating: activePondHeatingController ? await activePondHeatingController.snapshot() : null,
     };
   };
   const publishPondState = async () => {
@@ -368,8 +391,12 @@ export function createHomeControlServer({
   };
   const startPondRuntime = async () => {
     if (!ownerEnabled() || pondPollingStarted) return;
-    const runtime = await getPlugRuntime(); const controller = await getPondController(); pondPollingStarted = true;
-    void runtime.startPolling(async () => { await controller.monitor(); await publishPondState(); }).catch(() => {});
+    const runtime = await getPlugRuntime(); const controller = await getPondController(); const heating = await getPondHeatingController(); pondPollingStarted = true;
+    void runtime.startPolling(async () => {
+      const monitoring = await runPondCommand(() => controller.monitor());
+      await heating.observePondState(await readPondState(), monitoring);
+      await publishPondState();
+    }).catch(() => {});
   };
   const reconcilePlugs = async () => { if (!ownerEnabled()) return null; const runtime = await getPlugRuntime(); runtime.reconcileDevices((await hardwareStore.read()).devices.filter(isPondPlug).filter(device => device.verificationStatus === 'verified').map(runtimeDevice)); await startPondRuntime(); return runtime; };
   const activeWeatherService = weatherService || new WeatherService({ config: WEATHER_CONFIG, logError: message => console.error(message) });
@@ -410,7 +437,10 @@ export function createHomeControlServer({
     if (kind === 'motionSensor' || kind === 'connection') publishMotionSensorState();
     if (kind === 'sensors' || kind === 'connection') publishSensorState();
     if (kind === 'siren' || kind === 'connection') publishAlarmSirenState();
-    if (kind === 'sensors') synchronizeTemperatureVoiceSensors();
+    if (kind === 'sensors') {
+      synchronizeTemperatureVoiceSensors();
+      if (ownerEnabled()) void getPondHeatingController().then(controller => controller?.observeS5(zigbeeRuntime?.readSnapshot?.().S5)).catch(() => {});
+    }
     if (kind === 'doorContacts' || kind === 'motionSensor' || kind === 'siren' || kind === 'connection') void synchronizeAlarmSensors();
   });
   void synchronizeAlarmSensors();
@@ -828,8 +858,18 @@ export function createHomeControlServer({
     }
     const pondRoleMatch = /^\/api\/pond\/roles$/.exec(url.pathname);
     if (pondRoleMatch) { if (request.method !== 'PUT') return sendJson(response, 405, { error: 'Metodo non consentito' }); try { const payload = await readJson(request); const registry = await hardwareStore.read(); const device = registry.devices.find(item => item.id === payload?.deviceId && isPondPlug(item)); if (!device) return sendJson(response, 400, { error: 'Presa Pond non valida' }); const roles = await roleStore.read(registry.devices.map(d => d.id)); if (ownerEnabled()) { const controller = await getPondController(); if (payload.role === 'none' && roles[device.id] === 'pump') await controller.protectBeforePumpLoss(); else if (POND_PLUG_ROLES.includes(payload.role) && await controller.heaterIsOn()) return sendJson(response, 409, { error: 'Cambio ruoli bloccato finché il vero riscaldatore è ON.' }); } return sendJson(response, 200, { assignments: await roleStore.assignPondPlug(device.id, payload.role, registry.devices.map(d => d.id)) }); } catch (error) { return sendJson(response, 400, { error: error.message || 'Ruolo non valido' }); } }
+    if (url.pathname === '/api/pond/heating/config') {
+      if (!['GET', 'PUT'].includes(request.method)) return sendJson(response, 405, { error: 'Metodo non consentito' });
+      try {
+        requireOwner();
+        const heating = await getPondHeatingController();
+        if (request.method === 'PUT') await heating.setConfig(await readJson(request));
+        const pond = await publishPondState();
+        return sendJson(response, 200, { heating: pond.heating, pond });
+      } catch (error) { return sendJson(response, 409, { error: error.message || 'Configurazione riscaldamento non valida' }); }
+    }
     const pondCommandMatch = /^\/api\/pond\/(pump|heater)\/power$/.exec(url.pathname);
-    if (pondCommandMatch) { if (request.method !== 'PUT') return sendJson(response, 405, { error: 'Metodo non consentito' }); const payload = await readJson(request); if (typeof payload?.on !== 'boolean') return sendJson(response, 400, { error: 'Stato non valido' }); try { requireOwner(); const result = await (await getPondController()).set(pondCommandMatch[1], payload.on); const pond = await publishPondState().catch(() => null); return sendJson(response, 200, { ...result, pond }); } catch (error) { return sendJson(response, 409, { error: error.message }); } }
+    if (pondCommandMatch) { if (request.method !== 'PUT') return sendJson(response, 405, { error: 'Metodo non consentito' }); const payload = await readJson(request); if (typeof payload?.on !== 'boolean') return sendJson(response, 400, { error: 'Stato non valido' }); try { requireOwner(); const heating = await getPondHeatingController(); if ((await heating?.snapshot())?.config?.mode === 'thermostat') return sendJson(response, 409, { error: 'Passare alla modalità Manuale per comandare la presa.' }); const result = await runPondCommand(() => getPondController().then(controller => controller.set(pondCommandMatch[1], payload.on))); const pond = await publishPondState().catch(() => null); return sendJson(response, 200, { ...result, pond }); } catch (error) { return sendJson(response, 409, { error: error.message }); } }
     if (url.pathname === '/api/thermostat') {
       if (request.method !== 'GET') return sendJson(response, 405, { error: 'Metodo non consentito' });
       try {

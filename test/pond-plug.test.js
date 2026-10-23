@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { DeviceRoleStore } from '../src/device-roles.js';
 import { createPondPlugRuntime, POND_PLUG_ADAPTER } from '../src/pond-plug-runtime.js';
 import { createPondController } from '../src/pond-safety.js';
+import { PondHeatingStore } from '../src/pond-heating-store.js';
 import { pondPlugOwnership, requirePondPlugOwner } from '../src/pond-ownership.js';
 import { normalizeMac } from '../src/hardware-registry.js';
 import { createHomeControlServer, matchingMac } from '../server.js';
@@ -51,6 +52,8 @@ test('P105 rifiuta un comando il cui readback non conferma lo stato richiesto', 
 });
 
 test('SSE Pond invia snapshot iniziale, aggiornamento poll e readback comando senza creare un runtime aggiuntivo', async t => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'pond-server-state-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
   const devices = [plug('pump-device', '192.0.2.1'), plug('heater-device', '192.0.2.2')];
   const states = new Map([['pump-device', true], ['heater-device', false]]);
   let afterPoll; let starts = 0;
@@ -66,6 +69,7 @@ test('SSE Pond invia snapshot iniziale, aggiornamento poll e readback comando se
   const hardwareStore = { async read() { return { devices, inventory: [] }; } };
   const roleStore = { async read() { return { 'pump-device': 'pump', 'heater-device': 'heater' }; } };
   const server = createHomeControlServer({ plugRuntime: runtime, pondOwner: () => 'home', hardwareStore, roleStore,
+    pondHeatingStore: new PondHeatingStore({ filePath: path.join(directory, 'pond-heating.json') }),
     thermostatRuntime: { async readSnapshot() { return { online: false, thermostat: {} }; } },
     cameraRuntime: { snapshot: async () => ({}), close: async () => {} },
   });
