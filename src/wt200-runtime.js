@@ -36,9 +36,22 @@ const latestMeasurement = (value, updatedAt, previous = null) => latestObservati
 const latestMode = (value, updatedAt, previous = null) => latestObservation(value, updatedAt, previous, item => typeof item === 'string');
 const latestHeating = (value, updatedAt, previous = null) => latestObservation(value, updatedAt, previous, item => typeof item === 'boolean');
 
+function isConfirmedDeviceSchedule(snapshot) {
+  const schedule = snapshot?.schedule;
+  return Boolean(
+    schedule
+    && ['5+2', '6+1', '7'].includes(schedule.weekPattern)
+    && typeof schedule.raw === 'string'
+    && schedule.raw.length > 0
+    && snapshot?.rawDps?.['105'] === schedule.raw
+    && ['1', '2', '3'].includes(String(snapshot?.rawDps?.['107']))
+  );
+}
+
 export function mergeWt200Snapshots({ cloudSnapshot = null, lanSnapshot = null, persistedSchedule = null, deviceId = null, lanOnline = lanSnapshot !== null, lastTemperatureMeasurement = null, lastSetpointMeasurement = null, lastModeObservation = null, lastHeatingObservation = null }) {
   const cloud = cloudSnapshot || unavailableCloudSnapshot(deviceId);
-  const deviceSchedule = cloudSnapshot?.schedule || lanSnapshot?.schedule || null;
+  const deviceSchedule = isConfirmedDeviceSchedule(lanSnapshot) ? lanSnapshot.schedule : null;
+  const fallbackSchedule = persistedSchedule?.schedule || null;
   const lanTemperature = lanSnapshot?.thermostat?.currentTemperature;
   const measuredTemperature = latestMeasurement(lanTemperature, lanSnapshot?.temperatureUpdatedAt ?? lanSnapshot?.updatedAt ?? null, lastTemperatureMeasurement);
   const lanSetpoint = lanSnapshot?.thermostat?.setpointTemperature;
@@ -61,11 +74,12 @@ export function mergeWt200Snapshots({ cloudSnapshot = null, lanSnapshot = null, 
     setpointUpdatedAt: measuredSetpoint?.updatedAt ?? null,
     modeUpdatedAt: observedMode?.updatedAt ?? null,
     heatingUpdatedAt: lanOnline ? observedHeating?.updatedAt ?? null : null,
-    scheduleSource: deviceSchedule ? 'device' : persistedSchedule?.schedule ? 'persisted' : null,
+    scheduleSource: deviceSchedule ? 'device' : fallbackSchedule ? 'persisted' : null,
+    scheduleAvailability: lanOnline && deviceSchedule ? 'confirmed' : fallbackSchedule ? 'fallback' : 'unavailable',
     heatingActive: lanOnline && typeof observedHeating?.value === 'boolean' ? observedHeating.value : null,
     datapointUpdatedAt: lanSnapshot?.datapointUpdatedAt ?? null,
     rawDps: lanSnapshot?.rawDps ?? null,
-    schedule: deviceSchedule || persistedSchedule?.schedule || null,
+    schedule: deviceSchedule || fallbackSchedule,
     updatedAt: cloud.updatedAt ?? lanSnapshot?.updatedAt ?? persistedSchedule?.updatedAt ?? null,
   };
 }
@@ -225,6 +239,26 @@ export class HomeWt200Runtime {
     });
   }
 
+  async confirmScheduleWrite(expectedSchedule) {
+    let readback;
+    try {
+      readback = await this.readLanSnapshot({ requiredDps: [105, 107] });
+    } catch {
+      const error = new Error('Il WT200 non ha confermato la programmazione richiesta.');
+      error.code = 'SCHEDULE_NOT_CONFIRMED';
+      throw error;
+    }
+    if (!isConfirmedDeviceSchedule(readback)
+      || readback.schedule.raw !== expectedSchedule?.raw
+      || readback.schedule.weekPattern !== expectedSchedule?.weekPattern) {
+      const error = new Error('Il WT200 non ha confermato la programmazione richiesta.');
+      error.code = 'SCHEDULE_NOT_CONFIRMED';
+      throw error;
+    }
+    await this.persistScheduleSnapshot(readback);
+    return readback.schedule;
+  }
+
   async updateSchedule({ weekPattern = null, normalPeriods, restDayPeriods }) {
     const writer = this.lanAdapter;
     if (!writer?.writeSchedule) {
@@ -232,17 +266,17 @@ export class HomeWt200Runtime {
       error.code = 'LAN_UNAVAILABLE';
       throw error;
     }
-    const persisted = await this.restoreSchedule();
-    const raw = this.lanAdapter?.scheduleRaw || persisted?.schedule?.raw;
-    if (!raw && writer === this.lanAdapter) {
-      const error = new Error('Programmazione originale WT200 non disponibile.');
+    const confirmed = await this.readSnapshot();
+    if (confirmed.scheduleAvailability !== 'confirmed' || confirmed.scheduleSource !== 'device') {
+      const error = new Error('Programmazione WT200 non disponibile o non confermata.');
       error.code = 'SCHEDULE_UNAVAILABLE';
       throw error;
     }
+    const raw = confirmed.schedule.raw;
     let snapshot;
     try {
       snapshot = await writer.writeSchedule({
-        weekPattern: weekPattern || persisted?.schedule?.weekPattern,
+        weekPattern: weekPattern || confirmed.schedule.weekPattern,
         normalPeriods,
         ...(restDayPeriods ? { restDayPeriods } : {}),
         raw,
@@ -252,8 +286,7 @@ export class HomeWt200Runtime {
       throw error;
     }
     this.bindLanSchedulePersistence();
-    await this.persistScheduleSnapshot(snapshot);
-    return snapshot.schedule;
+    return this.confirmScheduleWrite(snapshot.schedule);
   }
 
   async setWeekPattern(weekPattern) {
@@ -263,6 +296,12 @@ export class HomeWt200Runtime {
       error.code = 'LAN_UNAVAILABLE';
       throw error;
     }
+    const confirmed = await this.readSnapshot();
+    if (confirmed.scheduleAvailability !== 'confirmed' || confirmed.scheduleSource !== 'device') {
+      const error = new Error('Programmazione WT200 non disponibile o non confermata.');
+      error.code = 'SCHEDULE_UNAVAILABLE';
+      throw error;
+    }
     let snapshot;
     try {
       snapshot = await writer.setWeekPattern(weekPattern);
@@ -270,8 +309,7 @@ export class HomeWt200Runtime {
       if (error instanceof TypeError) error.code = 'WEEK_PATTERN_INVALID';
       throw error;
     }
-    await this.persistScheduleSnapshot(snapshot);
-    return snapshot.schedule;
+    return this.confirmScheduleWrite(snapshot.schedule);
   }
 
   async setMode(mode) {

@@ -5,6 +5,12 @@ export function shouldDeferScheduleSnapshot({ saving, scheduleEditing, hasChange
   return Boolean(saving || scheduleEditing || hasChanges);
 }
 
+export function scheduleAvailability(snapshot) {
+  if (snapshot?.online === true && snapshot?.scheduleSource === 'device' && snapshot?.scheduleAvailability === 'confirmed') return 'confirmed';
+  if (snapshot?.schedule) return 'fallback';
+  return 'unavailable';
+}
+
 export function createThermostatMutationState() {
   return { type: null, phase: 'idle', requestId: 0, requestedValue: null, revision: 0 };
 }
@@ -173,12 +179,30 @@ export function initThermostat(root = document, { initialSnapshot = null, onSave
       || (draft?.weekPattern !== '7' && JSON.stringify(draft?.restDayPeriods) !== JSON.stringify(snapshot?.schedule?.restDayPeriods));
   }
 
+  function hasValidScheduleDraft() {
+    const validPeriod = period => Number.isInteger(period?.hour) && period.hour >= 0 && period.hour <= 23
+      && Number.isInteger(period?.minute) && period.minute >= 0 && period.minute <= 59
+      && Number.isFinite(period?.temperature) && period.temperature >= 0 && period.temperature <= 25.5;
+    return Boolean(draft
+      && ['5+2', '6+1', '7'].includes(draft.weekPattern)
+      && Array.isArray(draft.normalPeriods) && draft.normalPeriods.length === 6 && draft.normalPeriods.every(validPeriod)
+      && (draft.weekPattern === '7' || (Array.isArray(draft.restDayPeriods) && draft.restDayPeriods.length === 2 && draft.restDayPeriods.every(validPeriod))));
+  }
+
+  function availabilityMessage() {
+    const availability = scheduleAvailability(snapshot);
+    if (availability === 'confirmed') return hasScheduleChanges() ? 'Modifiche non salvate.' : '';
+    if (availability === 'fallback') return 'Programmazione locale: non confermata dal WT200. Salvataggio disabilitato.';
+    return 'Programmazione WT200 non disponibile.';
+  }
+
   function updateEditorControls() {
     const save = root.querySelector('[data-schedule-save]');
-    if (save) save.disabled = !draft || saving || !hasScheduleChanges();
+    const confirmed = scheduleAvailability(snapshot) === 'confirmed';
+    if (save) save.disabled = !confirmed || !draft || saving || !hasScheduleChanges() || !hasValidScheduleDraft();
     for (const button of root.querySelectorAll('[data-week-pattern]')) {
       button.classList.toggle('is-active', button.dataset.weekPattern === draft?.weekPattern);
-      button.disabled = saving || !draft;
+      button.disabled = saving || !confirmed || !draft;
       button.setAttribute('aria-pressed', String(button.dataset.weekPattern === draft?.weekPattern));
     }
   }
@@ -190,6 +214,8 @@ export function initThermostat(root = document, { initialSnapshot = null, onSave
     const pattern = root.querySelector('[data-thermostat-week-pattern]');
     if (!normal || !rest || !save || !pattern) return;
     pattern.textContent = `Modalita settimanale: ${draft?.weekPattern || 'non disponibile'}`;
+    const message = root.querySelector('[data-schedule-message]');
+    if (message && !saving) message.textContent = availabilityMessage();
     const labels = groupLabels(draft?.weekPattern);
     setText('[data-normal-periods-title]', labels.normal);
     const restTitle = root.querySelector('[data-rest-periods-title]');
@@ -276,7 +302,7 @@ export function initThermostat(root = document, { initialSnapshot = null, onSave
   for (const button of root.querySelectorAll('[data-week-pattern]')) {
     button.addEventListener('click', async () => {
       const weekPattern = button.dataset.weekPattern;
-      if (!draft || saving || weekPattern === draft.weekPattern) return;
+      if (scheduleAvailability(snapshot) !== 'confirmed' || !draft || saving || weekPattern === draft.weekPattern) return;
       saving = true;
       renderEditor();
       const message = root.querySelector('[data-schedule-message]');
@@ -302,7 +328,7 @@ export function initThermostat(root = document, { initialSnapshot = null, onSave
 
   scheduleForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
-    if (!draft || saving) return;
+    if (scheduleAvailability(snapshot) !== 'confirmed' || !draft || saving || !hasValidScheduleDraft()) return;
     saving = true;
     updateEditorControls();
     const message = root.querySelector('[data-schedule-message]');

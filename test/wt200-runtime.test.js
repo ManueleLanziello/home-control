@@ -27,11 +27,11 @@ const cloudSnapshot = {
 
 test('unisce le misure LAN e la programmazione verificata', () => {
   const merged = mergeWt200Snapshots({
-    lanSnapshot: { deviceId: 'wt200-lan-id', heatingActive: true, thermostat: { currentTemperature: 25.9, setpointTemperature: 5.5, mode: 'manual' }, rawDps: { 5: '1', 107: '1' }, schedule },
+    lanSnapshot: { deviceId: 'wt200-lan-id', heatingActive: true, thermostat: { currentTemperature: 25.9, setpointTemperature: 5.5, mode: 'manual' }, rawDps: { 5: '1', 105: schedule.raw, 107: '1' }, schedule },
   });
   assert.equal(merged.thermostat.currentTemperature, 25.9);
   assert.equal(merged.heatingActive, true);
-  assert.deepEqual(merged.rawDps, { 5: '1', 107: '1' });
+  assert.deepEqual(merged.rawDps, { 5: '1', 105: schedule.raw, 107: '1' });
   assert.equal(merged.schedule, schedule);
 });
 
@@ -43,6 +43,22 @@ test('LAN senza DP105 conserva lo schedule persistito', () => {
   assert.equal(merged.online, true);
   assert.equal(merged.heatingActive, false);
   assert.equal(merged.schedule, schedule);
+  assert.equal(merged.scheduleAvailability, 'fallback');
+});
+
+test('solo DP105 e DP107 validi dalla LAN rendono la programmazione confermata', () => {
+  const confirmed = mergeWt200Snapshots({
+    lanSnapshot: { deviceId: 'wt200-lan-id', rawDps: { 105: schedule.raw, 107: '1' }, schedule },
+  });
+  assert.equal(confirmed.scheduleSource, 'device');
+  assert.equal(confirmed.scheduleAvailability, 'confirmed');
+
+  const missingPattern = mergeWt200Snapshots({
+    lanSnapshot: { deviceId: 'wt200-lan-id', rawDps: { 105: schedule.raw }, schedule: { ...schedule, weekPattern: null } },
+    persistedSchedule: { schedule },
+  });
+  assert.equal(missingPattern.scheduleSource, 'persisted');
+  assert.equal(missingPattern.scheduleAvailability, 'fallback');
 });
 
 test('schedule persistito resta disponibile ma il WT200 e offline se la LAN cade', async () => {
@@ -386,30 +402,44 @@ test('runtime persiste lo schedule soltanto dopo write DP105 riuscito', async ()
   const saved = [];
   const lanAdapter = {
     deviceId: 'wt200-lan-id', rawDps: { 107: '1' }, scheduleRaw: SCHEDULE_RAW,
+    reads: 0,
+    async read() {
+      this.reads += 1;
+      const confirmedSchedule = this.reads === 1 ? schedule : { ...schedule, raw: UPDATED_SCHEDULE_RAW };
+      return { deviceId: this.deviceId, rawDps: { 105: confirmedSchedule.raw, 107: '1' }, schedule: confirmedSchedule, updatedAt: '2026-09-07T10:00:00.000Z', thermostat: {} };
+    },
     async writeSchedule(value) { this.scheduleRaw = UPDATED_SCHEDULE_RAW; return { deviceId: this.deviceId, rawDps: this.rawDps, schedule: { ...schedule, ...value, raw: UPDATED_SCHEDULE_RAW } }; },
   };
   const runtime = new HomeWt200Runtime({ lanAdapter, scheduleStore: { async read() { return { schedule }; }, async write(value) { saved.push(value); return value; } } });
   const result = await runtime.updateSchedule({ normalPeriods: schedule.normalPeriods, restDayPeriods: schedule.restDayPeriods });
   assert.equal(result.raw, UPDATED_SCHEDULE_RAW);
-  assert.equal(saved.length, 1);
+  assert.equal(saved.at(-1).schedule.raw, UPDATED_SCHEDULE_RAW);
 });
 
-test('schedule appena scritta resta disponibile se la LAN cade dopo il write', async () => {
+test('schedule non viene persistito come confermato se la LAN cade dopo il write', async () => {
   const saved = [];
   const lanAdapter = {
     deviceId: 'wt200-lan-id', rawDps: { 107: '1' }, scheduleRaw: SCHEDULE_RAW,
     async writeSchedule(value) { this.scheduleRaw = UPDATED_SCHEDULE_RAW; return { schedule: { ...schedule, ...value, raw: UPDATED_SCHEDULE_RAW } }; },
-    async read() { throw new Error('LAN disconnected'); },
+    reads: 0,
+    async read() {
+      this.reads += 1;
+      if (this.reads === 1) return { deviceId: this.deviceId, rawDps: { 105: schedule.raw, 107: '1' }, schedule, updatedAt: '2026-09-07T10:00:00.000Z', thermostat: {} };
+      throw new Error('LAN disconnected');
+    },
   };
   const runtime = new HomeWt200Runtime({
     lanAdapter,
     scheduleStore: { async read() { return { schedule }; }, async write(value) { saved.push(value); return value; } },
   });
-  await runtime.updateSchedule({ normalPeriods: schedule.normalPeriods, restDayPeriods: schedule.restDayPeriods });
+  await assert.rejects(
+    runtime.updateSchedule({ normalPeriods: schedule.normalPeriods, restDayPeriods: schedule.restDayPeriods }),
+    error => error?.code === 'SCHEDULE_NOT_CONFIRMED',
+  );
   const afterDisconnect = await runtime.readSnapshot();
-  assert.equal(saved.at(-1).schedule.raw, UPDATED_SCHEDULE_RAW);
+  assert.equal(saved.some(value => value.schedule.raw === UPDATED_SCHEDULE_RAW), false);
   assert.equal(afterDisconnect.online, false);
-  assert.equal(afterDisconnect.schedule.raw, UPDATED_SCHEDULE_RAW);
+  assert.notEqual(afterDisconnect.schedule.raw, UPDATED_SCHEDULE_RAW);
 });
 
 test('PUT schedule valida il payload e inoltra un solo salvataggio', async () => {
@@ -479,6 +509,12 @@ test('PUT setpoint restituisce lo snapshot LAN completo confermato', async () =>
 test('runtime usa esclusivamente il canale LAN e persiste solo dopo conferma DP105', async () => {
   const saved = [];
   const lanAdapter = {
+    reads: 0,
+    async read() {
+      this.reads += 1;
+      const current = this.reads === 1 ? { ...schedule, weekPattern: '7', weekPatternRaw: '3' } : { ...schedule, weekPattern: '7', weekPatternRaw: '3' };
+      return { deviceId: 'wt200-lan-id', rawDps: { 105: current.raw, 107: '3' }, schedule: current, updatedAt: '2026-09-10T10:00:00.000Z', thermostat: {} };
+    },
     async writeSchedule(value) {
       assert.equal(value.weekPattern, '7');
       assert.equal(value.restDayPeriods, undefined);
@@ -492,6 +528,22 @@ test('runtime usa esclusivamente il canale LAN e persiste solo dopo conferma DP1
   const result = await runtime.updateSchedule({ weekPattern: '7', normalPeriods: schedule.normalPeriods });
   assert.equal(result.weekPattern, '7');
   assert.equal(saved.length, 1);
+});
+
+test('runtime rifiuta un salvataggio se dispone soltanto del fallback locale', async () => {
+  let writes = 0;
+  const runtime = new HomeWt200Runtime({
+    lanAdapter: {
+      async read() { throw new Error('LAN disconnected'); },
+      async writeSchedule() { writes += 1; },
+    },
+    scheduleStore: { async read() { return { schedule }; } },
+  });
+  await assert.rejects(
+    runtime.updateSchedule({ normalPeriods: schedule.normalPeriods, restDayPeriods: schedule.restDayPeriods }),
+    error => error?.code === 'SCHEDULE_UNAVAILABLE',
+  );
+  assert.equal(writes, 0);
 });
 
 test('PUT week-pattern accetta 5+2, 6+1, 7 e blocca Chiuso/arbitrari', async () => {

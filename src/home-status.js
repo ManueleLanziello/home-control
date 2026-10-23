@@ -60,6 +60,7 @@ export function normalizeThermostat(snapshot, now = Date.now()) {
     heatingActive: lanValid && fresh(heatingUpdatedAt, now) ? bool(snapshot.heatingActive) : null,
     schedule: snapshot?.schedule ?? null,
     scheduleSource: snapshot?.scheduleSource ?? (snapshot?.schedule ? 'device' : null),
+    scheduleAvailability: snapshot?.scheduleAvailability ?? (snapshot?.schedule ? 'confirmed' : 'unavailable'),
   };
 }
 
