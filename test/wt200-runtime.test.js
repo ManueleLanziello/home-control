@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { once } from 'node:events';
 import { createHomeControlServer } from '../server.js';
+import { normalizeThermostat } from '../src/home-status.js';
 import { HomeWt200Runtime, mergeWt200Snapshots } from '../src/wt200-runtime.js';
 
 const schedule = {
@@ -96,6 +97,24 @@ test('DP2 assente conserva il setpoint recente senza spacciarlo per una nuova le
   assert.equal(partial.thermostat.setpointTemperature, 22);
   assert.equal(partial.setpointUpdatedAt, firstUpdatedAt);
   assert.equal(partial.thermostat.mode, 'auto');
+});
+
+test('DP5 conservato da un payload parziale mantiene il timestamp originale e poi scade', async () => {
+  const firstUpdatedAt = '2026-10-23T10:00:00.000Z';
+  const partialUpdatedAt = '2026-10-23T10:01:00.000Z';
+  const snapshots = [
+    { updatedAt: firstUpdatedAt, heatingUpdatedAt: firstUpdatedAt, heatingActive: true, thermostat: { currentTemperature: 20, setpointTemperature: 22, mode: 'manual' } },
+    { updatedAt: partialUpdatedAt, heatingUpdatedAt: firstUpdatedAt, heatingActive: true, thermostat: { currentTemperature: 20.5, setpointTemperature: 22, mode: 'manual' } },
+  ];
+  const runtime = new HomeWt200Runtime({ lanAdapter: { async read() { return snapshots.shift(); } }, scheduleStore: { async read() { return null; } } });
+
+  await runtime.readSnapshot();
+  const partial = await runtime.readSnapshot();
+
+  assert.equal(partial.heatingActive, true);
+  assert.equal(partial.heatingUpdatedAt, firstUpdatedAt);
+  assert.equal(normalizeThermostat(partial, Date.parse(firstUpdatedAt) + 89_999).heatingActive, true);
+  assert.equal(normalizeThermostat(partial, Date.parse(firstUpdatedAt) + 90_001).heatingActive, null);
 });
 
 test('un evento LAN DP2 fuori ordine non sostituisce il setpoint più recente', () => {

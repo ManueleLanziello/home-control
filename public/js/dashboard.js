@@ -478,8 +478,8 @@ async function loadHomeSnapshot() {
     if (!response.ok) throw new Error('Stato casa non disponibile');
     const home = await response.json();
     const acceptThermostat = shouldAcceptThermostatStatus({ requestedRevision: requestedThermostatRevision, currentRevision: thermostatMutation.revision });
-    floorplanStore.applyHomeSnapshot(acceptThermostat ? home : { ...home, thermostat: boilerSnapshot }, requestedAt);
-    if (acceptThermostat) boilerSnapshot = home.thermostat;
+    if (acceptThermostat) applyThermostatSnapshot(home.thermostat);
+    floorplanStore.applyHomeSnapshot({ ...home, thermostat: boilerSnapshot }, requestedAt);
     indoorTemperatureRange = {
       minimum: Number.isFinite(home.indoorMinimumTemperature) ? home.indoorMinimumTemperature : null,
       maximum: Number.isFinite(home.indoorMaximumTemperature) ? home.indoorMaximumTemperature : null,
@@ -492,14 +492,11 @@ async function loadHomeSnapshot() {
     average.querySelector('strong').textContent = temperatureText(home.averageTemperature);
     average.querySelector('em').textContent = home.indoorSensorCount ? home.indoorSensorCount + ' sensori interni disponibili' : 'Sensori non disponibili';
   } catch {
-    const acceptThermostat = shouldAcceptThermostatStatus({ requestedRevision: requestedThermostatRevision, currentRevision: thermostatMutation.revision });
-    if (acceptThermostat && thermostatMutation.phase === 'idle') floorplanStore.applyHomeSnapshot();
-    if (acceptThermostat && thermostatMutation.phase === 'idle') boilerSnapshot = null;
+    floorplanStore.applyHomeSnapshot({ thermostat: boilerSnapshot });
     cappaSnapshot = cappaSnapshot ? { ...cappaSnapshot, online: false } : null;
     indoorTemperatureRange = { minimum: null, maximum: null };
     renderBoiler(boilerSnapshot);
     renderCappa(cappaSnapshot);
-    if (acceptThermostat && thermostatMutation.phase === 'idle') boilerEditor?.updateSnapshot(null);
     const average = document.querySelector('.boiler-temperature--home');
     average.querySelector('strong').textContent = '— °C';
     average.querySelector('em').textContent = 'Sensori non disponibili';

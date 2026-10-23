@@ -49,6 +49,9 @@ export function displayedThermostatSetpoint(snapshot, mutation) {
 
 export function mergeThermostatRefreshSnapshot(current, incoming, { mutation, preserveSetpoint = false, preserveMissing = false } = {}) {
   if (!incoming) return current;
+  const currentTime = Date.parse(current?.updatedAt);
+  const incomingTime = Date.parse(incoming?.updatedAt);
+  if (current && Number.isFinite(currentTime) && Number.isFinite(incomingTime) && incomingTime < currentTime) return current;
   const source = preserveMissing && current ? {
     ...incoming,
     online: typeof incoming.online === 'boolean' ? incoming.online : current.online,

@@ -40,11 +40,13 @@ export function normalizeThermostat(snapshot, now = Date.now()) {
   const temperatureUpdatedAt = snapshot?.temperatureUpdatedAt ?? (Number.isFinite(snapshot?.thermostat?.currentTemperature) ? (lanTime ?? cloudTime) : null);
   const currentTemperature = fresh(temperatureUpdatedAt, now) ? finite(snapshot?.thermostat?.currentTemperature) : null;
   const setpointUpdatedAt = snapshot?.setpointUpdatedAt ?? (Number.isFinite(source?.setpointTemperature) ? (lanTime ?? cloudTime) : null);
+  const modeUpdatedAt = snapshot?.modeUpdatedAt ?? (typeof source?.mode === 'string' ? (lanTime ?? cloudTime) : null);
+  const heatingUpdatedAt = snapshot?.heatingUpdatedAt ?? (typeof snapshot?.heatingActive === 'boolean' ? lanTime : null);
   const thermostat = Object.fromEntries(['currentTemperature', 'setpointTemperature', 'upperTemperatureLimit', 'temperatureCorrection'].map(key => [key, finite(source[key])]));
   thermostat.currentTemperature = currentTemperature;
   thermostat.setpointTemperature = fresh(setpointUpdatedAt, now) ? thermostat.setpointTemperature : null;
   for (const key of ['enabled', 'childLock', 'frostProtection', 'sound']) thermostat[key] = bool(source[key]);
-  thermostat.mode = typeof source.mode === 'string' ? source.mode : null;
+  thermostat.mode = fresh(modeUpdatedAt, now) && typeof source.mode === 'string' ? source.mode : null;
   return {
     deviceId: snapshot ? 'thermostat' : null,
     online: cloudValid || lanValid,
@@ -52,8 +54,10 @@ export function normalizeThermostat(snapshot, now = Date.now()) {
     updatedAt: cloudValid && lanValid ? (Date.parse(cloudTime) < Date.parse(lanTime) ? cloudTime : lanTime) : cloudValid ? cloudTime : lanValid ? lanTime : snapshot?.updatedAt ?? null,
     temperatureUpdatedAt: currentTemperature === null ? null : temperatureUpdatedAt,
     setpointUpdatedAt: thermostat.setpointTemperature === null ? null : setpointUpdatedAt,
+    modeUpdatedAt: thermostat.mode === null ? null : modeUpdatedAt,
+    heatingUpdatedAt: lanValid && fresh(heatingUpdatedAt, now) && typeof snapshot?.heatingActive === 'boolean' ? heatingUpdatedAt : null,
     thermostat,
-    heatingActive: lanValid ? bool(snapshot.heatingActive) : null,
+    heatingActive: lanValid && fresh(heatingUpdatedAt, now) ? bool(snapshot.heatingActive) : null,
     schedule: snapshot?.schedule ?? null,
     scheduleSource: snapshot?.scheduleSource ?? (snapshot?.schedule ? 'device' : null),
   };

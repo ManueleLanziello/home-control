@@ -295,6 +295,23 @@ test('evento DP5 parziale conserva DP2 DP3 e DP4 gia validi', () => {
   assert.equal(merged.heatingActive, true);
 });
 
+test('snapshot Home piu vecchio non sovrascrive lo stato WT200 dedicato piu recente', () => {
+  const current = { updatedAt: '2026-10-23T10:01:00.000Z', online: true, heatingActive: true,
+    thermostat: { setpointTemperature: 22, currentTemperature: 20.5, mode: 'auto' } };
+  const delayedHome = { updatedAt: '2026-10-23T10:00:00.000Z', online: true, heatingActive: null,
+    thermostat: { setpointTemperature: null, currentTemperature: 20, mode: 'auto' } };
+  const merged = mergeThermostatRefreshSnapshot(current, delayedHome, { mutation: createThermostatMutationState() });
+  assert.deepEqual(merged, current);
+});
+
+test('errore Home aggregato conserva lo snapshot WT200 del canale dedicato', async () => {
+  const dashboard = await readFile(dashboardScriptPath, 'utf8');
+  const loadHome = dashboard.match(/async function loadHomeSnapshot\(\) \{[\s\S]*?\n\}/)?.[0] || '';
+  assert.doesNotMatch(loadHome, /boilerSnapshot\s*=\s*null/);
+  assert.match(loadHome, /applyThermostatSnapshot\(home\.thermostat/);
+  assert.match(loadHome, /applyHomeSnapshot\(\{ thermostat: boilerSnapshot \}\)/);
+});
+
 test('refresh WT200 dedicato resta a 5 secondi e polling generale resta a 30 secondi', async () => {
   const dashboard = await readFile(dashboardScriptPath, 'utf8');
   assert.match(dashboard, /THERMOSTAT_REFRESH_MS = 5_000/);
