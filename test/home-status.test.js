@@ -110,6 +110,30 @@ test('configured unsupported lights/cameras stay unavailable, never become simul
  assert.equal(h.lights.L1.reason,'unsupported_adapter');assert.equal(h.lights.L1.source,'hardware');
  assert.equal(h.cameras.C1.alias,'camera');assert.equal(h.cameras.C1.available,false);
 });
+test('L12 resta nello snapshot Home durante refresh periodici senza nuovi messaggi MQTT', async () => {
+  let now = time;
+  const updatedAt = new Date(now).toISOString();
+  const runtime = new HomeStatusRuntime({
+    hardwareStore: { async read() { return { devices: [], inventory: [] }; } },
+    roleStore: { async read() { return {}; } },
+    readPresence: async () => ({}),
+    readThermostat: async () => ({ online: false, thermostat: {} }),
+    readZigbeeLights: () => ({ L12: { state: 'OFF', available: true, online: true, updatedAt } }),
+    now: () => now,
+  });
+  const store = createFloorplanState();
+
+  store.applyHomeSnapshot(await runtime.readSnapshot(), now);
+  assert.equal(store.snapshot().lights.L12, false);
+  assert.equal(store.snapshot().lightSources.L12, 'zigbee');
+
+  now += 31_000;
+  runtime.invalidate();
+  store.applyHomeSnapshot(await runtime.readSnapshot(), now);
+  assert.equal(store.snapshot().lights.L12, false);
+  assert.equal(store.snapshot().lightSources.L12, 'zigbee');
+  assert.equal(HOME_ROLES.L12, 'light_terrazzo_secondario');
+});
 test('WT200 LAN senza Cloud mantiene misure, modalita, relay e S3',async()=>{
  const runtime=new HomeWt200Runtime({lanAdapter:{async read(){return {updatedAt:stamp,heatingActive:false,thermostat:{currentTemperature:25.9,setpointTemperature:5.5,mode:'manual'}};}}});
  const thermostat=normalizeThermostat(await runtime.readSnapshot(),time);
