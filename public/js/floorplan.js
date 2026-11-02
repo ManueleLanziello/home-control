@@ -43,6 +43,27 @@ export function showPermanentLayers(imageLayers, names = []) {
   }
 }
 
+// This tracks only the target of a command already sent to MQTT.  The visible
+// state remains exclusively driven by the next confirmed MQTT/SSE snapshot.
+export function createZigbeeLightCommandIntent() {
+  const targets = new Map();
+  return {
+    request(id, confirmedOn) {
+      if (typeof confirmedOn !== 'boolean') return null;
+      const target = targets.has(id) ? !targets.get(id) : !confirmedOn;
+      targets.set(id, target);
+      return target;
+    },
+    confirm(id, confirmedOn) {
+      if (typeof confirmedOn === 'boolean' && targets.get(id) === confirmedOn) targets.delete(id);
+    },
+    reject(id, target) {
+      if (targets.get(id) === target) targets.delete(id);
+    },
+    pending: id => targets.get(id) ?? null,
+  };
+}
+
 export function updateFloorplanWeather(snapshot) {
   weatherSnapshot = snapshot;
   renderWeatherSnapshot(snapshot);
@@ -524,12 +545,16 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
   const response = await fetch(homeControlPath('/api/cameras/' + id + '/alarm'), { cache: 'no-store' });
   if (!response.ok) throw new Error('Allarme non disponibile');
   return response.json();
-}, onLightToggle = id => store.snapshot().lightSources[id] === 'zigbee'
-  ? fetch(homeControlPath('/api/lights/' + encodeURIComponent(id) + '/power'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on: !store.snapshot().lights[id] }) })
-  : store.setLight(id, !store.snapshot().lights[id]), onLedbarPower = on => fetch(homeControlPath('/api/ledbar/power'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on }) }), onLedbarBrightness = brightness => fetch(homeControlPath('/api/ledbar/brightness'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ brightness }) }) } = {}) {
+}, onLightToggle = (id, target) => store.snapshot().lightSources[id] === 'zigbee'
+  ? fetch(homeControlPath('/api/lights/' + encodeURIComponent(id) + '/power'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on: target }) }).then(response => {
+    if (!response.ok) throw new Error('Comando luce non disponibile');
+    return response.json().catch(() => null);
+  })
+  : store.setLight(id, target), onLedbarPower = on => fetch(homeControlPath('/api/ledbar/power'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on }) }), onLedbarBrightness = brightness => fetch(homeControlPath('/api/ledbar/brightness'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ brightness }) }) } = {}) {
   const stage = document.querySelector('[data-layered-floorplan]');
   const status = document.querySelector('[data-floorplan-status]');
   if (!stage) return;
+  const zigbeeLightCommands = createZigbeeLightCommandIntent();
   delete stage.dataset.ready;
   void switchSound.preload();
   const mappings = [];
@@ -624,7 +649,11 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
       element.addEventListener('click', () => {
         const snapshot = store.snapshot();
         if (snapshot.lightSources[light.id] !== 'simulation' && !(snapshot.lightSources[light.id] === 'zigbee' && typeof snapshot.lights[light.id] === 'boolean')) return;
-        void Promise.resolve(onLightToggle(light.id)).catch(() => {});
+        const target = snapshot.lightSources[light.id] === 'zigbee'
+          ? zigbeeLightCommands.request(light.id, snapshot.lights[light.id])
+          : !snapshot.lights[light.id];
+        if (target === null) return;
+        void Promise.resolve(onLightToggle(light.id, target)).catch(() => zigbeeLightCommands.reject(light.id, target));
         switchSound.play();
       });
       element.addEventListener('dragstart', event => event.preventDefault());
@@ -916,6 +945,7 @@ export async function initFloorplan({ store = createFloorplanState(), onCameraSe
         element.dataset.on = String(on);
         element.setAttribute('aria-pressed', String(on));
         const source = state.lightSources[light.id];
+        if (source === 'zigbee') zigbeeLightCommands.confirm(light.id, state.lights[light.id]);
         element.disabled = source !== 'simulation' && !(source === 'zigbee' && typeof state.lights[light.id] === 'boolean');
         element.dataset.source = source;
         element.setAttribute('aria-label', 'Luce ' + light.room + ': ' + (state.lights[light.id] === null ? 'non disponibile' : on ? 'ON' : 'OFF') + (source === 'simulation' ? ' · simulata' : ''));

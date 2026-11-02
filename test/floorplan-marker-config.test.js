@@ -9,8 +9,23 @@ import { validateHardwareRegistry } from '../src/hardware-registry.js';
 import { normalizeMobilePresence } from '../src/home-status.js';
 
 globalThis.window = { addEventListener() {} };
-const { cameraBatteryIcon, renderCameraIcon, shapeForLabel, humidityReadingColor, renderFloorplanReading, sensorReadingFontSize, sensorTemperatureAlertState, sensorVisualState, showPermanentLayers, temperatureReadingColor } = await import('../public/js/floorplan.js');
+const { cameraBatteryIcon, createZigbeeLightCommandIntent, renderCameraIcon, shapeForLabel, humidityReadingColor, renderFloorplanReading, sensorReadingFontSize, sensorTemperatureAlertState, sensorVisualState, showPermanentLayers, temperatureReadingColor } = await import('../public/js/floorplan.js');
 const { mobileDeviceIcon } = await import('../public/js/floorplan.js');
+
+test('L12 conserva comandi consecutivi fino ai rispettivi feedback MQTT senza mostrare stati ottimistici', () => {
+  const commands = createZigbeeLightCommandIntent();
+  assert.equal(commands.request('L12', false), true);
+  assert.equal(commands.pending('L12'), true);
+  assert.equal(commands.request('L12', false), false);
+  assert.equal(commands.pending('L12'), false);
+  commands.confirm('L12', true);
+  assert.equal(commands.pending('L12'), false);
+  commands.confirm('L12', false);
+  assert.equal(commands.pending('L12'), null);
+  assert.equal(commands.request('L12', true), false);
+  commands.reject('L12', false);
+  assert.equal(commands.pending('L12'), null);
+});
 
 test('DM personal icons survive registry/Home normalization with unchanged presence and type fallbacks', async () => {
   const registry = validateHardwareRegistry(JSON.parse(await readFile(new URL('../data/config/hardware.json', import.meta.url), 'utf8')));
