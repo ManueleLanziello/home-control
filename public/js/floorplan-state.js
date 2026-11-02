@@ -45,6 +45,7 @@ export function createFloorplanState() {
   };
   const listeners = new Set();
   const cameraReadBackAt = new Map();
+  const zigbeeLightReadBackAt = new Map();
   const noteCameraReadBack = (id, kind) => cameraReadBackAt.set(`${id}:${kind}`, Date.now());
   const applyHood = hood => {
     if (!hood || typeof hood !== 'object') {
@@ -88,6 +89,7 @@ export function createFloorplanState() {
         state.lightSources[id] = 'zigbee';
         const available = light?.available === true && (light.state === 'ON' || light.state === 'OFF');
         state.lights[id] = available ? light.state === 'ON' : null;
+        if (available) zigbeeLightReadBackAt.set(id, Date.now());
       }
       for (const listener of listeners) listener(this.snapshot());
     },
@@ -159,6 +161,9 @@ export function createFloorplanState() {
       for (const id of Object.keys(state.lights)) {
         const light = home.lights?.[id];
         if (!light && state.lightSources[id] === 'simulation') continue;
+        if (state.lightSources[id] === 'zigbee'
+          && typeof state.lights[id] === 'boolean'
+          && requestedAt <= (zigbeeLightReadBackAt.get(id) || 0)) continue;
         state.lightSources[id] = light?.source === 'simulation' ? 'simulation' : light?.source === 'zigbee' ? 'zigbee' : light?.available === true ? 'hardware' : 'unavailable';
         if (state.lightSources[id] === 'simulation' && state.lights[id] === null) state.lights[id] = false;
         if (state.lightSources[id] !== 'simulation') state.lights[id] = light?.available === true

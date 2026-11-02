@@ -27,6 +27,60 @@ test('L12 conserva comandi consecutivi fino ai rispettivi feedback MQTT senza mo
   assert.equal(commands.pending('L12'), null);
 });
 
+test('un feedback MQTT L12 ricevuto durante il caricamento prevale sullo snapshot Home iniziato prima', () => {
+  const store = createFloorplanState();
+  const commands = createZigbeeLightCommandIntent();
+  const requestStartedAt = Date.now() - 1;
+
+  store.applyHomeSnapshot({ lights: { L12: { source: 'zigbee', available: false, state: null } } }, requestStartedAt);
+  store.applyZigbeeLightsSnapshot({ L12: { available: true, state: 'OFF' } });
+  store.applyHomeSnapshot({ lights: { L12: { source: 'zigbee', available: false, state: null } } }, requestStartedAt);
+
+  assert.equal(store.snapshot().lights.L12, false);
+  assert.equal(commands.request('L12', store.snapshot().lights.L12), true);
+  store.applyZigbeeLightsSnapshot({ L12: { available: true, state: 'ON' } });
+  assert.equal(store.snapshot().lights.L12, true);
+  commands.confirm('L12', store.snapshot().lights.L12);
+  assert.equal(commands.pending('L12'), null);
+});
+
+test('un comando iniziale a un’altra luce e il relativo snapshot SSE non impediscono il comando successivo a L12', () => {
+  const store = createFloorplanState();
+  const commands = createZigbeeLightCommandIntent();
+  const requestStartedAt = Date.now() - 1;
+
+  store.applyHomeSnapshot({ lights: {
+    L1: { source: 'zigbee', available: true, state: 'OFF' },
+    L12: { source: 'zigbee', available: false, state: null },
+  } }, requestStartedAt);
+  assert.equal(commands.request('L1', store.snapshot().lights.L1), true);
+  store.applyZigbeeLightsSnapshot({
+    L1: { available: true, state: 'ON' },
+    L12: { available: true, state: 'OFF' },
+  });
+  commands.confirm('L1', store.snapshot().lights.L1);
+
+  assert.equal(commands.request('L12', store.snapshot().lights.L12), true);
+});
+
+test('L12 resta subito comandabile dopo un feedback iniziale ON e torna comandabile dopo una riconnessione SSE', () => {
+  const store = createFloorplanState();
+  const commands = createZigbeeLightCommandIntent();
+  const requestStartedAt = Date.now() - 1;
+
+  store.applyZigbeeLightsSnapshot({ L12: { available: true, state: 'ON' } });
+  store.applyHomeSnapshot({ lights: { L12: { source: 'zigbee', available: false, state: null } } }, requestStartedAt);
+  assert.equal(store.snapshot().lights.L12, true);
+  assert.equal(commands.request('L12', store.snapshot().lights.L12), false);
+  commands.confirm('L12', false);
+
+  store.applyZigbeeLightsSnapshot({ L12: { available: false, state: null } });
+  assert.equal(store.snapshot().lights.L12, null);
+  assert.equal(commands.request('L12', store.snapshot().lights.L12), null);
+  store.applyZigbeeLightsSnapshot({ L12: { available: true, state: 'OFF' } });
+  assert.equal(commands.request('L12', store.snapshot().lights.L12), true);
+});
+
 test('DM personal icons survive registry/Home normalization with unchanged presence and type fallbacks', async () => {
   const registry = validateHardwareRegistry(JSON.parse(await readFile(new URL('../data/config/hardware.json', import.meta.url), 'utf8')));
   const expected = { 'MOBILE-GINEVRA': 'gine.svg', 'MOBILE-TABLET-A8': 'remo.svg', 'MOBILE-MELANIA': 'mela.svg', 'MOBILE-MANU': 'manu.svg', 'MOBILE-ALBA': 'alba.svg' };
