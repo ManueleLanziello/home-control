@@ -110,7 +110,7 @@ test('configured unsupported lights/cameras stay unavailable, never become simul
  assert.equal(h.lights.L1.reason,'unsupported_adapter');assert.equal(h.lights.L1.source,'hardware');
  assert.equal(h.cameras.C1.alias,'camera');assert.equal(h.cameras.C1.available,false);
 });
-test('L12 resta nello snapshot Home durante refresh periodici senza nuovi messaggi MQTT', async () => {
+test('L12 e L4 restano nello snapshot Home durante refresh periodici senza nuovi messaggi MQTT', async () => {
   let now = time;
   const updatedAt = new Date(now).toISOString();
   const runtime = new HomeStatusRuntime({
@@ -118,7 +118,7 @@ test('L12 resta nello snapshot Home durante refresh periodici senza nuovi messag
     roleStore: { async read() { return {}; } },
     readPresence: async () => ({}),
     readThermostat: async () => ({ online: false, thermostat: {} }),
-    readZigbeeLights: () => ({ L12: { state: 'OFF', available: true, online: true, updatedAt } }),
+    readZigbeeLights: () => ({ L4: { state: 'ON', available: true, online: true, updatedAt }, L12: { state: 'OFF', available: true, online: true, updatedAt } }),
     now: () => now,
   });
   const store = createFloorplanState();
@@ -126,12 +126,17 @@ test('L12 resta nello snapshot Home durante refresh periodici senza nuovi messag
   store.applyHomeSnapshot(await runtime.readSnapshot(), now);
   assert.equal(store.snapshot().lights.L12, false);
   assert.equal(store.snapshot().lightSources.L12, 'zigbee');
+  assert.equal(store.snapshot().lights.L4, true);
+  assert.equal(store.snapshot().lightSources.L4, 'zigbee');
 
   now += 31_000;
   runtime.invalidate();
   store.applyHomeSnapshot(await runtime.readSnapshot(), now);
   assert.equal(store.snapshot().lights.L12, false);
   assert.equal(store.snapshot().lightSources.L12, 'zigbee');
+  assert.equal(store.snapshot().lights.L4, true);
+  assert.equal(store.snapshot().lightSources.L4, 'zigbee');
+  assert.equal(HOME_ROLES.L4, 'light_disimpegno');
   assert.equal(HOME_ROLES.L12, 'light_terrazzo_secondario');
 });
 test('WT200 LAN senza Cloud mantiene misure, modalita, relay e S3',async()=>{

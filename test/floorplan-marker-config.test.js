@@ -159,21 +159,21 @@ function labelStart(nodes, label) {
 
 test('mapping SVG aggiornati usano label semantiche, non geometrie fragili', async () => {
   const [lights, sensors, boiler, weather, clock, devices] = await Promise.all(['LAYER-07-LUCI.svg', 'LAYER-08-SENSORI.svg', 'LAYER-10-CALDAIA.svg', 'LAYER-13-METEO.svg', 'LAYER-22-OROLOGIO.svg', 'LAYER-DISPOSITIVI.svg'].map(labelsIn));
-  for (const id of ['L1', 'L2', 'L3', 'L5', 'L6', 'L7', 'L8', 'L9', 'L10', 'L11', 'L12', 'L13']) assert.equal(includesLabel(lights.labels, id), true, id);
+  for (const id of ['L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7', 'L8', 'L9', 'L10', 'L11', 'L12', 'L13']) assert.equal(includesLabel(lights.labels, id), true, id);
   for (const id of ['S1', 'S2', 'S3', 'S4', 'S5', 'LS1', 'LS2', 'LS3', 'LS4', 'LS25']) assert.equal(includesLabel(sensors.labels, id), true, id);
   for (const id of ['D1', 'QD1']) assert.equal(includesLabel(boiler.labels, id), true, id);
   for (const id of ['M1', 'QM1', 'LM1']) assert.equal(includesLabel(weather.labels, id), true, id);
   assert.equal(includesLabel(clock.labels, 'CLK1'), true);
   assert.equal(includesLabel(devices.labels, 'DM'), true);
-  assert.deepEqual(floorplanConfig.lights.map(light => light.id), ['L1', 'L2', 'L3', 'L5', 'L6', 'L7', 'L8', 'L9', 'L10', 'L11', 'L12', 'L13']);
-  assert.deepEqual(floorplanConfig.rooms.map(room => room.lightId), ['L1', 'L2', 'L3', 'L5', 'L6', 'L13', 'L7']);
+  assert.deepEqual(floorplanConfig.lights.map(light => light.id), ['L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7', 'L8', 'L9', 'L10', 'L11', 'L12', 'L13']);
+  assert.deepEqual(floorplanConfig.rooms.map(room => room.lightId), ['L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L13', 'L7']);
   assert.deepEqual(floorplanConfig.lights.filter(light => light.localOnly).map(light => light.id), ['L9', 'L10']);
   assert.deepEqual(floorplanConfig.sensors.map(sensor => [sensor.reading.label, sensor.humidityReading?.label || null]), [['LS1', 'LU1'], ['LS2', 'LU2'], ['LS3', null], ['LS4', 'LU4'], ['LS25', null]]);
   for (const marker of [...floorplanConfig.lights, ...floorplanConfig.sensors].map(item => item.marker).concat(floorplanConfig.boiler.marker, floorplanConfig.boiler.card, floorplanConfig.weather.marker, floorplanConfig.weather.card, floorplanConfig.weather.currentCard, floorplanConfig.clock.marker)) assert.ok(marker.label);
   assert.deepEqual(floorplanConfig.mobileMonitor, { marker: { label: 'DM' }, icons: { phone: 'phone.svg', tablet: 'tablet.svg' } });
 });
 
-test('L7 usa soltanto il nuovo layer ON; L8, L11, L12 e L13 sono Zigbee, L9/L10 restano locali', () => {
+test('L7 usa soltanto il nuovo layer ON; L4, L8, L11, L12 e L13 sono Zigbee, L9/L10 restano locali', () => {
   const store = createFloorplanState();
   store.applyHomeSnapshot({ lights: { L1: { source: 'simulation', state: false } } });
 
@@ -187,6 +187,7 @@ test('L7 usa soltanto il nuovo layer ON; L8, L11, L12 e L13 sono Zigbee, L9/L10 
   assert.equal(state.lightSources.L9, 'simulation');
   assert.equal(state.lights.L13, null);
   assert.equal(state.lightSources.L13, 'unavailable');
+  assert.equal(state.lightSources.L4, 'unavailable');
   assert.equal(state.lightSources.L8, 'unavailable');
   assert.equal(state.lightSources.L11, 'unavailable');
   assert.equal(state.lightSources.L12, 'unavailable');
@@ -218,26 +219,21 @@ test('L8-L12 usano overlay full-plan indipendenti e conservano lo stato attraver
   store.applyHomeSnapshot({ lights: { L8: { source: 'zigbee', available: true, state: 'ON' }, L11: { source: 'zigbee', available: true, state: 'ON' } } });
   store.setLight('L10', true);
   const beforeBaseChange = store.snapshot().lights;
-  assert.deepEqual(beforeBaseChange, { L1: null, L2: null, L3: null, L5: null, L6: null, L7: null, L8: true, L9: false, L10: true, L11: true, L12: null, L13: null });
+  assert.deepEqual(beforeBaseChange, { L1: null, L2: null, L3: null, L4: null, L5: null, L6: null, L7: null, L8: true, L9: false, L10: true, L11: true, L12: null, L13: null });
   assert.deepEqual(store.snapshot().lights, beforeBaseChange);
 });
 
-test('L3 e L13 usano layer reali mutuamente esclusivi, mentre L4 resta OFF permanente', async () => {
+test('L3, L4 e L13 usano layer reali mutuamente esclusivi', async () => {
   const floorplan = await readFile(new URL('../public/js/floorplan.js', import.meta.url), 'utf8');
-  assert.deepEqual(floorplanConfig.permanentLightLayers, ['LAYER-04-OFF.svg']);
+  assert.deepEqual(floorplanConfig.permanentLightLayers, []);
   assert.doesNotMatch(floorplanConfig.permanentLightLayers.join(' '), /LAYER-03-(?:ON|OFF)/);
   assert.ok(floorplanConfig.lights.some(light => light.id === 'L3' && light.room === 'SALOTTO'));
   assert.ok(floorplanConfig.rooms.some(room => room.lightId === 'L3' && room.on === 'LAYER-03-ON.svg' && room.off === 'LAYER-03-OFF.svg'));
+  assert.ok(floorplanConfig.lights.some(light => light.id === 'L4' && light.room === 'DISIMPEGNO' && light.localOnly !== true));
+  assert.ok(floorplanConfig.rooms.some(room => room.lightId === 'L4' && room.on === 'LAYER-04-ON.svg' && room.off === 'LAYER-04-OFF.svg'));
   assert.ok(floorplanConfig.lights.some(light => light.id === 'L13' && light.room === 'SPECCHIERA BAGNO' && light.localOnly !== true));
   assert.ok(floorplanConfig.rooms.some(room => room.lightId === 'L13' && room.on === 'LAYER-13-ON.svg' && room.off === 'LAYER-13-OFF.svg'));
-  assert.doesNotMatch(floorplanConfig.lights.map(light => light.id).join(' '), /\bL4\b/);
   assert.match(floorplan, /\.\.\.config\.permanentLightLayers/);
-  const layers = new Map(floorplanConfig.permanentLightLayers.map(name => [name, { hidden: true }]));
-  showPermanentLayers(layers, floorplanConfig.permanentLightLayers);
-  assert.deepEqual([...layers.values()].map(layer => layer.hidden), [false]);
-  for (const layer of layers.values()) layer.hidden = true;
-  showPermanentLayers(layers, floorplanConfig.permanentLightLayers);
-  assert.deepEqual([...layers.values()].map(layer => layer.hidden), [false]);
   assert.match(floorplan, /const render = state => \{\s*showPermanentLayers\(imageLayers, config\.permanentLightLayers\);/);
   assert.match(floorplan, /imageLayers\.get\(room\.on\)\.hidden = !on/);
   assert.match(floorplan, /imageLayers\.get\(room\.off\)\.hidden = on \|\| state\.lights\[room\.lightId\] === null/);
@@ -249,6 +245,13 @@ test('L3 e L13 usano layer reali mutuamente esclusivi, mentre L4 resta OFF perma
   assert.equal(store.snapshot().lights.L3, true);
   store.applyHomeSnapshot({ lights: { L3: { source: 'zigbee', available: false, state: null } } });
   assert.equal(store.snapshot().lights.L3, null);
+  store.applyHomeSnapshot({ lights: { L4: { source: 'zigbee', available: true, state: 'OFF' } } });
+  assert.equal(store.snapshot().lights.L4, false);
+  assert.equal(store.snapshot().lightSources.L4, 'zigbee');
+  store.applyHomeSnapshot({ lights: { L4: { source: 'zigbee', available: true, state: 'ON' } } });
+  assert.equal(store.snapshot().lights.L4, true);
+  store.applyHomeSnapshot({ lights: { L4: { source: 'zigbee', available: false, state: null } } });
+  assert.equal(store.snapshot().lights.L4, null);
   assert.equal(store.snapshot().lights.L13, null);
   assert.equal(store.snapshot().lightSources.L13, 'unavailable');
   store.applyHomeSnapshot({ lights: { L13: { source: 'zigbee', available: true, state: 'ON' } } });
@@ -333,7 +336,7 @@ test('LAYER-13 associa LM1 al rettangolino immediatamente precedente, non al con
 
 test('gli altri marker semantici restano risolvibili nelle rispettive geometrie', async () => {
   const cases = [
-    ['LAYER-07-LUCI.svg', ['L1', 'L2', 'L3', 'L5', 'L6', 'L7', 'L8', 'L9', 'L10', 'L11', 'L12', 'L13']],
+    ['LAYER-07-LUCI.svg', ['L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7', 'L8', 'L9', 'L10', 'L11', 'L12', 'L13']],
     ['LAYER-08-SENSORI.svg', ['S1', 'S2', 'S3', 'S4', 'S5', 'LS1', 'LS2', 'LS3', 'LS4', 'LS25', 'LU1', 'LU2', 'LU4']],
     ['LAYER-10-CALDAIA.svg', ['D1', 'QD1']],
     ['LAYER-22-OROLOGIO.svg', ['CLK1']],
