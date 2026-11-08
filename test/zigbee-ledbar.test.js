@@ -19,7 +19,7 @@ function fixture() {
   client.publish = (topic, payload, options, callback) => { publishes.push([topic, JSON.parse(payload)]); callback(null); };
   client.end = () => {};
   const runtime = new HomeZigbeeSensorRuntime({ now: () => now, connect: () => client });
-  return { runtime, client, subscriptions, publishes, now: () => now, message: payload => client.emit('message', 'zigbee2mqtt/SmartHomeLB1', Buffer.from(JSON.stringify(payload))), l1Message: payload => client.emit('message', 'zigbee2mqtt/cucina-L1', Buffer.from(JSON.stringify(payload))), l2Message: payload => client.emit('message', 'zigbee2mqtt/camera-L2', Buffer.from(JSON.stringify(payload))), l3Message: payload => client.emit('message', 'zigbee2mqtt/salotto-L3', Buffer.from(JSON.stringify(payload))), l4Message: payload => client.emit('message', 'zigbee2mqtt/disimpegno-L4', Buffer.from(JSON.stringify(payload))), lightMessage: payload => client.emit('message', 'zigbee2mqtt/bagno-L5', Buffer.from(JSON.stringify(payload))), l6Message: payload => client.emit('message', 'zigbee2mqtt/cameretta-L6', Buffer.from(JSON.stringify(payload))), l8Message: payload => client.emit('message', 'zigbee2mqtt/giardino-L8', Buffer.from(JSON.stringify(payload))), l11Message: payload => client.emit('message', 'zigbee2mqtt/terrazzo-L11', Buffer.from(JSON.stringify(payload))), l12Message: payload => client.emit('message', 'zigbee2mqtt/terrazzo-L12', Buffer.from(JSON.stringify(payload))), l13Message: payload => client.emit('message', 'zigbee2mqtt/bagno-L13', Buffer.from(JSON.stringify(payload))), sensorMessage: (id, payload) => client.emit('message', `zigbee2mqtt/SmartHome${id}`, Buffer.from(JSON.stringify(payload))), advance: milliseconds => { now += milliseconds; } };
+  return { runtime, client, subscriptions, publishes, now: () => now, message: payload => client.emit('message', 'zigbee2mqtt/SmartHomeLB1', Buffer.from(JSON.stringify(payload))), l1Message: payload => client.emit('message', 'zigbee2mqtt/cucina-L1', Buffer.from(JSON.stringify(payload))), l2Message: payload => client.emit('message', 'zigbee2mqtt/camera-L2', Buffer.from(JSON.stringify(payload))), l3Message: payload => client.emit('message', 'zigbee2mqtt/salotto-L3', Buffer.from(JSON.stringify(payload))), l4Message: payload => client.emit('message', 'zigbee2mqtt/disimpegno-L4', Buffer.from(JSON.stringify(payload))), lightMessage: payload => client.emit('message', 'zigbee2mqtt/bagno-L5', Buffer.from(JSON.stringify(payload))), l6Message: payload => client.emit('message', 'zigbee2mqtt/cameretta-L6', Buffer.from(JSON.stringify(payload))), l7L10Message: payload => client.emit('message', 'zigbee2mqtt/terrazzo-L7-L10', Buffer.from(JSON.stringify(payload))), l8Message: payload => client.emit('message', 'zigbee2mqtt/giardino-L8', Buffer.from(JSON.stringify(payload))), l11Message: payload => client.emit('message', 'zigbee2mqtt/terrazzo-L11', Buffer.from(JSON.stringify(payload))), l12Message: payload => client.emit('message', 'zigbee2mqtt/terrazzo-L12', Buffer.from(JSON.stringify(payload))), l13Message: payload => client.emit('message', 'zigbee2mqtt/bagno-L13', Buffer.from(JSON.stringify(payload))), sensorMessage: (id, payload) => client.emit('message', `zigbee2mqtt/SmartHome${id}`, Buffer.from(JSON.stringify(payload))), advance: milliseconds => { now += milliseconds; } };
 }
 
 test('LB1 e luci Zigbee richiedono lo stato solo dopo subscribe riuscita, una volta per connessione', () => {
@@ -36,17 +36,18 @@ test('LB1 e luci Zigbee richiedono lo stato solo dopo subscribe riuscita, una vo
   assert.deepEqual(raw.filter(([topic]) => topic.endsWith('disimpegno-L4/get')), [['zigbee2mqtt/disimpegno-L4/get', '{"state":""}', { qos: 0 }]]);
   assert.deepEqual(raw.filter(([topic]) => topic.endsWith('bagno-L5/get')), [['zigbee2mqtt/bagno-L5/get', '{"state":""}', { qos: 0 }]]);
   assert.deepEqual(raw.filter(([topic]) => topic.endsWith('cameretta-L6/get')), [['zigbee2mqtt/cameretta-L6/get', '{"state":""}', { qos: 0 }]]);
+  assert.deepEqual(raw.filter(([topic]) => topic.endsWith('terrazzo-L7-L10/get')), [['zigbee2mqtt/terrazzo-L7-L10/get', '{"state":""}', { qos: 0 }]]);
   assert.deepEqual(raw.filter(([topic]) => topic.endsWith('giardino-L8/get')), [['zigbee2mqtt/giardino-L8/get', '{"state":""}', { qos: 0 }]]);
   assert.deepEqual(raw.filter(([topic]) => topic.endsWith('terrazzo-L11/get')), [['zigbee2mqtt/terrazzo-L11/get', '{"state":""}', { qos: 0 }]]);
   assert.deepEqual(raw.filter(([topic]) => topic.endsWith('terrazzo-L12/get')), [['zigbee2mqtt/terrazzo-L12/get', '{"state":""}', { qos: 0 }]]);
   assert.deepEqual(raw.filter(([topic]) => topic.endsWith('bagno-L13/get')), [['zigbee2mqtt/bagno-L13/get', '{"state":""}', { qos: 0 }]]);
   assert.deepEqual(raw.filter(([topic]) => topic.endsWith('pond-temp-acqua/get')), [['zigbee2mqtt/pond-temp-acqua/get', '{"temperature":""}', { qos: 0 }]]);
   assert.equal(raw.filter(([topic]) => /SmartHomeS[124]\/get$/.test(topic)).length, 0);
-  assert.equal(raw.length, 12);
+  assert.equal(raw.length, 13);
   assert.equal(f.runtime.readLedbarSnapshot().known, false);
   f.client.emit('close'); f.client.emit('connect');
-  callbacks[0](null); assert.equal(raw.length, 12);
-  callbacks[1](null); assert.equal(raw.length, 24);
+  callbacks[0](null); assert.equal(raw.length, 13);
+  callbacks[1](null); assert.equal(raw.length, 26);
   assert.deepEqual(raw.filter(([topic]) => topic.endsWith('cucina-L1/get')), [
     ['zigbee2mqtt/cucina-L1/get', '{"state":""}', { qos: 0 }],
     ['zigbee2mqtt/cucina-L1/get', '{"state":""}', { qos: 0 }],
@@ -71,6 +72,10 @@ test('LB1 e luci Zigbee richiedono lo stato solo dopo subscribe riuscita, una vo
     ['zigbee2mqtt/cameretta-L6/get', '{"state":""}', { qos: 0 }],
     ['zigbee2mqtt/cameretta-L6/get', '{"state":""}', { qos: 0 }],
   ]);
+  assert.deepEqual(raw.filter(([topic]) => topic.endsWith('terrazzo-L7-L10/get')), [
+    ['zigbee2mqtt/terrazzo-L7-L10/get', '{"state":""}', { qos: 0 }],
+    ['zigbee2mqtt/terrazzo-L7-L10/get', '{"state":""}', { qos: 0 }],
+  ]);
   assert.deepEqual(raw.filter(([topic]) => topic.endsWith('giardino-L8/get')), [
     ['zigbee2mqtt/giardino-L8/get', '{"state":""}', { qos: 0 }],
     ['zigbee2mqtt/giardino-L8/get', '{"state":""}', { qos: 0 }],
@@ -93,7 +98,7 @@ test('LB1 e luci Zigbee richiedono lo stato solo dopo subscribe riuscita, una vo
   ]);
   f.advance(24 * 60 * 60 * 1000);
   for (let i = 0; i < 10; i += 1) f.runtime.readLedbarSnapshot();
-  assert.equal(raw.length, 24);
+  assert.equal(raw.length, 26);
   f.runtime.close();
 });
 
@@ -135,16 +140,18 @@ test('recovery LB1 non introduce timer o polling', async () => {
   assert.doesNotMatch(source, /setInterval|setTimeout/);
 });
 
-test('API luci autorizza gli ID registrati nel config Zigbee, incluse L4 e L13 con identità stabile', async () => {
+test('API luci autorizza anche le due identità logiche del relè L7/L10 condiviso', async () => {
   const source = await readFile(new URL('../server.js', import.meta.url), 'utf8');
-  assert.match(source, /ZIGBEE_SENSOR_CONFIG\.lights\.some\(light => light\.id === lightPowerMatch\[1\]\)/);
-  assert.deepEqual(ZIGBEE_SENSOR_CONFIG.lights.map(light => light.id), ['L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L8', 'L11', 'L12', 'L13']);
+  assert.match(source, /ZIGBEE_SENSOR_CONFIG\.lights\.some\(light => lightLogicalIds\(light\)\.includes\(lightPowerMatch\[1\]\)\)/);
+  assert.deepEqual(ZIGBEE_SENSOR_CONFIG.lights.map(light => light.id), ['L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7', 'L8', 'L11', 'L12', 'L13']);
   assert.deepEqual(ZIGBEE_SENSOR_CONFIG.lights.find(light => light.id === 'L3'), { id: 'L3', name: 'salotto-L3', topic: 'zigbee2mqtt/salotto-L3', setTopic: 'zigbee2mqtt/salotto-L3/set', getTopic: 'zigbee2mqtt/salotto-L3/get', getPayload: { state: '' }, ieeeAddress: '0x7c31fafffef24d6c', model: 'ZBMINIL2', manufacturer: 'SONOFF' });
   assert.deepEqual(ZIGBEE_SENSOR_CONFIG.lights.find(light => light.id === 'L4'), { id: 'L4', name: 'disimpegno-L4', topic: 'zigbee2mqtt/disimpegno-L4', setTopic: 'zigbee2mqtt/disimpegno-L4/set', getTopic: 'zigbee2mqtt/disimpegno-L4/get', getPayload: { state: '' }, ieeeAddress: '0xc09b9efffe49e661', model: 'ZBMINIL2', manufacturer: 'SONOFF' });
+  assert.deepEqual(ZIGBEE_SENSOR_CONFIG.lights.find(light => light.id === 'L7'), { id: 'L7', logicalIds: ['L7', 'L10'], name: 'terrazzo-L7-L10', topic: 'zigbee2mqtt/terrazzo-L7-L10', setTopic: 'zigbee2mqtt/terrazzo-L7-L10/set', getTopic: 'zigbee2mqtt/terrazzo-L7-L10/get', getPayload: { state: '' }, ieeeAddress: '0x00be44fffe6a852e', model: 'ZBMINIR2', manufacturer: 'SONOFF' });
   assert.deepEqual(ZIGBEE_SENSOR_CONFIG.lights.at(-1), { id: 'L13', name: 'bagno-L13', topic: 'zigbee2mqtt/bagno-L13', setTopic: 'zigbee2mqtt/bagno-L13/set', getTopic: 'zigbee2mqtt/bagno-L13/get', getPayload: { state: '' }, ieeeAddress: '0x94a081fffed3405d', model: 'ZBMINIR2', manufacturer: 'SONOFF' });
   const registry = JSON.parse(await readFile(new URL('../data/config/hardware.json', import.meta.url), 'utf8'));
   assert.deepEqual(registry.inventory.find(device => device.marker === 'L3'), { marker: 'L3', name: 'SONOFF L3 — Salotto', model: 'ZBMINIL2', manufacturer: 'SONOFF', type: 'Relè punto luce', protocol: 'Zigbee', identity: { ieeeAddress: '0x7c31fafffef24d6c' }, friendlyName: 'salotto-L3', topic: 'zigbee2mqtt/salotto-L3', presenceEnabled: false });
   assert.deepEqual(registry.inventory.find(device => device.marker === 'L4'), { marker: 'L4', name: 'SONOFF L4 — Disimpegno', model: 'ZBMINIL2', manufacturer: 'SONOFF', type: 'Relè punto luce', protocol: 'Zigbee', identity: { ieeeAddress: '0xc09b9efffe49e661' }, friendlyName: 'disimpegno-L4', topic: 'zigbee2mqtt/disimpegno-L4', presenceEnabled: false });
+  assert.deepEqual(registry.inventory.find(device => device.marker === 'L7'), { marker: 'L7', name: 'SONOFF L7/L10 — Terrazzo', model: 'ZBMINIR2', manufacturer: 'SONOFF', type: 'Relè punti luce condiviso', protocol: 'Zigbee', identity: { ieeeAddress: '0x00be44fffe6a852e' }, friendlyName: 'terrazzo-L7-L10', topic: 'zigbee2mqtt/terrazzo-L7-L10', presenceEnabled: false });
   assert.deepEqual(registry.inventory.find(device => device.marker === 'L13'), { marker: 'L13', name: 'SONOFF L13 — Specchiera Bagno', model: 'ZBMINIR2', manufacturer: 'SONOFF', type: 'Relè punto luce', protocol: 'Zigbee', identity: { ieeeAddress: '0x94a081fffed3405d' }, friendlyName: 'bagno-L13', topic: 'zigbee2mqtt/bagno-L13', presenceEnabled: false });
 });
 
@@ -232,6 +239,30 @@ test('L4 usa disimpegno-L4, verifica l IEEE e aggiorna solo dal feedback MQTT re
   f.l4Message({ state: 'OFF' });
   assert.deepEqual(f.publishes.filter(([topic]) => topic === 'zigbee2mqtt/disimpegno-L4/set'), [['zigbee2mqtt/disimpegno-L4/set', { state: 'ON' }], ['zigbee2mqtt/disimpegno-L4/set', { state: 'OFF' }]]);
   assert.equal(f.runtime.readLightsSnapshot().L4.state, 'OFF');
+  f.runtime.close();
+});
+
+test('L7 e L10 condividono un solo relè, stato MQTT e comandi senza duplicare topic o richieste', async () => {
+  const f = fixture(); f.runtime.start(); f.client.emit('connect');
+  const sharedTopic = 'zigbee2mqtt/terrazzo-L7-L10';
+  assert.equal(f.subscriptions[0].filter(topic => topic === sharedTopic).length, 1);
+  assert.equal(f.publishes.filter(([topic]) => topic === `${sharedTopic}/get`).length, 1);
+  assert.equal(f.runtime.readLightsSnapshot().L7.available, false);
+  assert.equal(f.runtime.readLightsSnapshot().L10.available, false);
+  f.client.emit('message', 'zigbee2mqtt/bridge/devices', Buffer.from(JSON.stringify([{ friendly_name: 'terrazzo-L7-L10', ieee_address: '0x00be44fffe6a852e', definition: { model: 'ZBMINIR2', vendor: 'SONOFF' } }])));
+  assert.equal(f.runtime.readLightsSnapshot().L7.identityStatus, 'verified');
+  assert.equal(f.runtime.readLightsSnapshot().L10.identityStatus, 'verified');
+  await f.runtime.setLightPower('L7', true);
+  assert.equal(f.runtime.readLightsSnapshot().L7.state, null);
+  assert.equal(f.runtime.readLightsSnapshot().L10.state, null);
+  f.l7L10Message({ state: 'ON' });
+  assert.equal(f.runtime.readLightsSnapshot().L7.state, 'ON');
+  assert.equal(f.runtime.readLightsSnapshot().L10.state, 'ON');
+  await f.runtime.setLightPower('L10', false);
+  f.l7L10Message({ state: 'OFF' });
+  assert.deepEqual(f.publishes.filter(([topic]) => topic === `${sharedTopic}/set`), [[`${sharedTopic}/set`, { state: 'ON' }], [`${sharedTopic}/set`, { state: 'OFF' }]]);
+  assert.equal(f.runtime.readLightsSnapshot().L7.state, 'OFF');
+  assert.equal(f.runtime.readLightsSnapshot().L10.state, 'OFF');
   f.runtime.close();
 });
 
@@ -354,7 +385,7 @@ test('lo store planimetria converte gli stati Zigbee senza alterare le luci simu
   assert.equal(store.snapshot().lightSources.L11, 'zigbee');
 });
 
-test('API luci Zigbee e SSE ricevono feedback fisico senza un secondo client MQTT', async t => {
+test('API luci Zigbee e SSE ricevono feedback fisico anche per il relè condiviso L7/L10', async t => {
   const f = fixture(); f.runtime.start(); f.client.emit('connect');
   const server = createHomeControlServer({ zigbeeRuntime: f.runtime, hardwareStore: { async read() { return { devices: [] }; } }, roleStore: { async read() { return {}; } }, thermostatRuntime: { async readSnapshot() { return { online: false, thermostat: {} }; } }, cameraRuntime: { snapshot: async () => ({}), close: async () => {} } });
   t.after(() => new Promise(resolve => server.close(resolve)));
@@ -373,6 +404,9 @@ test('API luci Zigbee e SSE ricevono feedback fisico senza un secondo client MQT
   f.l6Message({ state: 'OFF' });
   const l6Event = new TextDecoder().decode((await reader.read()).value);
   assert.match(l6Event, /"L6"/); assert.match(l6Event, /"state":"OFF"/);
+  f.l7L10Message({ state: 'ON' });
+  const sharedEvent = new TextDecoder().decode((await reader.read()).value);
+  assert.match(sharedEvent, /"L7"/); assert.match(sharedEvent, /"L10"/); assert.match(sharedEvent, /"state":"ON"/);
   f.l13Message({ state: 'ON' });
   const l13Event = new TextDecoder().decode((await reader.read()).value);
   assert.match(l13Event, /"L13"/); assert.match(l13Event, /"state":"ON"/); await reader.cancel();
@@ -382,6 +416,8 @@ test('API luci Zigbee e SSE ricevono feedback fisico senza un secondo client MQT
   assert.equal((await fetch(base + '/api/lights/L2/power', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on: true }) })).status, 202);
   assert.equal((await fetch(base + '/api/lights/L5/power', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on: false }) })).status, 202);
   assert.equal((await fetch(base + '/api/lights/L6/power', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on: true }) })).status, 202);
+  assert.equal((await fetch(base + '/api/lights/L7/power', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on: false }) })).status, 202);
+  assert.equal((await fetch(base + '/api/lights/L10/power', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on: true }) })).status, 202);
   assert.equal((await fetch(base + '/api/lights/L8/power', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on: false }) })).status, 202);
   assert.equal((await fetch(base + '/api/lights/L11/power', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on: true }) })).status, 202);
   assert.equal((await fetch(base + '/api/lights/L13/power', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on: false }) })).status, 202);
@@ -389,6 +425,7 @@ test('API luci Zigbee e SSE ricevono feedback fisico senza un secondo client MQT
   assert.deepEqual(f.publishes.filter(([topic]) => topic === 'zigbee2mqtt/camera-L2/set'), [['zigbee2mqtt/camera-L2/set', { state: 'ON' }]]);
   assert.deepEqual(f.publishes.filter(([topic]) => topic === 'zigbee2mqtt/bagno-L5/set'), [['zigbee2mqtt/bagno-L5/set', { state: 'OFF' }]]);
   assert.deepEqual(f.publishes.filter(([topic]) => topic === 'zigbee2mqtt/cameretta-L6/set'), [['zigbee2mqtt/cameretta-L6/set', { state: 'ON' }]]);
+  assert.deepEqual(f.publishes.filter(([topic]) => topic === 'zigbee2mqtt/terrazzo-L7-L10/set'), [['zigbee2mqtt/terrazzo-L7-L10/set', { state: 'OFF' }], ['zigbee2mqtt/terrazzo-L7-L10/set', { state: 'ON' }]]);
   assert.deepEqual(f.publishes.filter(([topic]) => topic === 'zigbee2mqtt/giardino-L8/set'), [['zigbee2mqtt/giardino-L8/set', { state: 'OFF' }]]);
   assert.deepEqual(f.publishes.filter(([topic]) => topic === 'zigbee2mqtt/terrazzo-L11/set'), [['zigbee2mqtt/terrazzo-L11/set', { state: 'ON' }]]);
   assert.deepEqual(f.publishes.filter(([topic]) => topic === 'zigbee2mqtt/bagno-L13/set'), [['zigbee2mqtt/bagno-L13/set', { state: 'OFF' }]]);

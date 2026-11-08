@@ -20,7 +20,7 @@ import { createHomeWt200Runtime } from './src/wt200-runtime.js';
 import { HomeCiarraRuntime, createHomeCiarraRuntime } from './src/ciarra-runtime.js';
 import { HomeStatusRuntime, HOME_ROLES, normalizeThermostat } from './src/home-status.js';
 import { connect as connectMqtt } from 'mqtt';
-import { HomeZigbeeSensorRuntime } from './src/zigbee-sensor-runtime.js';
+import { HomeZigbeeSensorRuntime, lightLogicalIds } from './src/zigbee-sensor-runtime.js';
 import { ZIGBEE_SENSOR_CONFIG } from './config/zigbee-sensors.js';
 import { WEATHER_CONFIG } from './config/weather.js';
 import { WeatherService } from './src/weather-service.js';
@@ -557,7 +557,7 @@ export function createHomeControlServer({
     }
     const lightPowerMatch = /^\/api\/lights\/(L\d+)\/power$/.exec(url.pathname);
     if (lightPowerMatch) {
-      if (!ZIGBEE_SENSOR_CONFIG.lights.some(light => light.id === lightPowerMatch[1])) return sendJson(response, 404, { error: 'Luce Zigbee non configurata' });
+      if (!ZIGBEE_SENSOR_CONFIG.lights.some(light => lightLogicalIds(light).includes(lightPowerMatch[1]))) return sendJson(response, 404, { error: 'Luce Zigbee non configurata' });
       if (request.method !== 'PUT') return sendJson(response, 405, { error: 'Metodo non consentito' });
       const payload = await readJson(request);
       if (typeof payload?.on !== 'boolean') return sendJson(response, 400, { error: 'Stato luce non valido' });

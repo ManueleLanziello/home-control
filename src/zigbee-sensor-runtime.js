@@ -7,6 +7,14 @@ const validNumber = (payload, key, minimum, maximum) => Object.hasOwn(payload, k
   && Number.isFinite(payload[key]) && payload[key] >= minimum && payload[key] <= maximum ? payload[key] : null;
 const retained = (previous, key) => Number.isFinite(previous?.[key]) ? previous[key] : null;
 
+// A physical relay can represent more than one graphical light. The first ID is
+// the canonical physical configuration; every logical ID receives the same real
+// MQTT feedback and routes commands through that single relay.
+export function lightLogicalIds(light) {
+  const ids = Array.isArray(light?.logicalIds) ? light.logicalIds : [light?.id];
+  return [...new Set(ids.filter(id => typeof id === 'string' && id.length > 0))];
+}
+
 export function normalizeSnzb02pPayload(payload, { updatedAt = null, previous = null } = {}) {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null;
   const temperature = Object.hasOwn(payload, 'temperature') && Number.isFinite(payload.temperature) ? payload.temperature : null;
@@ -125,7 +133,7 @@ export class HomeZigbeeSensorRuntime {
           for (const light of this.config.lights || []) {
             const device = payload.find(item => item?.friendly_name === light.name);
             const identity = normalizeZigbeeDeviceIdentity(device);
-            if (identity) this.lightIdentities.set(light.id, identity);
+            if (identity) for (const id of lightLogicalIds(light)) this.lightIdentities.set(id, identity);
           }
           this.notify('doorContacts');
           this.notify('sensors');
@@ -148,7 +156,8 @@ export class HomeZigbeeSensorRuntime {
         if (light) {
           const state = typeof payload.state === 'string' ? payload.state.toUpperCase() : null;
           if (!['ON', 'OFF'].includes(state)) return;
-          this.lights.set(light.id, { state, updatedAt: new Date(this.now()).toISOString() });
+          const snapshot = { state, updatedAt: new Date(this.now()).toISOString() };
+          for (const id of lightLogicalIds(light)) this.lights.set(id, snapshot);
           this.notify('lights');
           return;
         }
@@ -290,19 +299,19 @@ export class HomeZigbeeSensorRuntime {
   setLedbarPower(on) { return this.publishLedbar({ state: on ? 'ON' : 'OFF' }); }
   setLedbarBrightness(brightness) { return this.publishLedbar({ brightness }); }
   readLightsSnapshot() {
-    return Object.fromEntries((this.config.lights || []).map(light => {
-      const snapshot = this.lights.get(light.id) || { state: null, updatedAt: null };
-      const identity = this.lightIdentities.get(light.id) || null;
+    return Object.fromEntries((this.config.lights || []).flatMap(light => lightLogicalIds(light).map(id => {
+      const snapshot = this.lights.get(id) || { state: null, updatedAt: null };
+      const identity = this.lightIdentities.get(id) || null;
       const age = this.now() - Date.parse(snapshot.updatedAt);
       const fresh = Number.isFinite(age) && age >= 0 && age <= this.config.freshnessMs;
       const known = ['ON', 'OFF'].includes(snapshot.state);
       const available = this.connected && known;
       const identityStatus = !light.ieeeAddress ? null : !identity ? 'unknown' : identity.ieeeAddress !== light.ieeeAddress ? 'ieee_mismatch' : identity.model !== light.model || identity.manufacturer !== light.manufacturer ? 'model_mismatch' : 'verified';
-      return [light.id, { id: light.id, name: light.name, state: snapshot.state, updatedAt: snapshot.updatedAt, known, fresh, online: available, available, identity: { ieeeAddress: identity?.ieeeAddress ?? null }, identityStatus, reportedModel: identity?.model ?? null, reportedManufacturer: identity?.manufacturer ?? null }];
-    }));
+      return [id, { id, name: light.name, state: snapshot.state, updatedAt: snapshot.updatedAt, known, fresh, online: available, available, identity: { ieeeAddress: identity?.ieeeAddress ?? null }, identityStatus, reportedModel: identity?.model ?? null, reportedManufacturer: identity?.manufacturer ?? null }];
+    })));
   }
   setLightPower(id, on) {
-    const light = (this.config.lights || []).find(entry => entry.id === id);
+    const light = (this.config.lights || []).find(entry => lightLogicalIds(entry).includes(id));
     if (!light || !this.client || !this.connected || this.stopped || !light.setTopic) return Promise.reject(new Error('Luce Zigbee non disponibile'));
     return new Promise((resolve, reject) => this.client.publish(light.setTopic, JSON.stringify({ state: on ? 'ON' : 'OFF' }), { qos: 0 }, error => error ? reject(error) : resolve(this.readLightsSnapshot()[id])));
   }
