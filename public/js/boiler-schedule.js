@@ -72,7 +72,7 @@ function timelineSegments(periods) {
   }));
 }
 
-function graphMarkup(periods, now, showNow) {
+function graphMarkup(periods, now, showNow, minTemperature = MIN_TEMPERATURE) {
   const width = 760;
   const height = 353;
   const left = 48;
@@ -84,9 +84,10 @@ function graphMarkup(periods, now, showNow) {
   const segments = timelineSegments(periods);
   const origin = segments[0].start;
   const x = (value) => left + ((value - origin) / 1440) * graphWidth;
-  const y = (value) => top + ((MAX_TEMPERATURE - Math.max(MIN_TEMPERATURE, Math.min(MAX_TEMPERATURE, value))) / MAX_TEMPERATURE) * graphHeight;
-  const baseline = y(MIN_TEMPERATURE);
-  const grid = Array.from({ length: 16 }, (_, index) => index * 2).map((value) => `<g><line class="boiler-schedule-grid" x1="${left}" x2="${width - right}" y1="${y(value)}" y2="${y(value)}"/><text x="${left - 7}" y="${y(value) + 3}" text-anchor="end">${value}°</text></g>`).join('');
+  const y = (value) => top + ((MAX_TEMPERATURE - Math.max(minTemperature, Math.min(MAX_TEMPERATURE, value))) / (MAX_TEMPERATURE - minTemperature)) * graphHeight;
+  const baseline = y(minTemperature);
+  const gridValues = minTemperature === 5 ? [5, 10, 15, 20, 25, 30] : Array.from({ length: 16 }, (_, index) => index * 2);
+  const grid = gridValues.map((value) => `<g><line class="boiler-schedule-grid" x1="${left}" x2="${width - right}" y1="${y(value)}" y2="${y(value)}"/><text x="${left - 7}" y="${y(value) + 3}" text-anchor="end">${value}°</text></g>`).join('');
   const bars = segments.map((segment) => {
     const barX = x(segment.start);
     const barWidth = x(segment.end) - x(segment.start);
@@ -99,7 +100,8 @@ function graphMarkup(periods, now, showNow) {
     .map(({ position, text }) => `<text x="${x(position)}" y="${height - 7}" text-anchor="middle">${text}</text>`).join('');
   const currentMinutes = timelineMinute(now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60, origin);
   const currentMarker = showNow ? `<line class="boiler-schedule-now" x1="${x(currentMinutes)}" x2="${x(currentMinutes)}" y1="${top}" y2="${baseline}"/>` : '';
-  const thermalGradient = '<linearGradient id="boiler-thermal-axis" gradientUnits="userSpaceOnUse" x1="0" x2="0" y1="' + baseline + '" y2="' + top + '"><stop offset="0" stop-color="#1359eb"/><stop offset=".29" stop-color="#08c9fa"/><stop offset=".47" stop-color="#43f0c7"/><stop offset=".63" stop-color="#d8f53b"/><stop offset=".77" stop-color="#ffbd31"/><stop offset=".9" stop-color="#ff782f"/><stop offset="1" stop-color="#ff3f4d"/></linearGradient>';
+  const gradientBottom = baseline + (minTemperature / (MAX_TEMPERATURE - minTemperature)) * graphHeight;
+  const thermalGradient = '<linearGradient id="boiler-thermal-axis" gradientUnits="userSpaceOnUse" x1="0" x2="0" y1="' + gradientBottom + '" y2="' + top + '"><stop offset="0" stop-color="#1359eb"/><stop offset=".29" stop-color="#08c9fa"/><stop offset=".47" stop-color="#43f0c7"/><stop offset=".63" stop-color="#d8f53b"/><stop offset=".77" stop-color="#ffbd31"/><stop offset=".9" stop-color="#ff782f"/><stop offset="1" stop-color="#ff3f4d"/></linearGradient>';
   return `<div class="boiler-schedule-chart-shell"><svg class="boiler-schedule-chart" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="Profilo di temperatura programmato nelle 24 ore"><defs>${thermalGradient}</defs><text class="boiler-schedule-axis-title" transform="translate(14 ${top + graphHeight / 2}) rotate(-90)" text-anchor="middle">Temperatura °C</text>${grid}${bars}${currentMarker}${labels}</svg></div>`;
 }
 
@@ -149,5 +151,6 @@ export function renderWt200Schedule(container, schedule, now = new Date()) {
   }
   const showNow = date.toDateString() === now.toDateString();
   container.classList.add('boiler-schedule-placeholder--chart');
-  container.innerHTML = graphMarkup(model.periods, now, showNow) + periodsMarkup(model.periods);
+  const minTemperature = container.closest?.('.boiler-popup-today') ? 5 : MIN_TEMPERATURE;
+  container.innerHTML = graphMarkup(model.periods, now, showNow, minTemperature) + periodsMarkup(model.periods);
 }
