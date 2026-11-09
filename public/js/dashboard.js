@@ -615,7 +615,6 @@ function initBoilerModal() {
     const box = modal.getBoundingClientRect();
     if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) modal.close();
   });
-  modal.querySelector('.boiler-settings-link').addEventListener('click', event => { event.preventDefault(); void open('programming'); });
   document.addEventListener('home-control:open-boiler', event => void open(event.detail?.section));
 }
 

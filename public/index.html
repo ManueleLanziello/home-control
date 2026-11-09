@@ -60,22 +60,26 @@
               <section class="boiler-temperature boiler-temperature--room">
                 <div class="boiler-tile-heading"><div><span class="boiler-temperature-label">Temperatura salotto</span></div></div>
                 <strong data-boiler-current>&mdash; &deg;C</strong>
+                <div class="boiler-temperature-details" aria-hidden="true"></div>
               </section>
 
               <section class="boiler-temperature boiler-temperature--home">
                 <div class="boiler-tile-heading"><div><span class="boiler-temperature-label">Temperatura media casa</span></div></div>
                 <strong>&mdash; &deg;C</strong>
-                <em>Sensori non configurati</em>
-                <span class="boiler-minmax">Min/max: &mdash; / &mdash;</span>
+                <div class="boiler-temperature-details">
+                  <em>Sensori non configurati</em>
+                  <span class="boiler-minmax">Min/max: &mdash; / &mdash;</span>
+                </div>
               </section>
             </div>
 
             <section class="boiler-setpoint-adjust" aria-label="Regola temperatura">
-              <h3>REGOLA TEMPERATURA</h3>
+              <h3>Regola temperatura</h3>
               <input type="range" min="5" max="30" step="0.5" data-boiler-setpoint-control aria-label="Regola temperatura impostata">
               <p data-boiler-setpoint-message role="status" aria-live="polite" hidden></p>
             </section>
             <section class="boiler-mode-selector" aria-label="Modalita termostato">
+              <h3>Modalità</h3>
               <div class="boiler-mode" data-boiler-mode-option="manual"><span aria-hidden="true"><img src="design/manual.svg" alt=""></span><strong>Manuale</strong></div>
               <div class="boiler-mode" data-boiler-mode-option="auto"><span aria-hidden="true"><img src="design/auto.svg" alt=""></span><strong>Auto</strong></div>
               <p class="boiler-raw-mode" data-boiler-raw-mode hidden></p>
@@ -84,7 +88,7 @@
 
       <section class="boiler-popup-section boiler-popup-today" aria-label="Programmazione di oggi e stato caldaia">
             <section class="boiler-schedule" aria-label="Programmazione di oggi">
-              <header><img class="boiler-section-icon" src="design/prog.svg" alt=""><h3>Programmazione di oggi</h3><a class="boiler-settings-link" href="thermostat.html" aria-label="Programmazione settimanale" title="Programmazione settimanale"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7ZM19 13.3v-2.6l-2-.5a7.5 7.5 0 0 0-.7-1.7l1.1-1.7-1.9-1.9-1.7 1.1a7.5 7.5 0 0 0-1.7-.7l-.5-2H9l-.5 2a7.5 7.5 0 0 0-1.7.7L5.1 4.9 3.2 6.8l1.1 1.7a7.5 7.5 0 0 0-.7 1.7l-2 .5v2.6l2 .5a7.5 7.5 0 0 0 .7 1.7l-1.1 1.7 1.9 1.9 1.7-1.1a7.5 7.5 0 0 0 1.7.7l.5 2h2.6l.5-2a7.5 7.5 0 0 0 1.7-.7l1.7 1.1 1.9-1.9-1.1-1.7a7.5 7.5 0 0 0 .7-1.7l2-.5Z"/></svg></a></header>
+              <header><h3>Programmazione di oggi</h3></header>
               <div class="boiler-schedule-placeholder" data-boiler-schedule>Programmazione non ancora acquisita</div>
               <div class="boiler-weekdays" aria-label="Seleziona il giorno della programmazione">
                 <button type="button" data-boiler-weekday="1">Lun</button><button type="button" data-boiler-weekday="2">Mar</button><button type="button" data-boiler-weekday="3">Mer</button><button type="button" data-boiler-weekday="4">Gio</button><button type="button" data-boiler-weekday="5">Ven</button><button type="button" data-boiler-weekday="6">Sab</button><button type="button" data-boiler-weekday="0">Dom</button>
