@@ -375,18 +375,25 @@ button[data-floorplan-light] .floorplan-symbol { pointer-events: none; }
 .alarm-dialog .alarm-audio-controls { display:flex; align-items:center; gap:12px; min-width:0; padding-top:8px; border-top:1px solid #284e64; }
 .alarm-dialog .alarm-audio-controls label { flex:1; min-width:0; }
 .alarm-dialog .alarm-audio-controls input[type="range"] { flex:1; min-width:0; }
-.alarm-dialog .alarm-keyboard { display:grid; gap:8px; padding:12px; border:1px solid #39738e; border-radius:16px; background:#0b2233; outline:none; }
-.alarm-dialog .alarm-keyboard[hidden] { display:none; }
-.alarm-dialog .alarm-keyboard > strong { color:#fff; text-align:center; font-size:clamp(.65rem,1.5vw,.9375rem); font-weight:600; }
-.alarm-dialog .alarm-keyboard-display { display:flex; align-items:center; gap:8px; min-width:0; }
-.alarm-dialog .alarm-keyboard-display output { flex:1; min-width:0; min-height:44px; padding:10px; overflow-x:auto; border:1px solid #476b83; border-radius:8px; background:#071826; color:#fff; font-size:1.1rem; white-space:nowrap; }
-.alarm-dialog .alarm-keyboard-display button, .alarm-dialog .alarm-keyboard-actions button { min-height:44px; padding:0 14px; border:1px solid #476b83; border-radius:8px; color:#e5f3fc; background:#132d40; font-family:inherit; font-size:.8rem; font-weight:600; cursor:pointer; }
-.alarm-dialog .alarm-keyboard [data-keyboard-unicode] { color:#b9d4e1; font-size:.75rem; }
-.alarm-dialog .alarm-key-row { display:flex; gap:4px; margin-bottom:4px; }
-.alarm-dialog .alarm-key { flex:1 1 0; min-width:0; min-height:44px; padding:4px 1px; border:1px solid #476b83; border-radius:7px; color:#e5f3fc; background:#132d40; font-family:inherit; font-size:.9rem; font-weight:600; line-height:1; cursor:pointer; touch-action:manipulation; }
-.alarm-dialog .alarm-key:active, .alarm-dialog .alarm-keyboard button:active { background:#25506b; }
-.alarm-dialog .alarm-key--space { flex:2 1 0; }
-.alarm-dialog .alarm-key--wide { flex:1.5 1 0; font-size:.65rem; }
-.alarm-dialog .alarm-keyboard-actions { display:flex; justify-content:flex-end; gap:8px; }
-.alarm-dialog .alarm-keyboard button:focus-visible { outline:2px solid #8deaff; outline-offset:2px; }
-@media (max-width:460px) { .alarm-dialog .alarm-keyboard { padding:8px; } .alarm-dialog .alarm-key-row { gap:2px; } .alarm-dialog .alarm-key { font-size:.75rem; } .alarm-dialog .alarm-key-row--controls { flex-wrap:wrap; } .alarm-dialog .alarm-key-row--controls .alarm-key { flex:1 1 18%; padding-inline:4px; } .alarm-dialog .alarm-key-row--controls .alarm-key--space { flex:2 1 35%; } }
+:is(.alarm-dialog, .siren-config-dialog) .alarm-keyboard { display:grid; gap:8px; padding:12px; border:1px solid #39738e; border-radius:16px; background:#0b2233; outline:none; }
+:is(.alarm-dialog, .siren-config-dialog) .alarm-keyboard[hidden] { display:none; }
+:is(.alarm-dialog, .siren-config-dialog) .alarm-keyboard > strong { color:#fff; text-align:center; font-size:clamp(.65rem,1.5vw,.9375rem); font-weight:600; }
+:is(.alarm-dialog, .siren-config-dialog) .alarm-keyboard-display { display:flex; align-items:center; gap:8px; min-width:0; }
+:is(.alarm-dialog, .siren-config-dialog) .alarm-keyboard-display output { flex:1; min-width:0; min-height:44px; padding:10px; overflow-x:auto; border:1px solid #476b83; border-radius:8px; background:#071826; color:#fff; font-size:1.1rem; white-space:nowrap; }
+:is(.alarm-dialog, .siren-config-dialog) .alarm-keyboard-display button, :is(.alarm-dialog, .siren-config-dialog) .alarm-keyboard-actions button { min-height:44px; padding:0 14px; border:1px solid #476b83; border-radius:8px; color:#e5f3fc; background:#132d40; font-family:inherit; font-size:.8rem; font-weight:600; cursor:pointer; }
+:is(.alarm-dialog, .siren-config-dialog) .alarm-keyboard [data-keyboard-unicode] { color:#b9d4e1; font-size:.75rem; }
+:is(.alarm-dialog, .siren-config-dialog) .alarm-key-row { display:flex; gap:4px; margin-bottom:4px; }
+:is(.alarm-dialog, .siren-config-dialog) .alarm-key { flex:1 1 0; min-width:0; min-height:44px; padding:4px 1px; border:1px solid #476b83; border-radius:7px; color:#e5f3fc; background:#132d40; font-family:inherit; font-size:.9rem; font-weight:600; line-height:1; cursor:pointer; touch-action:manipulation; }
+:is(.alarm-dialog, .siren-config-dialog) .alarm-key:active, :is(.alarm-dialog, .siren-config-dialog) .alarm-keyboard button:active { background:#25506b; }
+:is(.alarm-dialog, .siren-config-dialog) .alarm-key--space { flex:2 1 0; }
+:is(.alarm-dialog, .siren-config-dialog) .alarm-key--wide { flex:1.5 1 0; font-size:.65rem; }
+:is(.alarm-dialog, .siren-config-dialog) .alarm-keyboard-actions { display:flex; justify-content:flex-end; gap:8px; }
+:is(.alarm-dialog, .siren-config-dialog) .alarm-keyboard button:focus-visible { outline:2px solid #8deaff; outline-offset:2px; }
+@media (max-width:460px) { :is(.alarm-dialog, .siren-config-dialog) .alarm-keyboard { padding:8px; } :is(.alarm-dialog, .siren-config-dialog) .alarm-key-row { gap:2px; } :is(.alarm-dialog, .siren-config-dialog) .alarm-key { font-size:.75rem; } :is(.alarm-dialog, .siren-config-dialog) .alarm-key-row--controls { flex-wrap:wrap; } :is(.alarm-dialog, .siren-config-dialog) .alarm-key-row--controls .alarm-key { flex:1 1 18%; padding-inline:4px; } :is(.alarm-dialog, .siren-config-dialog) .alarm-key-row--controls .alarm-key--space { flex:2 1 35%; } }
+
+.siren-config-dialog .siren-config-form[hidden], .siren-config-dialog .siren-test-controls[hidden], .siren-config-dialog .siren-auth[hidden] { display:none; }
+.siren-config-dialog > .alarm-keyboard:not([hidden]) { margin:12px 0; }
+.siren-auth { margin:12px 0; }
+.siren-auth [data-siren-auth-status] { display:block; color:#ffcf8b; font-size:.82rem; }
+.siren-config-dialog .alarm-keyboard div { padding:0; border-radius:0; background:transparent; font-size:inherit; }
+.siren-auth button { min-height:44px; padding:8px 12px; border:1px solid #476b83; border-radius:9px; color:inherit; background:#132d40; font:inherit; font-weight:700; cursor:pointer; }

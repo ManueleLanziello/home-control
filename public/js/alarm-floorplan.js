@@ -58,18 +58,16 @@ export async function initAlarmFloorplan({ mapping, assets, placeHtml, createIco
   let pendingPassword = null; let passwordValue = ''; let shifted = false; let symbols = false; let unicodeMode = false; let unicodeHex = ''; let revealed = false; let revealTimer = null;
   const refreshPassword = () => { keyboardValue.textContent = revealed ? passwordValue : '\u2022'.repeat(Array.from(passwordValue).length); keyboardValue.setAttribute('aria-label', revealed ? 'Password visibile temporaneamente' : 'Password nascosta'); unicodeInfo.hidden = !unicodeMode; unicodeInfo.textContent = unicodeMode ? `Codice Unicode U+${unicodeHex ? (revealed ? unicodeHex : '\u2022'.repeat(unicodeHex.length)) : '\u2026'} (esadecimale)` : ''; };
   const clearPassword = () => { passwordValue = ''; shifted = false; symbols = false; unicodeMode = false; unicodeHex = ''; revealed = false; if (revealTimer !== null) clearTimeout(revealTimer); revealTimer = null; refreshPassword(); keyboardRows.replaceChildren(); };
-  const finishPassword = (value, userClosed = false) => {
+  const keyboardHome = modal.querySelector('.alarm-settings');
+  const finishPassword = value => {
     if (!pendingPassword) return;
-    const { resolve, temporary, restoreAfterSiren } = pendingPassword; pendingPassword = null;
+    const { resolve, host } = pendingPassword; pendingPassword = null;
     keyboard.hidden = true; clearPassword();
-    if (!alarmModeBusy) for (const item of modes.children) item.disabled = false;
-    if (temporary && modal.open) modal.close();
-    if (!userClosed && restoreAfterSiren && sirenPopup?.dialog?.open) {
-      sirenPopup.dialog.addEventListener('close', () => { if (!modal.open) modal.showModal(); }, { once: true });
-    }
+    if (host !== modal) modal.insertBefore(keyboard, keyboardHome);
+    if (host === modal && !alarmModeBusy) for (const item of modes.children) item.disabled = false;
     resolve(value);
   };
-  modal.addEventListener('close', () => { if (!modal.open) finishPassword(null, true); });
+  modal.addEventListener('close', () => { if (!modal.open && pendingPassword?.host === modal) finishPassword(null); });
   const addCharacter = value => { if (!pendingPassword) return; if (unicodeMode) { if (/^[0-9a-f]$/i.test(value) && unicodeHex.length < 6) unicodeHex += value.toUpperCase(); } else { passwordValue += value; } refreshPassword(); };
   const removeCharacter = () => { if (unicodeMode) unicodeHex = unicodeHex.slice(0, -1); else passwordValue = Array.from(passwordValue).slice(0, -1).join(''); refreshPassword(); };
   const submitPassword = () => { if (!passwordValue || !pendingPassword) return; const value = passwordValue; finishPassword(value); };
@@ -117,14 +115,13 @@ export async function initAlarmFloorplan({ mapping, assets, placeHtml, createIco
     else if (event.key === 'Backspace') { event.preventDefault(); alarmAudio.keyboardClick(); removeCharacter(); }
     else if (Array.from(event.key).length === 1) { event.preventDefault(); alarmAudio.keyboardClick(); addCharacter(event.key); }
   });
-  const askPassword = title => {
-    if (pendingPassword) return Promise.resolve(null);
-    const wasOpen = modal.open; const sirenOnTop = sirenPopup?.dialog?.open === true;
-    if (sirenOnTop && modal.open) modal.close();
-    if (!modal.open) modal.showModal();
-    clearPassword(); for (const item of modes.children) item.disabled = true; keyboard.querySelector('[data-keyboard-title]').textContent = title;
+  const askPassword = (title, host = modal) => {
+    if (pendingPassword || !host.open) return Promise.resolve(null);
+    if (host !== modal) host.insertBefore(keyboard, host.querySelector('form'));
+    clearPassword(); if (host === modal) for (const item of modes.children) item.disabled = true;
+    keyboard.querySelector('[data-keyboard-title]').textContent = title;
     keyboard.hidden = false; buildKeys(); keyboard.focus({ preventScroll:true }); keyboard.scrollIntoView({ block:'start', behavior:'smooth' });
-    return new Promise(resolve => { pendingPassword = { resolve, temporary: !wasOpen || sirenOnTop, restoreAfterSiren: wasOpen && sirenOnTop }; });
+    return new Promise(resolve => { pendingPassword = { resolve, host }; });
   };
   const refreshSirenPopup = () => {
     if (!sirenPopup || sirenPopup.dirty) return;
@@ -137,18 +134,35 @@ export async function initAlarmFloorplan({ mapping, assets, placeHtml, createIco
     if (sirenConfigBusy || sirenPopup?.dialog?.open) return;
     sirenConfigBusy = true;
     try {
-    const password = await askPassword('Configura SR1'); if (password === null) return;
-    let authorization; try { authorization = await request('/api/alarm/siren/authorize', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }) }); } catch { if (!modal.open) modal.showModal(); audioStatus.textContent = 'Password non corretta'; return; }
+    let authorization = null;
     const dialog = document.createElement('dialog'); dialog.className = 'sensor-dialog siren-config-dialog'; dialog.innerHTML = '<header><div><h2>SR1 — Sirena Terrazzo</h2><p>CONFIGURAZIONE ZIGBEE</p></div><button type="button" data-close>×</button></header><section data-siren-readonly></section><form class="siren-config-form"><fieldset><legend>Configurazione</legend><label>Suono <input name="soundEnabled" type="checkbox"></label><label>Luce <input name="lightEnabled" type="checkbox"></label><label>Tipo suono <select name="soundType"><option value="siren_classic">Sirena classica</option><option value="siren_steady">Sirena continua</option><option value="siren_rising">Sirena crescente</option><option value="siren_warning">Avviso</option><option value="siren_rapid">Sirena rapida</option><option value="siren_emergency">Emergenza</option><option value="tone_chirp">Tono chirp</option><option value="tone_hi_lo">Tono alto/basso</option><option value="tone_intermittent">Tono intermittente</option><option value="tone_pulse">Tono impulso</option><option value="chime_doorbell">Campanello</option><option value="chime_classic_clock">Orologio classico</option><option value="chime_electronic_clock">Orologio elettronico</option><option value="chime_bright">Chime brillante</option><option value="chime_soft">Chime delicato</option></select></label><label>Volume <select name="volumeLevel"><option value="low">Basso</option><option value="medium">Medio</option><option value="high">Alto</option><option value="max">Massimo</option></select></label><label>Durata <span><input name="duration" type="number" min="1" max="900" required><em>secondi</em></span></label><label>Pausa <span><input name="pauseSeconds" type="number" min="0" max="900" required><em>secondi</em></span></label><label>Numero cicli <input name="cycleCount" type="number" min="1" max="20" step="1" required></label></fieldset><small data-save-status></small><footer><button type="submit">SALVA</button><button type="button" data-cancel>ANNULLA</button></footer></form><section class="siren-test-controls"><small data-test-status></small><footer><button type="button" data-siren-test>TEST SIRENA</button><button type="button" data-siren-stop disabled>STOP</button></footer></section>';
-    const revoke = () => { fetch(homeControlPath('/api/alarm/siren/session'), { method: 'DELETE', headers: { Authorization: `Bearer ${authorization.token}` } }).catch(() => {}); }; sirenPopup = { dialog, dirty: false }; const form = dialog.querySelector('form'); refreshSirenPopup();
+    const revoke = () => { if (!authorization?.token) return; const token = authorization.token; authorization.token = ''; fetch(homeControlPath('/api/alarm/siren/session'), { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }).catch(() => {}); };
+    sirenPopup = { dialog, dirty: false }; const form = dialog.querySelector('form'); const testControls = dialog.querySelector('.siren-test-controls');
+    form.hidden = true; testControls.hidden = true;
+    const authSection = document.createElement('section'); authSection.className = 'siren-auth'; authSection.innerHTML = '<button type="button" data-siren-authorize>AUTORIZZA CONFIGURAZIONE</button><small data-siren-auth-status></small>'; dialog.insertBefore(authSection, form);
+    const authButton = authSection.querySelector('[data-siren-authorize]'); const authStatus = authSection.querySelector('[data-siren-auth-status]');
+    let authBusy = false;
+    const authorizeSiren = async () => {
+      if (authBusy || !dialog.open) return;
+      authBusy = true; authButton.disabled = true; authStatus.textContent = '';
+      try {
+        const password = await askPassword('Configura SR1', dialog); if (password === null || !dialog.open) return;
+        try {
+          authorization = await request('/api/alarm/siren/authorize', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }) });
+          if (!dialog.open) { revoke(); return; }
+          form.hidden = false; testControls.hidden = false; authSection.hidden = true;
+        } catch { if (dialog.open) authStatus.textContent = 'Password non corretta'; }
+      } finally { authBusy = false; authButton.disabled = false; }
+    };
+    authButton.onclick = authorizeSiren; refreshSirenPopup();
     form.oninput = () => { if (sirenPopup) sirenPopup.dirty = true; }; form.onsubmit = async event => { event.preventDefault(); const data = new FormData(form); const payload = { soundEnabled: data.get('soundEnabled') === 'on', lightEnabled: data.get('lightEnabled') === 'on', soundType: data.get('soundType'), volumeLevel: data.get('volumeLevel'), duration: Number(data.get('duration')), pauseSeconds: Number(data.get('pauseSeconds')), cycleCount: Number(data.get('cycleCount')) }; const status = dialog.querySelector('[data-save-status]'); try { const result = await request('/api/alarm/siren/config', { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authorization.token}` }, body: JSON.stringify(payload) }); authorization.token = ''; if (state && result.settings) state.sirenSettings = result.settings; sirenPopup.dirty = false; status.textContent = result.deferred ? 'Configurazione salvata per il prossimo allarme.' : 'Configurazione salvata; attendo conferma MQTT.'; } catch { status.textContent = 'Salvataggio non disponibile.'; } };
     const testButton = dialog.querySelector('[data-siren-test]'); const stopButton = dialog.querySelector('[data-siren-stop]'); const testStatus = dialog.querySelector('[data-test-status]'); let testStatusTimer = null;
     let sirenAuthorizationPending = false;
-    const ensureTestAuthorization = async () => { if (authorization.token) return true; if (sirenAuthorizationPending) return false; sirenAuthorizationPending = true; try { const testPassword = await askPassword('Test sirena'); if (testPassword === null) return false; try { authorization = await request('/api/alarm/siren/authorize', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: testPassword }) }); return true; } catch { testStatus.textContent = 'Password non corretta'; return false; } } finally { sirenAuthorizationPending = false; } };
+    const ensureTestAuthorization = async () => { if (authorization.token) return true; if (sirenAuthorizationPending) return false; sirenAuthorizationPending = true; try { const testPassword = await askPassword('Test sirena', dialog); if (testPassword === null || !dialog.open) return false; try { authorization = await request('/api/alarm/siren/authorize', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: testPassword }) }); if (!dialog.open) { revoke(); return false; } return true; } catch { testStatus.textContent = 'Password non corretta'; return false; } } finally { sirenAuthorizationPending = false; } };
     const showStopped = () => { testStatusTimer = null; testStatus.textContent = 'Comando STOP inviato'; testButton.disabled = false; stopButton.disabled = true; };
     testButton.onclick = async () => { if (testButton.disabled) return; testButton.disabled = true; if (!(await ensureTestAuthorization())) { testButton.disabled = false; return; } try { const result = await request('/api/alarm/siren/test', { method: 'POST', headers: { Authorization: `Bearer ${authorization.token}` } }); testStatus.textContent = 'Test sirena in corso'; stopButton.disabled = false; testStatusTimer = setTimeout(showStopped, result.durationSeconds * 1000 + 100); } catch (error) { testStatus.textContent = error.status === 409 ? error.message : 'Test sirena non disponibile.'; testButton.disabled = false; } };
     stopButton.onclick = async () => { if (!(await ensureTestAuthorization())) return; stopButton.disabled = true; if (testStatusTimer) clearTimeout(testStatusTimer); try { await request('/api/alarm/siren/test', { method: 'DELETE', headers: { Authorization: `Bearer ${authorization.token}` } }); showStopped(); } catch { testStatus.textContent = 'STOP non disponibile.'; testButton.disabled = false; } };
-    const close = () => dialog.close(); dialog.querySelector('[data-close]').onclick = close; dialog.querySelector('[data-cancel]').onclick = close; dialog.addEventListener('close', () => { if (testStatusTimer) clearTimeout(testStatusTimer); revoke(); if (sirenPopup?.dialog === dialog) sirenPopup = null; dialog.remove(); }, { once: true }); document.body.append(dialog); dialog.showModal();
+    const close = () => dialog.close(); dialog.querySelector('[data-close]').onclick = close; dialog.querySelector('[data-cancel]').onclick = close; dialog.addEventListener('close', () => { if (pendingPassword?.host === dialog) finishPassword(null); if (testStatusTimer) clearTimeout(testStatusTimer); revoke(); if (sirenPopup?.dialog === dialog) sirenPopup = null; dialog.remove(); }, { once: true }); document.body.append(dialog); dialog.showModal(); void authorizeSiren();
     } finally { sirenConfigBusy = false; }
   };
   const open = () => { render(); if (!modal.open) modal.showModal(); };
