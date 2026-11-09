@@ -88,3 +88,21 @@ test('SSE Pond invia snapshot iniziale, aggiornamento poll e readback comando se
   assert.equal(command.status, 200); const confirmed = await command.json(); assert.equal(confirmed.state, 'OFF'); assert.equal(confirmed.pond.plugs.find(item => item.role === 'heater').runtime.state, 'OFF'); assert.equal(starts, 1);
   const commandEvent = new TextDecoder().decode((await reconnectReader.read()).value); assert.match(commandEvent, /"state":"OFF"/); await reconnectReader.cancel();
 });
+
+
+test('diagnostica interblocco distingue pompa obsoleta, OFF e non affidabile senza allentare la sicurezza', async () => {
+  const events = []; let pump = {state:'ON', online:true, communicationDegraded:false, consecutiveFailures:0, lastReadAt:new Date(1000).toISOString()};
+  let fresh = true; let heater = true; let writes = 0;
+  const runtime = {deviceList:[{id:'pump'}, {id:'heater'}], hasDevice:id => ['pump','heater'].includes(id),
+    snapshot:() => pump, isFreshAndReliable:() => fresh,
+    async setDeviceOn(_id, on) { writes++; heater = on; return {state:on?'ON':'OFF'}; },
+    async withDevices(_ids, fn) { return fn({async read() {return {state:heater?'ON':'OFF'};}, async setDeviceOn(_id,on){writes++; heater=on; return {state:on?'ON':'OFF'};}}); }};
+  const roles = {async read(){return {pump:'pump',heater:'heater'};}};
+  const controller = createPondController({runtime, roleStore:roles, now:()=>7000, log:e=>events.push(e)});
+  await controller.set('heater', true); assert.equal(writes, 1);
+  fresh = false; await assert.rejects(controller.set('heater', true), {code:'PUMP_REQUIRED'}); assert.equal(events.at(-1).reason, 'PUMP_STALE');
+  await controller.monitor(); assert.equal(heater, false); assert.equal(events.at(-1).action, 'interlock-heater-off');
+  fresh = true; pump = {...pump, state:'OFF'}; await assert.rejects(controller.set('heater', true), {code:'PUMP_REQUIRED'}); assert.equal(events.at(-1).reason, 'PUMP_OFF');
+  pump = {...pump, state:'ON', communicationDegraded:true}; fresh = false; await assert.rejects(controller.set('heater', true), {code:'PUMP_REQUIRED'}); assert.equal(events.at(-1).reason, 'PUMP_UNRELIABLE');
+  assert.equal(writes, 2);
+});

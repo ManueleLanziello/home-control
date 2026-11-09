@@ -135,6 +135,16 @@ export function createPondHeatingDraft() {
   };
 }
 
+export function pondHeatingStatus(heating, plugs) {
+  const unavailable = ['pump', 'heater'].some(role => {
+    const runtime = plugs.find(plug => plug.role === role)?.runtime;
+    return runtime && (runtime.online === false || runtime.communicationDegraded === true || runtime.consecutiveFailures > 0);
+  });
+  if (unavailable) return 'Stato delle prese non disponibile.';
+  if (heating?.activeCycle) return `Ciclo ${heating.activeCycle.id}: ${heating.status === 'cycle-running' ? `ON ${heating.activeCycle.repetition}/${heating.activeCycle.config.repetitions}` : 'pausa tra ripetizioni'}`;
+  return heating?.deviceVerified ? 'In attesa di una nuova misura S5.' : 'In attesa della verifica dello stato fisico delle prese.';
+}
+
 export function initPondPopup(controls) {
   const dialog = document.createElement('dialog');
   dialog.className = 'boiler-modal pond-modal';
@@ -149,6 +159,7 @@ export function initPondPopup(controls) {
   const historySummary = dialog.querySelector('.pond-history-summary');
   const input = name => settings.querySelector(`[name="${name}"]`);
   const draft = createPondHeatingDraft();
+  let statusOverride = null;
   const formatTemperature = value => Number.isFinite(value) ? `${value.toLocaleString('it-IT', { maximumFractionDigits: 1 })} °C` : '—';
   const formatDate = value => Number.isFinite(Date.parse(value)) ? new Intl.DateTimeFormat('it-IT', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value)) : '—';
   const history24h = history => history.filter(record => Date.now() - Date.parse(record.completedAt) <= 24 * 60 * 60 * 1000);
@@ -182,7 +193,8 @@ export function initPondPopup(controls) {
   cards.replaceChildren(createRoleCard('pump', 'Pompa Filtro', 'pumpon.svg', 'pumpoff.svg', 'pump.svg'), createRoleCard('heater', 'Riscaldatore', 'heateron.svg', 'heateroff.svg', 'heater.svg'), thermostat);
   const save = async ({ mode = null } = {}) => {
     const current = controls.heating()?.config || {};
-    statusLine.textContent = 'Salvataggio in corso…';
+    statusOverride = 'Salvataggio in corso…';
+    render();
     try {
       await controls.saveHeatingConfig({
         ...current,
@@ -190,9 +202,9 @@ export function initPondPopup(controls) {
         ...draft.values(current),
       });
       draft.clear();
+      statusOverride = null;
       render();
-      statusLine.textContent = 'Configurazione salvata.';
-    } catch (error) { statusLine.textContent = error.message || 'Configurazione non salvata.'; }
+    } catch (error) { statusOverride = error.message || 'Configurazione non salvata.'; render(); }
   };
   manual.querySelector('input').addEventListener('change', () => { if (manual.querySelector('input').checked) void save({ mode: 'manual' }); });
   automatic.querySelector('input').addEventListener('change', () => { if (automatic.querySelector('input').checked) void save({ mode: 'thermostat' }); });
@@ -211,8 +223,7 @@ export function initPondPopup(controls) {
     }
     const s5 = heating?.latestMeasurement || heating?.activeCycle?.lastMeasurement || null;
     s5Reading.textContent = s5 ? `S5: ${formatTemperature(s5.value)} · ${formatDate(s5.updatedAt)}` : 'S5: in attesa di una misura live valida.';
-    const phase = heating?.activeCycle ? `Ciclo ${heating.activeCycle.id}: ${heating.status === 'cycle-running' ? `ON ${heating.activeCycle.repetition}/${heating.activeCycle.config.repetitions}` : 'pausa tra ripetizioni'}` : heating?.deviceVerified ? 'In attesa di una nuova misura S5.' : 'In attesa della verifica dello stato fisico delle prese.';
-    if (!statusLine.textContent || statusLine.textContent === 'Configurazione salvata.') statusLine.textContent = phase;
+    statusLine.textContent = statusOverride || pondHeatingStatus(heating, controls.snapshot());
     for (const [role, entry] of roleCards) {
       const current = pondRoleState(controls.snapshot(), role);
       const pending = controls.pending(role);
@@ -240,7 +251,7 @@ export function initPondPopup(controls) {
   };
   controls.subscribe(render);
   render();
-  dialog.addEventListener('close', () => { draft.clear(); });
+  dialog.addEventListener('close', () => { draft.clear(); statusOverride = null; });
   return async () => {
     try { await controls.refresh(); } catch { /* The dialog renders unavailable controls. */ }
     render();

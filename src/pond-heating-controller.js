@@ -147,7 +147,8 @@ export class PondHeatingController {
       await this.runCommand(() => this.pondController.set('heater', true));
       await this.store.update(state => { if (state.activeCycle) state.activeCycle.phase = 'on'; });
       this.arm(saved.state.activeCycle.config.onMinutes * MINUTE, () => this.finishOn());
-    } catch {
+    } catch (error) {
+      console.warn('[pond-heating]', JSON.stringify({ action: 'start-failed', code: ['PUMP_REQUIRED', 'ROLE_UNAVAILABLE', 'DEVICE_WRITE_FAILED', 'STATE_MISMATCH'].includes(error?.code) ? error.code : 'UNKNOWN' }));
       await this.store.update(state => { this.completeInState(state, outcome('AVVIO RISCALDATORE NON RIUSCITO'), state.activeCycle?.lastMeasurement || null); });
     }
     await this.publish();
@@ -181,7 +182,8 @@ export class PondHeatingController {
       await this.runCommand(() => this.pondController.set('heater', true));
       await this.store.update(next => { if (next.activeCycle) { next.activeCycle.repetition += 1; next.activeCycle.phase = 'on'; } });
       this.arm(active.config.onMinutes * MINUTE, () => this.finishOn());
-    } catch {
+    } catch (error) {
+      console.warn('[pond-heating]', JSON.stringify({ action: 'restart-failed', code: ['PUMP_REQUIRED', 'ROLE_UNAVAILABLE', 'DEVICE_WRITE_FAILED', 'STATE_MISMATCH'].includes(error?.code) ? error.code : 'UNKNOWN' }));
       await this.store.update(next => { this.completeInState(next, outcome('AVVIO RISCALDATORE NON RIUSCITO'), next.activeCycle?.lastMeasurement || null); });
     }
     await this.publish();

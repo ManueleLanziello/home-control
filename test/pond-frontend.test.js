@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { createPondControls, createPondHeatingDraft, pondRoleState } from '../public/js/pond-popup.js';
+import { createPondControls, createPondHeatingDraft, pondRoleState, pondHeatingStatus } from '../public/js/pond-popup.js';
 import { floorplanConfig } from '../public/js/floorplan-config.js';
 
 const runtime = (state, age = 0, overrides = {}) => ({
@@ -135,4 +135,17 @@ test('icona esterna Pond segue la modalità persistita del riscaldatore', async 
   assert.match(floorplan, /pondIcon\(mode, automaticMode \? config\.icons\.pondThermostat : config\.icons\.pondManual\)/);
   assert.equal(floorplanConfig.icons.pondManual, 'manual.svg');
   assert.equal(floorplanConfig.icons.pondThermostat, 'auto.svg');
+});
+
+
+test('stato verifica segue snapshot, indisponibilità e recupero', () => {
+  const controls = createPondControls();
+  const plugs = [{role:'pump', runtime:runtime('ON')}, {role:'heater', runtime:runtime('OFF')}];
+  assert.match(pondHeatingStatus(null, []), /verifica/);
+  controls.applySnapshot({revision:1, plugs, heating:{deviceVerified:true}});
+  assert.match(pondHeatingStatus(controls.heating(), controls.snapshot()), /misura S5/);
+  controls.applySnapshot({revision:2, plugs:[plugs[0], {role:'heater', runtime:runtime('OFF', 0, {online:false})}], heating:{deviceVerified:true}});
+  assert.match(pondHeatingStatus(controls.heating(), controls.snapshot()), /non disponibile/);
+  controls.applySnapshot({revision:3, plugs, heating:{deviceVerified:true}});
+  assert.match(pondHeatingStatus(controls.heating(), controls.snapshot()), /misura S5/);
 });
