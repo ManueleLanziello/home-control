@@ -51,8 +51,9 @@
               <section class="boiler-temperature boiler-temperature--setpoint">
                 <div class="boiler-tile-heading"><div><span class="boiler-temperature-label">Temperatura impostata</span></div></div>
                 <strong data-boiler-setpoint>&mdash; &deg;C</strong>
-                <div class="boiler-disabled-controls" aria-label="Controlli setpoint non disponibili">
-                  <input type="range" min="0" max="30" step="0.5" data-boiler-setpoint-control aria-label="Setpoint manuale">
+                <div class="boiler-setpoint-actions" data-boiler-setpoint-actions>
+                  <button type="button" data-boiler-setpoint-save hidden>SALVA</button>
+                  <button type="button" data-boiler-setpoint-cancel hidden>ANNULLA</button>
                 </div>
               </section>
 
@@ -69,6 +70,11 @@
               </section>
             </div>
 
+            <section class="boiler-setpoint-adjust" aria-label="Regola temperatura">
+              <h3>REGOLA TEMPERATURA</h3>
+              <input type="range" min="5" max="30" step="0.5" data-boiler-setpoint-control aria-label="Regola temperatura impostata">
+              <p data-boiler-setpoint-message role="status" aria-live="polite" hidden></p>
+            </section>
             <section class="boiler-mode-selector" aria-label="Modalita termostato">
               <div class="boiler-mode" data-boiler-mode-option="manual"><span aria-hidden="true"><img src="design/manual.svg" alt=""></span><strong>Manuale</strong></div>
               <div class="boiler-mode" data-boiler-mode-option="auto"><span aria-hidden="true"><img src="design/auto.svg" alt=""></span><strong>Auto</strong></div>

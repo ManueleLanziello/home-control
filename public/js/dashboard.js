@@ -1,8 +1,10 @@
 import {
   beginModeRequest,
+  bindBoilerSetpointSlider,
   beginSetpointInteraction,
   beginSetpointRequest,
   createThermostatMutationState,
+  createBoilerSetpointEditor,
   displayedThermostatSetpoint,
   finishThermostatRequest,
   initThermostat,
@@ -30,6 +32,8 @@ const floorplanStore = createFloorplanState();
 let floorplanReady = Promise.resolve();
 let boilerEditor = null;
 let thermostatMutation = createThermostatMutationState();
+const setpointEditor = createBoilerSetpointEditor({ onChange: () => renderBoiler(boilerSnapshot) });
+let cancelSetpointPointer = () => {};
 let thermostatRefreshPromise = null;
 let cappaSaving = false;
 let settingsPanelPromise = null;
@@ -235,6 +239,7 @@ function snapshotForThermostatDisplay(snapshot) {
 }
 
 function applyThermostatSnapshot(snapshot, { preserveSetpoint = false, preserveMissing = false } = {}) {
+  setpointEditor.observe(snapshot);
   boilerSnapshot = mergeThermostatRefreshSnapshot(boilerSnapshot, snapshot, { mutation: thermostatMutation, preserveSetpoint, preserveMissing });
   floorplanStore.applyThermostatSnapshot(boilerSnapshot);
   renderBoiler(boilerSnapshot);
@@ -308,13 +313,24 @@ function renderBoiler(snapshot = null) {
     onlineElement.classList.toggle('static-status--online', online);
     onlineElement.classList.toggle('static-status--offline', !online);
   }
-  const displayedSetpoint = displayedThermostatSetpoint(snapshot, thermostatMutation);
+  const editor = setpointEditor.state();
+  const displayedSetpoint = editor.phase === 'view' ? (editor.confirmed ?? thermostat.setpointTemperature) : editor.draft;
   if (setpoint) setpoint.textContent = temperatureText(displayedSetpoint);
   const setpointControl = document.querySelector('[data-boiler-setpoint-control]');
   if (setpointControl) {
-    setpointControl.hidden = thermostat.mode !== 'manual';
-    setpointControl.disabled = thermostat.mode !== 'manual' || thermostatMutation.phase === 'pending';
+    setpointControl.disabled = thermostat.mode !== 'manual' || editor.phase === 'saving' || thermostatMutation.phase === 'pending' || !Number.isFinite(editor.confirmed) || editor.confirmed < 5 || editor.confirmed > 30;
     if (Number.isFinite(displayedSetpoint)) setpointControl.value = displayedSetpoint;
+  }
+  const setpointCard = document.querySelector('.boiler-temperature--setpoint');
+  setpointCard?.classList.toggle('is-editing', editor.phase === 'editing');
+  for (const button of document.querySelectorAll('[data-boiler-setpoint-save], [data-boiler-setpoint-cancel]')) {
+    button.hidden = editor.phase === 'view';
+    button.disabled = editor.phase === 'saving' || (button.hasAttribute('data-boiler-setpoint-save') && (editor.conflict || editor.uncertain || editor.dragging));
+  }
+  const setpointMessage = document.querySelector('[data-boiler-setpoint-message]');
+  if (setpointMessage) {
+    const message = editor.phase === 'saving' ? 'Salvataggio in corso...' : editor.conflict ? 'Il setpoint e cambiato: annulla e riprova.' : editor.error || (Number.isFinite(editor.confirmed) && (editor.confirmed < 5 || editor.confirmed > 30) ? 'Setpoint fuori intervallo regolabile (5-30 °C).' : null);
+    setpointMessage.hidden = !message; setpointMessage.textContent = message || '';
   }
   if (current) current.textContent = temperatureText(thermostat.currentTemperature);
   if (frost) frost.textContent = booleanText(thermostat.frostProtection);
@@ -415,57 +431,44 @@ async function sendCappaCommand(path, payload) {
 }
 
 async function saveSetpoint() {
-  const control = document.querySelector('[data-boiler-setpoint-control]');
-  if (!control || thermostatMutation.type !== 'setpoint' || thermostatMutation.phase !== 'dragging' || boilerSnapshot?.thermostat?.mode !== 'manual') return;
-  const previous = boilerSnapshot.thermostat.setpointTemperature;
-  const previousHeatingActive = boilerSnapshot.heatingActive;
-  const temperature = thermostatMutation.requestedValue;
-  if (temperature === previous) {
-    thermostatMutation = { ...thermostatMutation, type: null, phase: 'idle', requestedValue: null, revision: thermostatMutation.revision + 1 };
-    renderBoiler(boilerSnapshot);
-    return;
-  }
-  thermostatMutation = beginSetpointRequest(thermostatMutation);
+  if (boilerSnapshot?.thermostat?.mode !== 'manual' || thermostatMutation.phase !== 'idle') return;
+  const pending = setpointEditor.beginSave();
+  if (!pending) return;
+  const { id, value: temperature } = pending;
+  if (temperature === setpointEditor.state().confirmed) { setpointEditor.saved(id, { thermostat: { setpointTemperature: temperature } }); return; }
+  const previousHeatingActive = boilerSnapshot?.heatingActive;
+  thermostatMutation = beginSetpointRequest(beginSetpointInteraction(thermostatMutation, temperature));
   const requestId = thermostatMutation.requestId;
   renderBoiler(boilerSnapshot);
   try {
-    const response = await fetch(homeControlPath('/api/thermostat/setpoint'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ temperature }) });
+    const response = await fetch(homeControlPath('/api/thermostat/setpoint'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ temperature }), signal: AbortSignal.timeout(30_000) });
     const result = await response.json();
-    if (!response.ok) {
-      const error = new Error(result.error || 'Setpoint non aggiornato');
-      error.snapshot = result.snapshot;
-      throw error;
+    if (!response.ok || result.snapshot?.thermostat?.setpointTemperature !== temperature) {
+      const error = new Error(result.error || 'Il WT200 non ha confermato il setpoint richiesto'); error.snapshot = result.snapshot; error.requestCompleted = true; throw error;
     }
     if (!isCurrentThermostatRequest(thermostatMutation, requestId, 'setpoint')) return;
-    if (result.snapshot?.thermostat?.setpointTemperature !== temperature) {
-      const error = new Error('Il WT200 non ha confermato il setpoint richiesto');
-      error.snapshot = result.snapshot;
-      throw error;
-    }
     boilerSnapshot = mergeConfirmedThermostatSnapshot(boilerSnapshot, result.snapshot);
     thermostatMutation = finishThermostatRequest(thermostatMutation, requestId, 'setpoint');
+    setpointEditor.saved(id, result.snapshot);
     floorplanStore.applyThermostatSnapshot(boilerSnapshot);
     sessionStorage.setItem(THERMOSTAT_CACHE_KEY, JSON.stringify(boilerSnapshot)); renderBoiler(boilerSnapshot);
-    boilerEditor?.updateSnapshot(boilerSnapshot);
-    void fastFollowHeatingState(previousHeatingActive);
+    boilerEditor?.updateSnapshot(boilerSnapshot); void fastFollowHeatingState(previousHeatingActive);
   } catch (error) {
     if (!isCurrentThermostatRequest(thermostatMutation, requestId, 'setpoint')) return;
-    boilerSnapshot = error.snapshot || boilerSnapshot;
+    if (error.snapshot) boilerSnapshot = mergeConfirmedThermostatSnapshot(boilerSnapshot, error.snapshot);
     thermostatMutation = finishThermostatRequest(thermostatMutation, requestId, 'setpoint');
-    floorplanStore.applyThermostatSnapshot(boilerSnapshot);
-    boilerEditor?.updateSnapshot(boilerSnapshot);
-    renderBoiler(boilerSnapshot);
-    showModeMessage(error.message);
+    setpointEditor.failed(id, !error.requestCompleted ? 'Esito incerto: annulla e verifica il setpoint prima di riprovare.' : error.message, error.snapshot, { uncertain: !error.requestCompleted });
+    if (boilerSnapshot?.thermostat?.mode === 'auto' || !document.querySelector('[data-boiler-modal]')?.open) setpointEditor.cancel();
+    floorplanStore.applyThermostatSnapshot(boilerSnapshot); boilerEditor?.updateSnapshot(boilerSnapshot); renderBoiler(boilerSnapshot);
   }
 }
 
-function previewSetpoint() {
+function bindSetpointControls() {
   const control = document.querySelector('[data-boiler-setpoint-control]');
-  if (!control || thermostatMutation.phase === 'pending' || boilerSnapshot?.thermostat?.mode !== 'manual') return;
-  const temperature = Number(control.value);
-  if (!Number.isFinite(temperature)) return;
-  thermostatMutation = beginSetpointInteraction(thermostatMutation, temperature);
-  renderBoiler(boilerSnapshot);
+  if (!control) return;
+  cancelSetpointPointer = bindBoilerSetpointSlider(control, setpointEditor, () => boilerSnapshot?.thermostat?.mode);
+  document.querySelector('[data-boiler-setpoint-save]')?.addEventListener('click', () => void saveSetpoint());
+  document.querySelector('[data-boiler-setpoint-cancel]')?.addEventListener('click', () => setpointEditor.cancel());
 }
 
 async function loadHomeSnapshot() {
@@ -524,7 +527,8 @@ function showModeMessage(message) {
 }
 
 async function setBoilerMode(mode) {
-  if (thermostatMutation.phase !== 'idle') return;
+  if (setpointEditor.state().phase === 'saving' || thermostatMutation.phase !== 'idle') return;
+  if (setpointEditor.state().phase === 'editing') { if (mode !== 'auto') return; setpointEditor.cancel(); }
   const previousSnapshot = boilerSnapshot;
   const previousHeatingActive = boilerSnapshot?.heatingActive;
   thermostatMutation = beginModeRequest(thermostatMutation);
@@ -540,6 +544,7 @@ async function setBoilerMode(mode) {
     }
     if (!isCurrentThermostatRequest(thermostatMutation, requestId, 'mode')) return;
     boilerSnapshot = mergeConfirmedThermostatSnapshot(boilerSnapshot, result.snapshot);
+    setpointEditor.observe(result.snapshot);
     thermostatMutation = finishThermostatRequest(thermostatMutation, requestId, 'mode');
     floorplanStore.applyThermostatSnapshot(boilerSnapshot);
     sessionStorage.setItem(THERMOSTAT_CACHE_KEY, JSON.stringify(boilerSnapshot));
@@ -549,6 +554,7 @@ async function setBoilerMode(mode) {
   } catch (error) {
     if (!isCurrentThermostatRequest(thermostatMutation, requestId, 'mode')) return;
     boilerSnapshot = error.snapshot || boilerSnapshot || previousSnapshot;
+    setpointEditor.observe(boilerSnapshot);
     thermostatMutation = finishThermostatRequest(thermostatMutation, requestId, 'mode');
     floorplanStore.applyThermostatSnapshot(boilerSnapshot);
     boilerEditor?.updateSnapshot(boilerSnapshot);
@@ -602,7 +608,7 @@ function initBoilerModal() {
       host.querySelector('input, button')?.focus({ preventScroll: true });
     }
   };
-  modal.addEventListener('close', () => boilerEditor?.cancelEditing());
+  modal.addEventListener('close', () => { setpointEditor.close(); cancelSetpointPointer(); boilerEditor?.cancelEditing(); });
   modal.querySelector('[data-boiler-modal-close]').addEventListener('click', () => modal.close());
   modal.addEventListener('click', event => {
     if (event.target !== modal) return;
@@ -716,8 +722,7 @@ function renderDashboard() {
   renderBoiler();
   renderCappa();
   bindBoilerModeControls();
-  document.querySelector('[data-boiler-setpoint-control]')?.addEventListener('input', previewSetpoint);
-  document.querySelector('[data-boiler-setpoint-control]')?.addEventListener('change', () => void saveSetpoint());
+  bindSetpointControls();
   void loadHomeSnapshot();
   void loadWeatherSnapshot();
   setTimeout(loadThermostatSnapshot, THERMOSTAT_REFRESH_MS);

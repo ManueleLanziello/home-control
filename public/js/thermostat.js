@@ -1,6 +1,85 @@
 import { renderWt200Schedule } from './boiler-schedule.js';
 import { homeControlPath } from '../base-path.js';
 
+// Local draft and physical confirmation are deliberately independent.
+export function createBoilerSetpointEditor({ onChange = () => {}, setTimeoutFn = setTimeout, clearTimeoutFn = clearTimeout } = {}) {
+  let state = { phase: 'view', confirmed: null, observedAt: null, draft: null, base: null, conflict: false, error: null, uncertain: false, dragging: false, requestId: 0 };
+  let timer = null;
+  const emit = () => onChange({ ...state });
+  const clearTimer = () => { if (timer !== null) clearTimeoutFn(timer); timer = null; };
+  const cancel = () => {
+    if (state.phase !== 'editing') return;
+    clearTimer(); state = { ...state, phase: 'view', draft: null, base: null, conflict: false, error: null, uncertain: false, dragging: false }; emit();
+  };
+  const touch = () => {
+    clearTimer();
+    if (state.phase === 'editing' && !state.dragging) timer = setTimeoutFn(cancel, 30_000);
+  };
+  return {
+    state: () => ({ ...state }),
+    observe(snapshot) {
+      const value = snapshot?.thermostat?.setpointTemperature;
+      const timestamp = Date.parse(snapshot?.setpointUpdatedAt ?? snapshot?.updatedAt);
+      const previous = Date.parse(state.observedAt);
+      if (Number.isFinite(value) && (Number.isFinite(timestamp) ? !Number.isFinite(previous) || timestamp >= previous : state.confirmed === null)) {
+        state = { ...state, confirmed: value, observedAt: Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : null,
+          conflict: state.phase === 'editing' && value !== state.base ? true : state.conflict };
+      }
+      if (snapshot?.thermostat?.mode === 'auto' && state.phase === 'editing') cancel();
+    },
+    begin(mode) {
+      if (mode !== 'manual' || state.phase === 'saving' || (!Number.isFinite(state.confirmed) || state.confirmed < 5 || state.confirmed > 30)) return false;
+      if (state.phase === 'view') state = { ...state, phase: 'editing', draft: state.confirmed, base: state.confirmed, conflict: false, error: null, uncertain: false };
+      touch(); emit(); return true;
+    },
+    setDraft(value) {
+      if (state.phase !== 'editing' || !Number.isFinite(value)) return;
+      state = { ...state, draft: Math.round(Math.max(5, Math.min(30, value)) * 2) / 2, error: state.uncertain ? state.error : null };
+      touch(); emit();
+    },
+    startDrag() { if (state.phase !== 'editing') return; state = { ...state, dragging: true }; clearTimer(); emit(); },
+    endDrag() { if (!state.dragging) return; state = { ...state, dragging: false }; touch(); emit(); },
+    touch,
+    cancel,
+    beginSave() {
+      if (state.phase !== 'editing' || state.conflict || state.uncertain || state.dragging) return null;
+      clearTimer(); const id = state.requestId + 1;
+      state = { ...state, phase: 'saving', requestId: id, error: null }; emit(); return { id, value: state.draft };
+    },
+    saved(id, snapshot) {
+      if (state.phase !== 'saving' || state.requestId !== id || snapshot?.thermostat?.setpointTemperature !== state.draft) return false;
+      this.observe(snapshot); state = { ...state, phase: 'view', confirmed: state.confirmed ?? state.draft, draft: null, base: null, conflict: false, error: null }; emit(); return true;
+    },
+    failed(id, message, snapshot, { uncertain = false } = {}) {
+      if (state.phase !== 'saving' || state.requestId !== id) return;
+      this.observe(snapshot); state = { ...state, phase: 'editing', error: message || 'Setpoint non confermato.', uncertain, dragging: false };
+      if (Number.isFinite(state.confirmed) && state.confirmed !== state.base) state.conflict = true;
+      touch(); emit();
+    },
+    close() { if (state.phase === 'editing') cancel(); else clearTimer(); },
+  };
+}
+
+export function bindBoilerSetpointSlider(control, editor, getMode) {
+  let pointerId = null;
+  const down = event => {
+    if (event.button !== 0 || !editor.begin(getMode())) return;
+    event.preventDefault(); pointerId = event.pointerId; editor.startDrag(); control.setPointerCapture?.(event.pointerId);
+  };
+  const move = event => {
+    if (event.pointerId !== pointerId || !editor.state().dragging) return;
+    const rect = control.getBoundingClientRect(); const inset = 12; const width = Math.max(1, rect.width - inset * 2);
+    const position = Math.max(0, Math.min(1, (event.clientX - rect.left - inset) / width));
+    editor.setDraft(Number(control.min) + position * (Number(control.max) - Number(control.min)));
+  };
+  const finish = event => { if (event.pointerId !== pointerId) return; pointerId = null; editor.endDrag(); };
+  const input = () => { const value = Number(control.value); if (editor.begin(getMode())) editor.setDraft(value); };
+  control.addEventListener('pointerdown', down); control.addEventListener('pointermove', move);
+  control.addEventListener('pointerup', finish); control.addEventListener('pointercancel', finish); control.addEventListener('lostpointercapture', finish);
+  control.addEventListener('input', input);
+  return () => { if (pointerId !== null) { const id = pointerId; pointerId = null; if (control.hasPointerCapture?.(id)) control.releasePointerCapture(id); editor.endDrag(); } };
+}
+
 export function shouldDeferScheduleSnapshot({ saving, scheduleEditing, hasChanges }) {
   return Boolean(saving || scheduleEditing || hasChanges);
 }

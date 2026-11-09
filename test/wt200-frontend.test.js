@@ -114,8 +114,7 @@ test('popup CALDAIA usa sezioni indipendenti e QD1 resta sincronizzata allo stat
 
 test('setpoint usa un solo transaction state e scarta status appartenenti a revisioni precedenti', async () => {
   const dashboard = await readFile(dashboardScriptPath, 'utf8');
-  assert.match(dashboard, /thermostatMutation = beginSetpointInteraction\(thermostatMutation, temperature\)/);
-  assert.match(dashboard, /thermostatMutation = beginSetpointRequest\(thermostatMutation\)/);
+  assert.match(dashboard, /thermostatMutation = beginSetpointRequest\(beginSetpointInteraction\(thermostatMutation, temperature\)\)/);
   assert.match(dashboard, /boilerSnapshot = mergeConfirmedThermostatSnapshot\(boilerSnapshot, result\.snapshot\)/);
   assert.match(dashboard, /isCurrentThermostatRequest\(thermostatMutation, requestId, 'setpoint'\)/);
   assert.doesNotMatch(dashboard, /setpointDraft|setpointSaving|modeSaving/);
@@ -234,10 +233,9 @@ test('molti input conservano l ultimo valore e il dashboard invia un solo write 
   assert.equal(transaction.requestId, 1);
 
   const dashboard = await readFile(dashboardScriptPath, 'utf8');
-  assert.equal((dashboard.match(/addEventListener\('input', previewSetpoint\)/g) || []).length, 1);
-  assert.equal((dashboard.match(/addEventListener\('change', \(\) => void saveSetpoint\(\)\)/g) || []).length, 1);
-  const previewBody = dashboard.match(/function previewSetpoint\(\) \{[\s\S]*?\n\}/)?.[0] || '';
-  assert.doesNotMatch(previewBody, /fetch\(/);
+  assert.match(dashboard, /bindBoilerSetpointSlider/);
+  assert.doesNotMatch(dashboard, /addEventListener\('change', \(\) => void saveSetpoint\(\)\)/);
+
 });
 
 test('fast-follow applica DP5 reale appena cambia e poi termina', async () => {
