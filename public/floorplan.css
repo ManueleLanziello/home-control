@@ -327,19 +327,22 @@ button[data-floorplan-light] .floorplan-symbol { pointer-events: none; }
 /* Alarm popup: POND-sized cards and compact, responsive controls. */
 .alarm-dialog { width:min(780px,calc(100vw - 24px)); max-width:calc(100vw - 24px); margin:auto; padding:16px; overflow-x:hidden; overflow-y:auto; font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
 .alarm-dialog[open] { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); align-content:start; gap:10px 12px; }
-.alarm-dialog > header, .alarm-dialog > [data-alarm-message], .alarm-dialog > .alarm-modes, .alarm-dialog > .alarm-audio, .alarm-dialog > .alarm-problems { grid-column:1 / -1; min-width:0; }
+.alarm-dialog > header, .alarm-dialog > [data-alarm-message], .alarm-dialog > .alarm-modes, .alarm-dialog > .alarm-audio, .alarm-dialog > .alarm-settings, .alarm-dialog > .alarm-problems { grid-column:1 / -1; min-width:0; }
 .alarm-dialog > header strong { color:#fff; font-size:18px; font-weight:700; }
 .alarm-dialog > [data-alarm-message] { margin:0; font-size:.875rem; line-height:1.3; overflow-wrap:anywhere; }
 .alarm-dialog > [data-alarm-message]:empty { display:none; }
 .alarm-dialog .alarm-modes { grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
-.alarm-dialog .alarm-mode { grid-template-rows:64px auto minmax(14px,1fr); gap:12px; align-items:center; justify-items:center; min-width:0; padding:18px; border:1px solid #39738e; border-radius:16px; background:#0b2233; font-family:inherit; font-size:1rem; font-weight:600; line-height:1.2; text-align:center; }
-.alarm-dialog .alarm-mode::after { content:''; min-height:14px; }
-.alarm-dialog .alarm-mode img { width:64px; height:64px; }
+.alarm-dialog .alarm-mode { grid-template-rows:93px auto minmax(0,1fr); gap:4.5px; align-items:center; justify-items:center; min-width:0; padding:18px; border:1px solid #39738e; border-radius:16px; background:#0b2233; font-family:inherit; font-size:1rem; font-weight:600; line-height:1.2; text-align:center; }
+.alarm-dialog .alarm-mode::after { content:''; min-height:0; }
+.alarm-dialog .alarm-mode img { width:93px; height:93px; }
 .alarm-dialog .alarm-mode.is-active { border-color:#29df92; box-shadow:0 0 12px rgb(41 223 146 / 30%); }
-.alarm-dialog > label { display:flex; align-items:center; justify-content:space-between; min-width:0; min-height:44px; gap:10px; margin:0; padding:0; border:0; border-radius:0; background:transparent; font-size:.875rem; }
-.alarm-dialog > label:has([data-camera-automation]) { grid-column:1 / -1; justify-content:flex-start; }
-.alarm-dialog > label select { min-height:40px; min-width:0; padding:0 8px; font:inherit; }
-.alarm-dialog > label input[type="checkbox"], .alarm-dialog .alarm-audio input[type="checkbox"] { flex:none; width:18px; height:18px; accent-color:#29df92; }
+.alarm-dialog .alarm-settings { display:grid; grid-template-columns:minmax(0,1fr); gap:0; padding:12px; border:1px solid #39738e; border-radius:16px; background:#0b2233; }
+.alarm-dialog .alarm-settings > strong { margin-bottom:8px; color:#fff; font-size:clamp(.65rem,1.5vw,.9375rem); font-weight:600; line-height:1.2; text-align:center; }
+.alarm-dialog .alarm-settings label { display:flex; align-items:center; justify-content:space-between; min-width:0; min-height:44px; gap:10px; margin:0; padding:0; color:#e5f3fc; font-size:.875rem; }
+.alarm-dialog .alarm-settings label + label { border-top:1px solid #284e64; }
+.alarm-dialog .alarm-settings label > span { min-width:0; overflow-wrap:anywhere; }
+.alarm-dialog .alarm-settings select { min-height:40px; min-width:0; padding:0 8px; font:inherit; }
+.alarm-dialog .alarm-settings input[type="checkbox"], .alarm-dialog .alarm-audio input[type="checkbox"] { flex:none; width:18px; height:18px; accent-color:#29df92; }
 .alarm-dialog .alarm-audio { grid-template-columns:minmax(0,1fr) minmax(0,1.1fr) auto; align-items:center; gap:8px 12px; margin:0; padding:12px; border-color:#39738e; border-radius:16px; background:#0b2233; }
 .alarm-dialog .alarm-audio > strong { grid-column:1 / -1; color:#fff; font-size:clamp(.65rem,1.5vw,.9375rem); font-weight:600; line-height:1.2; text-align:center; }
 .alarm-dialog .alarm-audio label { min-width:0; min-height:40px; font-size:.8125rem; line-height:1.25; }
@@ -358,7 +361,7 @@ button[data-floorplan-light] .floorplan-symbol { pointer-events: none; }
   .alarm-dialog .alarm-modes { gap:8px; }
   .alarm-dialog .alarm-mode { padding:12px 5px; font-size:.875rem; }
 }
-@media (max-width:340px) {
+@media (max-width:390px) {
   .alarm-dialog .alarm-modes { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .alarm-dialog .alarm-mode:last-child { grid-column:1 / -1; }
 }
