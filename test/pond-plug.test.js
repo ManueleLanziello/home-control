@@ -87,6 +87,8 @@ test('SSE Pond invia snapshot iniziale, aggiornamento poll e readback comando se
   const command = await fetch(base + '/api/pond/heater/power', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on: false }) });
   assert.equal(command.status, 200); const confirmed = await command.json(); assert.equal(confirmed.state, 'OFF'); assert.equal(confirmed.pond.plugs.find(item => item.role === 'heater').runtime.state, 'OFF'); assert.equal(starts, 1);
   const commandEvent = new TextDecoder().decode((await reconnectReader.read()).value); assert.match(commandEvent, /"state":"OFF"/); await reconnectReader.cancel();
+  const cleared = await fetch(base + '/api/pond/heating/history', {method:'DELETE'});
+  assert.equal(cleared.status, 200); assert.deepEqual((await cleared.json()).pond.heating.history, []);
 });
 
 

@@ -78,6 +78,12 @@ export function createPondControls() {
       else await refresh();
       return heating;
     },
+    async clearHistory(confirmFn = globalThis.confirm) {
+      if (!confirmFn('Cancellare lo storico dei cicli di riscaldamento?')) return false;
+      const result = await request('/api/pond/heating/history', { method: 'DELETE' });
+      if (result.pond) applySnapshot(result.pond); else await refresh();
+      return true;
+    },
     async toggle(role) {
       if (pending.has(role)) return { ok: false, reason: 'pending' };
       if (heating?.config?.mode === 'thermostat') {
@@ -141,6 +147,9 @@ export function pondHeatingStatus(heating, plugs) {
     return runtime && (runtime.online === false || runtime.communicationDegraded === true || runtime.consecutiveFailures > 0);
   });
   if (unavailable) return 'Stato delle prese non disponibile.';
+  if (heating?.stopped) return 'Riscaldamento arrestato.';
+  if (heating?.retry?.kind === 'blocked') return 'Riscaldamento bloccato: verificare le prese.';
+  if (heating?.retry?.kind === 'transient') return 'In attesa di un nuovo tentativo di riscaldamento.';
   if (heating?.activeCycle) return `Ciclo ${heating.activeCycle.id}: ${heating.status === 'cycle-running' ? `ON ${heating.activeCycle.repetition}/${heating.activeCycle.config.repetitions}` : 'pausa tra ripetizioni'}`;
   return heating?.deviceVerified ? 'In attesa di una nuova misura S5.' : 'In attesa della verifica dello stato fisico delle prese.';
 }
@@ -148,7 +157,7 @@ export function pondHeatingStatus(heating, plugs) {
 export function initPondPopup(controls) {
   const dialog = document.createElement('dialog');
   dialog.className = 'boiler-modal pond-modal';
-  dialog.innerHTML = '<header class="boiler-modal-toolbar"><strong>POND</strong><button type="button" aria-label="Chiudi">X</button></header><div class="pond-cards"></div><section class="pond-heating-settings"><h2>Controllo termostatico</h2><p class="pond-s5-reading"></p><div class="pond-heating-fields"><label>Soglia °C<input name="threshold" type="number" step="0.1" inputmode="decimal"></label><label>Ripetizioni<input name="repetitions" type="number" min="1" step="1" inputmode="numeric"></label><label>Riscaldatore ON (min)<input name="onMinutes" type="number" min="0.1" step="0.1" inputmode="decimal"></label><label>Pausa OFF (min)<input name="offMinutes" type="number" min="0" step="0.1" inputmode="decimal"></label></div><button class="pond-heating-save" type="button">SALVA CONFIGURAZIONE</button><p class="pond-heating-status" aria-live="polite"></p></section><section class="pond-heating-history"><h2>Storico ultime 24 ore</h2><div class="pond-history-scroll"><table><thead><tr><th>Ciclo</th><th>Inizio</th><th>Fine</th><th>Soglia</th><th>Rep.</th><th>ON/OFF</th><th>T iniziale</th><th>T finale</th><th>ΔT</th><th>Esito</th></tr></thead><tbody></tbody></table></div><p class="pond-history-summary"></p></section>';
+  dialog.innerHTML = '<header class="boiler-modal-toolbar"><strong>POND</strong><button type="button" aria-label="Chiudi">X</button></header><div class="pond-cards"></div><section class="pond-heating-settings"><h2>Controllo termostatico</h2><p class="pond-s5-reading"></p><div class="pond-heating-fields"><label>Soglia °C<input name="threshold" type="number" step="0.1" inputmode="decimal"></label><label>Ripetizioni<input name="repetitions" type="number" min="1" step="1" inputmode="numeric"></label><label>Riscaldatore ON (min)<input name="onMinutes" type="number" min="0.1" step="0.1" inputmode="decimal"></label><label>Pausa OFF (min)<input name="offMinutes" type="number" min="0" step="0.1" inputmode="decimal"></label></div><button class="pond-heating-save" type="button">SALVA CONFIGURAZIONE</button><p class="pond-heating-status" aria-live="polite"></p></section><section class="pond-heating-history"><div class="pond-history-header"><h2>Storico ultime 24 ore</h2><button type="button" class="pond-history-clear">PULISCI STORICO</button></div><div class="pond-history-scroll"><table><thead><tr><th>Ciclo</th><th>Inizio</th><th>Fine</th><th>Soglia</th><th>Rep.</th><th>ON/OFF</th><th>T iniziale</th><th>T finale</th><th>ΔT</th><th>Esito</th></tr></thead><tbody></tbody></table></div><p class="pond-history-summary"></p></section>';
   document.body.append(dialog);
   dialog.querySelector('button').onclick = () => dialog.close();
   const cards = dialog.querySelector('.pond-cards');
@@ -209,6 +218,9 @@ export function initPondPopup(controls) {
   manual.querySelector('input').addEventListener('change', () => { if (manual.querySelector('input').checked) void save({ mode: 'manual' }); });
   automatic.querySelector('input').addEventListener('change', () => { if (automatic.querySelector('input').checked) void save({ mode: 'thermostat' }); });
   settings.querySelector('.pond-heating-save').addEventListener('click', () => { void save(); });
+  dialog.querySelector('.pond-history-clear').addEventListener('click', async () => {
+    try { await controls.clearHistory(); } catch (error) { statusOverride = error.message || 'Storico non cancellato.'; render(); }
+  });
   for (const name of heatingConfigFields) input(name).addEventListener('input', event => { draft.update(name, event.target.value); });
   const render = () => {
     const heating = controls.heating();

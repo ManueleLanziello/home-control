@@ -364,6 +364,7 @@ export function createHomeControlServer({
     activePondHeatingController ||= new PondHeatingController({
       pondController: await getPondController(),
       store: pondHeatingStore,
+      readS5: () => zigbeeRuntime?.readSnapshot?.().S5 || null,
       runCommand: runPondCommand,
       publish: async () => { await publishPondState(); },
     });
@@ -868,6 +869,11 @@ export function createHomeControlServer({
         return sendJson(response, 200, { heating: pond.heating, pond });
       } catch (error) { return sendJson(response, 409, { error: error.message || 'Configurazione riscaldamento non valida' }); }
     }
+    if (url.pathname === '/api/pond/heating/history') {
+      if (request.method !== 'DELETE') return sendJson(response, 405, { error: 'Metodo non consentito' });
+      try { requireOwner(); const heating = await getPondHeatingController(); await heating.clearHistory(); return sendJson(response, 200, { pond: await publishPondState() }); }
+      catch (error) { return sendJson(response, 409, { error: error.message || 'Storico non cancellato' }); }
+    }
     const pondCommandMatch = /^\/api\/pond\/(pump|heater)\/power$/.exec(url.pathname);
     if (pondCommandMatch) { if (request.method !== 'PUT') return sendJson(response, 405, { error: 'Metodo non consentito' }); const payload = await readJson(request); if (typeof payload?.on !== 'boolean') return sendJson(response, 400, { error: 'Stato non valido' }); try { requireOwner(); const heating = await getPondHeatingController(); if ((await heating?.snapshot())?.config?.mode === 'thermostat') return sendJson(response, 409, { error: 'Passare alla modalità Manuale per comandare la presa.' }); const result = await runPondCommand(() => getPondController().then(controller => controller.set(pondCommandMatch[1], payload.on))); const pond = await publishPondState().catch(() => null); return sendJson(response, 200, { ...result, pond }); } catch (error) { return sendJson(response, 409, { error: error.message }); } }
     if (url.pathname === '/api/thermostat') {
@@ -1010,6 +1016,7 @@ export function createHomeControlServer({
     clearInterval(alarmClock); unsubscribeAlarm(); unsubscribeCameraAutomation(); cameraAutomation.close(); for (const client of alarmEventClients) { try { client.end(); } catch {} }
     zigbeeRuntime?.close();
     void cameras.close().catch(() => {});
+    activePondHeatingController?.dispose?.();
     activePlugRuntime?.stop(); pondPollingStarted = false;
   });
   return server;

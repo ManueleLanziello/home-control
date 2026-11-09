@@ -286,3 +286,6 @@ button[data-floorplan-light] .floorplan-symbol { pointer-events: none; }
   .weather-popup-hourly { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .weather-popup-daily div { grid-template-columns: 76px 36px minmax(0, 1fr); }
 }
+
+.pond-history-header { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.pond-history-clear { padding:7px 10px; border:1px solid #3d9674; border-radius:8px; color:#e5f3fc; background:#125b47; font-weight:700; cursor:pointer; }

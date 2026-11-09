@@ -149,3 +149,14 @@ test('stato verifica segue snapshot, indisponibilità e recupero', () => {
   controls.applySnapshot({revision:3, plugs, heating:{deviceVerified:true}});
   assert.match(pondHeatingStatus(controls.heating(), controls.snapshot()), /misura S5/);
 });
+
+
+test('pulizia storico chiede conferma, annulla senza richiesta e applica snapshot DELETE', async t => {
+  const original=globalThis.fetch; t.after(()=>{globalThis.fetch=original;}); const calls=[];
+  const controls=createPondControls();
+  globalThis.fetch=async (url,options)=>{ calls.push([url,options.method]); return jsonResponse({pond:{revision:2,plugs:[],heating:{history:[]}}}); };
+  controls.applySnapshot({revision:1,plugs:[],heating:{history:[{id:1}]}});
+  assert.equal(await controls.clearHistory(()=>false),false); assert.equal(calls.length,0); assert.equal(controls.heating().history.length,1);
+  assert.equal(await controls.clearHistory(()=>true),true); assert.deepEqual(calls.map(c=>c[1]),['DELETE']); assert.deepEqual(controls.heating().history,[]);
+  assert.match(await readFile(new URL('../public/js/pond-popup.js', import.meta.url),'utf8'),/PULISCI STORICO/);
+});
