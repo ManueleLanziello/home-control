@@ -43,7 +43,7 @@ export function createAlarmAudio({ storage = globalThis.localStorage, createAudi
       if (keyContext.state !== 'running') { void keyContext.resume().catch(() => {}); return; }
       try { keyTone?.stop(); } catch { /* Previous click has already ended. */ }
       const tone = keyContext.createOscillator(); const gain = keyContext.createGain();
-      const now = keyContext.currentTime; const level = Math.max(0, Math.min(100, Number(settings.volume) || 0)) / 100 * 0.035;
+      const now = keyContext.currentTime; const level = Math.max(0, Math.min(100, Number(settings.volume) || 0)) / 100 * 0.25;
       tone.type = 'sine'; tone.frequency.setValueAtTime(320, now);
       gain.gain.setValueAtTime(0.0001, now); gain.gain.exponentialRampToValueAtTime(Math.max(level, 0.0001), now + 0.003); gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.03);
       tone.connect(gain); gain.connect(keyContext.destination); tone.onended = () => { tone.disconnect(); gain.disconnect(); if (keyTone === tone) keyTone = null; };
