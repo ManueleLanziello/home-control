@@ -4,6 +4,8 @@ import path from 'node:path';
 export const SENSOR_THRESHOLD_IDS = Object.freeze(['S1', 'S2', 'S3', 'S4', 'S5']);
 const validThreshold = value => Number.isFinite(value) && value >= -50 && value <= 80;
 const validVolume = value => Number.isFinite(value) && value >= 0 && value <= 100;
+export const DEFAULT_DOOR_VOICE = Object.freeze({ enabled: false, volume: 70, delay: 60, repeat: 0 });
+const validDoorVoice = value => typeof value?.enabled === 'boolean' && validVolume(value.volume) && [15,30,45,60,90,120,180,300].includes(value.delay) && [0,30,60,120,300].includes(value.repeat);
 const defaultVoice = () => ({ enabled: false, volume: 100 });
 
 export class SensorThresholdStore {
@@ -22,8 +24,8 @@ export class SensorThresholdStore {
         const savedVoice = saved?.voices?.[id];
         return [id, { enabled: savedVoice?.enabled === true, volume: validVolume(savedVoice?.volume) ? savedVoice.volume : 100 }];
       }));
-      return { thresholds, voices };
-    } catch { return { thresholds: {}, voices: Object.fromEntries(SENSOR_THRESHOLD_IDS.map(id => [id, defaultVoice()])) }; }
+      return { thresholds, voices, doorVoice: validDoorVoice(saved?.doorVoice) ? saved.doorVoice : { ...DEFAULT_DOOR_VOICE } };
+    } catch { return { thresholds: {}, voices: Object.fromEntries(SENSOR_THRESHOLD_IDS.map(id => [id, defaultVoice()])), doorVoice: { ...DEFAULT_DOOR_VOICE } }; }
   }
 
   async set(id, minimumTemperature) {
@@ -36,7 +38,7 @@ export class SensorThresholdStore {
       else thresholds[id] = minimumTemperature;
       await mkdir(path.dirname(this.filePath), { recursive: true });
       const temporaryPath = `${this.filePath}.${process.pid}.tmp`;
-      await writeFile(temporaryPath, `${JSON.stringify({ version: 1, thresholds, voices: current.voices }, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
+      await writeFile(temporaryPath, `${JSON.stringify({ version: 1, thresholds, voices: current.voices, doorVoice: current.doorVoice }, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
       await rename(temporaryPath, this.filePath);
       return { thresholds, voices: current.voices };
     });
@@ -51,11 +53,25 @@ export class SensorThresholdStore {
       const current = await this.read(); const voices = { ...current.voices, [id]: { enabled, volume } };
       await mkdir(path.dirname(this.filePath), { recursive: true });
       const temporaryPath = `${this.filePath}.${process.pid}.tmp`;
-      await writeFile(temporaryPath, `${JSON.stringify({ version: 1, thresholds: current.thresholds, voices }, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
+      await writeFile(temporaryPath, `${JSON.stringify({ version: 1, thresholds: current.thresholds, voices, doorVoice: current.doorVoice }, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
       await rename(temporaryPath, this.filePath);
       return { thresholds: current.thresholds, voices };
     });
     this.writeQueue = operation.catch(() => {});
     return operation;
   }
+  async setDoorVoice(doorVoice) {
+    if (!validDoorVoice(doorVoice)) throw new Error('Configurazione voce porta non valida');
+    const operation = this.writeQueue.then(async () => {
+      const current = await this.read();
+      await mkdir(path.dirname(this.filePath), { recursive: true });
+      const temporaryPath = `${this.filePath}.${process.pid}.tmp`;
+      await writeFile(temporaryPath, `${JSON.stringify({ version: 1, thresholds: current.thresholds, voices: current.voices, doorVoice }, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
+      await rename(temporaryPath, this.filePath);
+      return doorVoice;
+    });
+    this.writeQueue = operation.catch(() => {});
+    return operation;
+  }
+
 }

@@ -27,7 +27,8 @@ import { WeatherService } from './src/weather-service.js';
 import { AlarmRuntime, normalizeSirenSettings } from './src/alarm-runtime.js';
 import { AlarmAuthorization } from './src/alarm-auth.js';
 import { AlarmSirenController } from './src/alarm-siren-controller.js';
-import { SensorThresholdStore } from './src/sensor-threshold-store.js';
+import { SensorThresholdStore, DEFAULT_DOOR_VOICE } from './src/sensor-threshold-store.js';
+import { DoorVoiceAutomation } from './src/door-voice-automation.js';
 import { TemperatureVoiceAutomation } from './src/temperature-voice-automation.js';
 import { CameraAlarmAutomationStore } from './src/camera-alarm-automation-store.js';
 import { CameraAlarmAutomation } from './src/camera-alarm-automation.js';
@@ -84,7 +85,8 @@ async function serveStatic(response, pathname) {
   const designName = /^\/design\/([a-zA-Z0-9_-]+\.svg)$/.exec(pathname)?.[1];
   const alarmSound = /^\/sounds\/alarm\/(alarm-(?:disarmed|partial|arming-[123]|armed|blocked|intrusion|active|intrusion-(?:dw[1-8]|pr1)|warning-(?:prefix|and|minute-[123]|seconds-(?:[1-9]|[1-5][0-9])))\.ogg)$/.exec(pathname)?.[1];
   const temperatureSound = /^\/sounds\/alarm\/(temperature-(?:low|room-(?:cucina|camera|salotto|cameretta|laghetto))\.ogg)$/.exec(pathname)?.[1];
-  const sound = alarmSound || temperatureSound;
+  const doorSound = pathname === '/sounds/alarm/door-open-warning.ogg' ? 'door-open-warning.ogg' : null;
+  const sound = alarmSound || temperatureSound || doorSound;
   const entry = designName ? [`../design/${designName}`, 'image/svg+xml'] : sound ? [`sounds/alarm/${sound}`, 'audio/ogg'] : STATIC_FILES.get(pathname);
   if (!entry) return false;
 
@@ -341,6 +343,13 @@ export function createHomeControlServer({
     const payload = `event: voice\ndata: ${JSON.stringify(event)}\n\n`;
     for (const client of temperatureVoiceEventClients) { try { client.write(payload); } catch { temperatureVoiceEventClients.delete(client); } }
   } });
+  const publishDoorVoice = event => {
+    const payload = `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`;
+    for (const client of temperatureVoiceEventClients) { try { client.write(payload); } catch { temperatureVoiceEventClients.delete(client); } }
+  };
+  const doorVoice = new DoorVoiceAutomation({ settings: { ...DEFAULT_DOOR_VOICE }, publish: publishDoorVoice });
+  const doorVoiceReady = sensorThresholdStore.read().then(config => { doorVoice.configure(config.doorVoice || { ...DEFAULT_DOOR_VOICE }); doorVoice.connection(zigbeeRuntime?.connected === true); });
+  const unsubscribeDoorVoice = zigbeeRuntime?.subscribeDoorEvent?.((contact, retained) => { void doorVoiceReady.then(() => doorVoice.observe(contact, retained)); });
   const cameraAutomation = cameraAlarmAutomation || new CameraAlarmAutomation({ alarmStore, cameraRuntime: cameras, store: cameraAlarmAutomationStore, logError: message => console.error(message) });
   const wakeScheduler = cameraWakeScheduler || new CameraWakeScheduler({
     cameraRuntime: cameras,
@@ -431,6 +440,7 @@ export function createHomeControlServer({
   };
   const unsubscribeZigbee = zigbeeRuntime?.subscribeState(kind => {
     homeStatus?.invalidate();
+    if (kind === 'connection') { const connected = zigbeeRuntime?.connected === true; void doorVoiceReady.then(() => doorVoice.connection(connected)); }
     if (kind === 'connection' && zigbeeRuntime?.connected === true) void sirenController.retryPendingStop?.();
     if (kind === 'ledbar' || kind === 'connection') publishLedbarState();
     if (kind === 'lights' || kind === 'connection') publishLightState();
@@ -504,6 +514,12 @@ export function createHomeControlServer({
       response.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
       response.write(`retry: 2000\ndata: ${JSON.stringify(readSensorEventSnapshot())}\n\n`);
       sensorEventClients.add(response); request.on('close', () => sensorEventClients.delete(response)); return;
+    }
+    if (url.pathname === '/api/door-contacts/DW1/voice') {
+      if (request.method === 'GET') return sendJson(response, 200, (await sensorThresholdStore.read()).doorVoice || DEFAULT_DOOR_VOICE);
+      if (request.method !== 'PUT') return sendJson(response, 405, { error: 'Metodo non consentito' });
+      try { const settings = await sensorThresholdStore.setDoorVoice(await readJson(request)); await doorVoiceReady; doorVoice.configure(settings); return sendJson(response, 200, settings); }
+      catch (error) { return sendJson(response, 400, { error: error.message || 'Configurazione voce porta non valida' }); }
     }
     const sensorVoiceMatch = /^\/api\/sensors\/(S[1-5])\/temperature-voice$/.exec(url.pathname);
     if (sensorVoiceMatch) {
@@ -1007,6 +1023,7 @@ export function createHomeControlServer({
   server.on('close', () => {
     wakeScheduler.stop();
     unsubscribeZigbee?.();
+    unsubscribeDoorVoice?.(); doorVoice.close();
     for (const client of lightEventClients) { try { client.end(); } catch {} }
     for (const client of doorContactEventClients) { try { client.end(); } catch {} }
     for (const client of motionSensorEventClients) { try { client.end(); } catch {} }

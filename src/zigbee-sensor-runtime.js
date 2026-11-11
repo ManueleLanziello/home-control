@@ -51,6 +51,7 @@ export class HomeZigbeeSensorRuntime {
     this.latest = new Map();
     this.sensorIdentities = new Map();
     this.doorContacts = new Map();
+    this.doorEventListeners = new Set();
     this.doorIdentities = new Map();
     this.motionSensor = null;
     this.motionIdentity = null;
@@ -67,6 +68,7 @@ export class HomeZigbeeSensorRuntime {
     this.ledbarTopic = config.ledbar?.topic;
     this.lightTopics = new Map((config.lights || []).map(light => [light.topic, light]));
   }
+  subscribeDoorEvent(listener) { this.doorEventListeners.add(listener); return () => this.doorEventListeners.delete(listener); }
   subscribeState(listener) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
   notify(kind = 'state') {
     for (const listener of this.listeners) {
@@ -162,6 +164,7 @@ export class HomeZigbeeSensorRuntime {
           return;
         }
         if (doorContact) {
+          if (doorContact.id === 'DW1' && payload && typeof payload === 'object' && Object.hasOwn(payload, 'contact')) for (const listener of this.doorEventListeners) { try { listener(payload.contact, packet.retain === true); } catch {} }
           const snapshot = normalizeDoorContactPayload(payload, this.doorContacts.get(doorContact.id), new Date(this.now()).toISOString());
           if (!snapshot) return;
           this.doorContacts.set(doorContact.id, snapshot);
@@ -323,6 +326,7 @@ export class HomeZigbeeSensorRuntime {
     this.connected = false;
     this.notify('connection');
     this.listeners.clear();
+    this.doorEventListeners.clear();
     try { this.client?.end(true); } catch { /* Shutdown must remain safe after a transport failure. */ }
   }
 }

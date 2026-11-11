@@ -401,3 +401,6 @@ button[data-floorplan-light] .floorplan-symbol { pointer-events: none; }
 .siren-auth [data-siren-auth-status] { display:block; color:#ffcf8b; font-size:.82rem; }
 .siren-config-dialog .alarm-keyboard div { padding:0; border-radius:0; background:transparent; font-size:inherit; }
 .siren-auth button { min-height:44px; padding:8px 12px; border:1px solid #476b83; border-radius:9px; color:inherit; background:#132d40; font:inherit; font-weight:700; cursor:pointer; }
+
+.door-voice select { min-height:40px; color:inherit; background:#132d40; border:1px solid #476b83; border-radius:7px; font:inherit; }
+.door-voice small { color:#ffcf8b; }
